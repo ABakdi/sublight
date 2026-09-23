@@ -37,6 +37,7 @@ _Every significant decision about sublight lives here. **If changing something w
 | [0014](decisions/0014-storage.md) | Storage strategy | 2026-09-23 | `accepted` | IndexedDB (player projects), chrome.storage (prefs), engine JSONL jobs + content-hash cache. |
 | [0015](decisions/0015-firefox-port.md) | Firefox port plan | 2026-09-23 | `proposed` | WXT + `browser.*` polyfill; all_frames; tabCapture parity check; no MV2. |
 | [0016](decisions/0016-model-licensing.md) | Model licensing & supply chain | 2026-09-23 | `accepted` | Pinned HF repos + revisions + SHA-256; license allowlist; NLLB is non-commercial. |
+| [0017](decisions/0017-open-in-player.md) | Open in Sublight Player (page-video migration) | 2026-09-23 | `accepted` | One click moves a page's video into the Player: classified sources (direct / hls / dash / engine-fetchable / blob), layered transport, storage+hash handoff, no new permissions. |
 
 ## The process for changing a decision
 
