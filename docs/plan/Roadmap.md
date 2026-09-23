@@ -18,8 +18,10 @@ flowchart LR
   M03 --> M04
   M04 --> M05[ M05 Extension overlay]
   M03 --> M05
-  M05 --> M06[Beta 1]
-  M04 --> M06
+  M03 --> M05b[ M05b Open in Sublight Player]
+  M05 --> M05b
+  M05b --> M06[Beta 1]
+  M05 --> M06
   M06 --> M07[Editor & polish]
   M07 --> M08[Firefox]
   M08 --> M09[Language learning]
@@ -35,6 +37,7 @@ flowchart LR
 | 03 | Transcription pipeline | `not-started` | M03 | Local file → captions end-to-end with anchoring; median word-onset error ≤ 250 ms on the corpus; refinement pass works. |
 | 04 | Translation pipeline | `not-started` | M04 | Meaning-preserving translation in ≥ 3 languages; glossary honored; bilingual tracks render; full-film translate job completes. |
 | 05 | Extension overlay | `not-started` | M05 | Live captions on YouTube + 3 reference sites; tab capture; SPA navigation; styling UI; overlay survives page CSS. |
+| 05b | Open in Sublight Player | `not-started` | M05b | Page video → player in one click: classified sources, layered transport (direct → hls/dash → engine relay), resume, offline-batch captioning of relayed media. Beta 1 target (non-blocking; falls to Beta 2 if M05/M03 slip). |
 | 06 | Beta 1 | `not-started` | M06 | Packaged, installable; pairing UX smooth; **Checkpoint Beta 1** opened & triaged. |
 | 07 | Editor & polish | `not-started` | M07 | Cue editor, sync nudge, prefs UI, perf budgets met. |
 | 08 | Firefox | `not-started` | M08 | Firefox build passes parity matrix (incl. live captioning path). |
@@ -58,6 +61,7 @@ From the [checkpoint template](../checkpoints/Template.md):
 | tabCapture UX friction or capture gaps on some sites | Medium | Medium | Same-origin capture + yt-dlp toggle; clear permission copy; site matrix in checkpoints. |
 | 4 GB VRAM contention (ASR ↔ LLM) slows translation | Medium | Medium | GPU-serialized queue + model swap; NLLB low-VRAM alternative ([ADR-0009](../architecture/decisions/0009-translation-stack.md)). |
 | YouTube changes internals (selectors, player) | High | Low | Selector-resilient discovery (find `<video>` by tag, not class); graceful degradation; checkpoint-driven fixes. |
+| Open-in-player relay (yt-dlp) weakens or breaks | Medium | Medium | S1/S1b direct + manifest transports cover non-DRM sites with zero engine; relay is v1 buffer + v2 stream; honest error copy with alternatives ([M05b](milestones/05b-Open-in-Player.md)). |
 | Local LLM translation quality on an unexpected language pair disappoints | Medium | Medium | Language-pair matrix in checkpoints; glossary; NLLB fallback for rare langs. |
 | Engine token/localhost security regresses | Low | High | Origin+Host+token checks are audited ([security baseline](../audits/Security-Baseline-Plan.md)) and re-tested each release. |
 

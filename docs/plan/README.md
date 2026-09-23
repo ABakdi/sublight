@@ -22,10 +22,13 @@ _What we build, in what order, and how we know each step is done. Every mileston
 | **M03** | Transcription pipeline | Player ↔ engine, local-file captioning, sync anchoring + refinement | M01, M02 | [milestone](milestones/03-Transcription-Pipeline.md) · [spec 07 §1](../specification/07-ASR-And-Translation.md) |
 | **M04** | Translation pipeline | llama.cpp translator, paragraph chunking, glossary, bilingual tracks | M02, M03 | [milestone](milestones/04-Translation-Pipeline.md) · [spec 07 §2](../specification/07-ASR-And-Translation.md) |
 | **M05** | Extension overlay | MV3 extension, tab capture, live captioning on YouTube/any site, styling UI | M02, M03 | [milestone](milestones/05-Extension-Overlay.md) · [spec 09](../specification/09-Browser-Extension.md) · [spec 08](../specification/08-Audio-Capture.md) |
-| **M06** | Beta 1 | Packaging, token pairing UX, autostart, end-to-end QA, **checkpoint** | M04, M05 | [milestone](milestones/06-Beta-Release.md) · [checkpoint Beta 1](../checkpoints/Beta-1-Checklist.md) |
+| **M05b** | Open in Sublight Player | One click migrates any page's video into the player (direct → hls/dash → engine relay); resume; captions offline | M03, M05 | [milestone](milestones/05b-Open-in-Player.md) · [spec 04 §9](../specification/04-Player-App.md) · [spec 09 §8](../specification/09-Browser-Extension.md) · [ADR-0017](../architecture/decisions/0017-open-in-player.md) |
+| **M06** | Beta 1 | Packaging, token pairing UX, autostart, end-to-end QA, **checkpoint** | M04, M05, M05b* | [milestone](milestones/06-Beta-Release.md) · [checkpoint Beta 1](../checkpoints/Beta-1-Checklist.md) |
 | **M07** | Editor & polish | Cue editing, sync nudge UI, prefs UI, perf & UX hardening | M06 | [milestone](milestones/07-Polish-Editing.md) |
 | **M08** | Firefox | Port, parity checks, Firefox-specific test matrix | M07 | [milestone](milestones/08-Firefox.md) · [ADR-0015](../architecture/decisions/0015-firefox-port.md) |
 | **M09** | Language learning | Dual-language study mode with the sibling tool, vocabulary export | M07/+ | [milestone](milestones/09-Language-Learning.md) |
+
+\* M05b is a **Beta 1 target but non-blocking** — if its engine-relay slice isn't stable by the Beta checkpoint, it carries to Beta 2 without blocking the release.
 
 ## Status legend
 
