@@ -25,7 +25,7 @@ Three cooperating parts, all running on your machine:
 | Part | What it does |
 |---|---|
 | **Sublight Engine** | A local companion server (`127.0.0.1`). Receives audio, runs Whisper + the translation model, streams progress back. Installed once, runs in the background. |
-| **Sublight Player** | A React web app. Plays local video files (no upload — it's your disk), manages transcription projects, renders styled subtitles, exports SRT. |
+| **Sublight Player** | A React web app. Plays local video files (no upload — it's your disk) and page videos handed over by the extension, manages transcription projects, renders styled subtitles, exports SRT. |
 | **Sublight Extension** | A Chromium/Brave extension (Manifest V3). Injects a subtitle overlay into **any** website playing a video (YouTube, Vimeo, embedded players…), captures the tab's audio, and hands it to the engine. |
 
 ```
@@ -45,6 +45,7 @@ All open-source, runs locally, models downloadable on demand.
 
 - 🔒 **100% local & private** — no audio or transcript ever leaves the machine
 - 🎬 **Online videos** — subtitles on YouTube and any site with a `<video>` element, including embedded iframes
+- 🚀 **Open in Sublight Player** — one click moves any page's video (YouTube included) into the full player: a new tab plays it with every player feature, resumed where you left off ([M05b](docs/plan/milestones/05b-Open-in-Player.md))
 - 💾 **Local files** — play downloaded videos in the Sublight Player and caption them
 - 🌍 **Any language** — accurate, meaning-preserving translation via a local open-weight LLM
 - ⏱ **Precise sync** — word-level timestamps, live capture anchoring, second-pass refinement
@@ -89,6 +90,7 @@ The `docs/` folder is an **Obsidian vault** used as the living specification for
   - [Plan overview](docs/plan/README.md)
   - [Roadmap](docs/plan/Roadmap.md) — milestones at a glance
   - [Milestone 00 — Foundations](docs/plan/milestones/00-Foundations.md) … [09 — Language learning](docs/plan/milestones/09-Language-Learning.md)
+  - [Milestone 05b — Open in Sublight Player](docs/plan/milestones/05b-Open-in-Player.md) — move any page's video into the full player
 - **Specification**
   - [Specification overview](docs/specification/README.md)
   - [System overview & components](docs/specification/01-System-Overview.md)

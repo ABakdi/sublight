@@ -46,7 +46,7 @@ Start with the areas below. Suggested reading order for newcomers:
 ## The system in three sentences
 
 1. A **local engine** (Node.js server on `127.0.0.1`) runs open-source models: **whisper.cpp** for speech-to-text with word-level timestamps, and **llama.cpp** with an open-weight LLM for meaning-preserving translation.
-2. A **browser extension** (Chromium/Brave, MV3) injects a subtitle overlay into any site's video — capturing the tab's audio and streaming progress — while a companion **React player app** does the same for local files.
+2. A **browser extension** (Chromium/Brave, MV3) injects a subtitle overlay into any site's video — capturing the tab's audio and streaming progress — while a companion **React player app** does the same for local files and for page videos handed over in one click ("Open in Sublight Player").
 3. Subtitle **tracks** (any language, styled, word-synced) render in a Shadow DOM overlay and export as **SRT** — all completely offline, nothing leaves the machine.
 
 Hardware target: **32 GB RAM · 4 GB VRAM (Quadro T1000) · i7 9th gen** → see [Requirements](architecture/Requirements.md).
