@@ -57,7 +57,7 @@ Actors and one-line responsibilities are tabulated in the [Component diagram](..
 | Protocol | Typed API/message contracts | — |
 | Engine | Jobs, models, GPU schedule, ffmpeg, caches, auth | Touch browser storage; run inside the browser |
 
-## 3. The three runtime topologies
+## 3. The runtime topologies
 
 ### A — Live captioning on any site (online)
 1. Content script finds the playing `<video>`; overlay host mounts.
@@ -73,7 +73,12 @@ Actors and one-line responsibilities are tabulated in the [Component diagram](..
 ### C — Translate existing transcript
 Track → paragraph chunking → LLM → validated 1:1 line mapping → translated track. No audio involved.
 
-(Sequence diagrams live in [Data flow](../architecture/diagrams/Data-Flow.md).)
+### D — Page video migrated into the Player ("Open in Sublight Player", [ADR-0017](../architecture/decisions/0017-open-in-player.md))
+1. Extension classifies the page's video sources and delivers an `OpenInPlayerPayload` (storage or hash handoff); a new tab opens the player `/open` route ([09 §8](09-Browser-Extension.md#8-open-in-sublight-player), [04 §9](04-Player-App.md#9-opening-a-pages-video-open-in-player-adr-0017)).
+2. Player resolves sources layer-by-layer: direct URL → hls.js/dash.js → **engine relay** (`media/resolve` + `GET /v1/relay/:id`) → explicit failure with alternatives.
+3. Relayed media is transcribed exactly like topology B (T₀ = 0, offline batch — the best-sync path); direct/HLS media that can't be fetched/captured falls back to the in-page live path (A) with clear copy.
+
+(Sequence diagrams live in [Data flow](../architecture/diagrams/Data-Flow.md) — topology D is captured in [Milestone M05b](../plan/milestones/05b-Open-in-Player.md) tasks and fixtures.)
 
 ## 4. Trust boundaries
 
