@@ -59,11 +59,13 @@ Job creation bodies (discriminated by `type`):
   "style": "casual" | "neutral" | "formal" }
 ```
 
-### Media upload
+### Media upload & relay
 | Endpoint | Notes |
 |---|---|
 | `PUT /v1/media/:mediaId` | streaming upload (octet-stream, `X-Source-Name`, `X-Source-MediaHash?`); engine normalizes to 16 kHz mono PCM, stores under `sha256`, responds `{ mediaHash, durationMs, normalizedBytes }` |
 | `DELETE /v1/media/:mediaHash` | free cache |
+| `POST /v1/media/resolve` *(M05b, planned)* | `{ url, site? }` → engine fetches/probes the URL (fetch rules / yt-dlp) → `{ mediaId, durationMs, title, kind: "relay"|"direct-url", directUrl? }`; used by "Open in Sublight Player" |
+| `GET /v1/relay/:mediaId` *(M05b, planned)* | streaming byte proxy with `Range` support so the player can seek a relayed video; v1 buffers to disk before serving, v2 streams on the fly |
 
 ### Auth pairing (v1 handshake)
 | Endpoint | Notes |

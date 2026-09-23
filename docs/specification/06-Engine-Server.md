@@ -37,6 +37,21 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
 - Very long inputs: normalize in one pass (16 kHz mono PCM is ~1.9 MB/min → 2 h ≈ 230 MB, fine); ASR chunks at 10-min boundaries internally with overlap handling (see [07 §1](07-ASR-And-Translation.md)).
 - Delete media (`DELETE /v1/media/:hash`), eviction LRU across the cache dir.
 
+### 4.1 Media resolve & relay (open-in-player)
+
+The "Open in Sublight Player" flow ([ADR-0017](../architecture/decisions/0017-open-in-player.md), milestone [M05b](../plan/milestones/05b-Open-in-Player.md)) lets a page's video migrate into the Player; when the direct/manifest transports don't apply, the **engine owns fetching** the media (it has network + yt-dlp where the site is supported).
+
+- `POST /v1/media/resolve { url, site? }` — probe/fetch a site URL:
+  - Supported sites (yt-dlp) → extract best matching format (audio+video or video + separate audio), verify ≥ some minimum bitrate sanity, resolve metadata `{ mediaId, durationMs, title }`.
+  - Direct URLs → probe via ffprobe over an HTTP range request; if reachable and media-like, return `{ kind: "direct-url", directUrl: url, durationMs, title }` without downloading.
+  - Failure (auth-walled, geo, DRM, dead link) → structured error the player maps to honest copy ("can't reach this video from the engine"), never a silent hang.
+  - The media is **stored like any upload** (`media-cache/{sha256}.wav` normalized) so captions reuse the local-file pipeline ([04 §9.4](04-Player-App.md#94-captioning-a-migrated-video)) with T₀ = 0.
+- `GET /v1/relay/:mediaId` — byte proxy for the *original* (non-normalized) media so the player can seek:
+  - v1 (M05b): engine buffers the fetch to `media-cache/relay/{mediaId}.{ext}` with **"Preparing media…" progress** via WS (`relay.progress`), then serves `Range`-aware requests from disk.
+  - v2: on-the-fly streaming with upstream `Range` passthrough (target: YouTube-sized files start playing within a few seconds).
+  - Relay entries are LRU-evicted like media; re-resolve is cheap (`resolve` again → same `mediaId` from hash key).
+- Security: resolve/relay follow the same auth + Origin/Host checks as everything else ([Protocol §3](03-Protocol.md#3-auth--hardening)); the engine only ever fetches what a *resolved* payload from the extension asked for (no open proxy: relay ids are unguessable hashes, no arbitrary `GET /v1/relay?url=`).
+
 ## 5. Job runner
 
 - Queue: FIFO with priority classes (interactive live-caption jobs > batch transcribe > batch translate); `p-queue`-style, in-process.
