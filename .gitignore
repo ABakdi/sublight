@@ -1,0 +1,31 @@
+# Node
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Engine runtime data (local machine state; never commit)
+.sublight/
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Obsidian (vault editor state; keep real config like app.json tracked)
+docs/.obsidian/workspace.json
+
+# Playwright
+test-results/
+playwright-report/
+
+# WXT / extension build output
+apps/extension/.output/
+apps/extension/.wxt/
