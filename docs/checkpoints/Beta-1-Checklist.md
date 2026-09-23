@@ -10,7 +10,7 @@ updated: 2026-09-23
 
 - **Release:** Beta 1 (M06)
 - **Opened:** at M06 · **Status:** `open` (planned)
-- **Milestone(s) covered:** M00–M06
+- **Milestone(s) covered:** M00–M06 (+ [M05b](../plan/milestones/05b-Open-in-Player.md), only if it lands in time — non-blocking)
 
 ## What Beta 1 must prove
 
@@ -49,6 +49,7 @@ updated: 2026-09-23
 | T12 | Engine offline state | | | cards + retry, no crash |
 | T13 | DRM / mute / autoplay-block errors | | | no silent failure |
 | T14 | Corpus + perf numbers | | | publish in §3 |
+| T15 | Open in Sublight Player — direct `.mp4` + engine relay fixture | | | *only if M05b lands in Beta 1 (non-blocking); else carried to Beta 2. Resume + failure paths included. |
 
 ## Known gaps to watch (candidates before we even start)
 
