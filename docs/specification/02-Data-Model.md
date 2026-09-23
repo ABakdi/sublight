@@ -52,6 +52,14 @@ interface SubtitleProject {
     source?: string;       // file name / page URL
     durationMs?: number;
     mediaHash?: string;    // engine normalized-audio hash (transcription cache key)
+    // --- page-video only (opened via "Open in Sublight Player", ADR-0017; see 04 §9) ---
+    pageUrl?: string;                 // origin page, retained for context/licensing
+    pageTitle?: string;               // default project name source
+    sources?: OpenInPlayerSource[];   // as captured on the page (ordered preference)
+    transport?: "direct" | "hls" | "dash" | "engine-relay" | "none";
+    directUrl?: string;               // effective playback URL (may be an engine relay URL)
+    relayId?: string;                 // engine media id when relayed (06 §4.1)
+    resumeAtMs?: number;              // position migrated mid-play
   };
   tracks: SubtitleTrack[];
   settings: {
@@ -62,6 +70,28 @@ interface SubtitleProject {
   updatedAt: number;
 }
 ```
+
+The `OpenInPlayerSource` list mirrors the extension's classifier ([09 §8.2](09-Browser-Extension.md#82-source-classification-content-script)):
+
+```ts
+type OpenInPlayerSourceKind =
+  | "https-direct"      // plain media file → play directly
+  | "hls"               // .m3u8 → hls.js
+  | "dash"              // .mpd → dash.js
+  | "engine-fetchable"  // blob:/MSE but site supported by the engine relay (yt-dlp)
+  | "blob-mse"          // blob:/MSE, not transferable → cannot migrate
+  | "live";             // video.isLive — playback only, transcription deferred (N7)
+
+interface OpenInPlayerSource {
+  kind: OpenInPlayerSourceKind;
+  url: string;
+  mime?: string;
+  quality?: string;
+  canPlayDirectly?: boolean;
+}
+```
+
+Resolution of those kinds into a playing track is spec'd in [04 §9](04-Player-App.md#9-opening-a-pages-video-open-in-player-adr-0017).
 
 ## 2. Invariants (validated by `core.validateProject`)
 

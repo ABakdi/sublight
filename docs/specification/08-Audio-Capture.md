@@ -16,8 +16,11 @@ _How sublight gets the audio it transcribes — from inside pages, from tabs, an
 | 2 | **`tabCapture` (audio-only)** | automatic fallback | **every site incl. YouTube** | real-time only (video must play), permission prompt on first use |
 | 3 | Upload of local file | [Player flow](04-Player-App.md) | local files | — |
 | 4 | yt-dlp fetch (power toggle) | user enabled | YouTube + many sites | network + ToS; may break on site changes |
+| 5 | **Engine resolve/relay for migrated videos** | "Open in Sublight Player" ([04 §9](04-Player-App.md#9-opening-a-pages-video-open-in-player-adr-0017)) | the Player, for page videos the engine can fetch (`media/resolve` → relay or direct fetch, [06 §4.1](06-Engine-Server.md#41-media-resolve--relay-open-in-player)) | needs engine network access; some sites wall their streams |
 
-Order is decided by probing, not by settings: try 1; if the stream is muted/black/thrown → 2. DRM detection (stream arrives silent/black after 3 s) → surfaced explanation instead of silence ([10 §3](10-Non-Goals-And-Failure-Modes.md#3-drm--protected-content)).
+Rows 1–2 are the **in-page live path** (extension). Rows 3–5 are the **player paths**. Order is decided by probing, not by settings: try 1; if the stream is muted/black/thrown → 2. DRM detection (stream arrives silent/black after 3 s) → surfaced explanation instead of silence ([10 §3](10-Non-Goals-And-Failure-Modes.md#3-drm--protected-content)).
+
+For a *migrated* video the player prefers its own "owns-the-media" sources in this order: engine relay (5) → engine best-effort direct audio fetch of the playback URL (CORS permitting) → in-page live path (1–2, via the extension) → explain. A cross-origin direct URL that the engine can't fetch and the player can't capture (tainted) is the honest gap — copied as "caption this page in place instead".
 
 ## 2. The CapturedAudio contract
 
@@ -79,3 +82,4 @@ interface CapturedAudio {
 
 - [Data-flow diagram 1](../architecture/diagrams/Data-Flow.md) · [07 §1.4 anchoring](07-ASR-And-Translation.md#14-the-sync-equation) · [09 extension capture wiring](09-Browser-Extension.md)
 - ADR [0010](../architecture/decisions/0010-audio-capture-strategy.md) · [M05](../plan/milestones/05-Extension-Overlay.md)
+- Migrated-video audio: [04 §9.4](04-Player-App.md#94-captioning-a-migrated-video) · [06 §4.1](06-Engine-Server.md#41-media-resolve--relay-open-in-player) · [ADR-0017](../architecture/decisions/0017-open-in-player.md) · [M05b](../plan/milestones/05b-Open-in-Player.md)
