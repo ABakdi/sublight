@@ -1,14 +1,14 @@
 ---
 tags: [plan, index]
 status: active
-updated: 2026-09-23
+updated: 2026-09-24
 ---
 
 # Plan
 
 _What we build, in what order, and how we know each step is done. Every milestone links to the specs it implements and the decisions it relies on._
 
-**Current milestone:** [M00 — Foundations](milestones/00-Foundations.md) _(documentation phase — this vault)_
+**Current milestone:** [M01 — Player Core](milestones/01-Player-Core.md) — [M00 — Foundations](milestones/00-Foundations.md) is **done**.
 
 ---
 
