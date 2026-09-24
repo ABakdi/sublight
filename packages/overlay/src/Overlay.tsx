@@ -26,9 +26,10 @@ export interface SubtitleOverlayProps {
   /**
    * The playing video element (Spec 05 §2): drives scheduling via a
    * `requestAnimationFrame` loop and measures the play region each frame.
-   * When absent the component is controlled via `currentMs`.
+   * Accepts the element, a ref object, or `null` — when absent the component
+   * is controlled via `currentMs`.
    */
-  video?: HTMLVideoElement | null
+  video?: HTMLVideoElement | null | { current: HTMLVideoElement | null }
   /** Whole-track offset applied before scheduling (`track.syncOffsetMs`). */
   syncOffsetMs?: number
   /** Partial style; resolved over the core defaults. */
@@ -85,6 +86,12 @@ export function SubtitleOverlay({
   )
   const scale = scaleFactor(hostHeight)
 
+  // Element or ref-object → the live element; non-reactive, read per frame.
+  const getVideo = useCallback(() => {
+    if (video == null) return null
+    return 'current' in video ? video.current : video
+  }, [video])
+
   const compute = useCallback(
     (t: number): Frame => {
       const active = activeCueAt(effectiveCues, t)
@@ -122,20 +129,22 @@ export function SubtitleOverlay({
   // Video-driven scheduling: rAF loop samples currentTime; the frame only
   // changes when the active cue (or style/geometry) does.
   useEffect(() => {
-    if (!video) return
+    if (video == null) return
     let raf = 0
     const tick = () => {
       raf = requestAnimationFrame(tick)
-      const next = compute(video.currentTime * 1000)
+      const v = getVideo()
+      if (!v) return
+      const next = compute(v.currentTime * 1000)
       setFrame((prev) => (frameKeysEqual(prev, next) ? prev : next))
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [video, compute])
+  }, [video, getVideo, compute])
 
   // Controlled mode (no video): recompute on position/style changes.
   useLayoutEffect(() => {
-    if (video) return
+    if (video != null) return
     const next = compute(currentMs)
     setFrame((prev) => (frameKeysEqual(prev, next) ? prev : next))
   }, [video, currentMs, compute])
