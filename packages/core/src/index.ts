@@ -3,6 +3,7 @@ export {
   activeCueAt,
   buildCuesFromWords,
   normalizeCues,
+  shiftCues,
   wrapWords,
   MAX_CUE_DURATION_MS,
   MAX_LINE_CHARS,
@@ -13,6 +14,8 @@ export {
 } from './cues'
 export { newId } from './id'
 export { parseSrt, parseSrtTime, serializeSrt, formatSrtTime } from './srt'
+export { detectSubtitleFormat, parseVtt, parseVttTimecode } from './vtt'
+export { validateStyle } from './style'
 export type * from './types'
 export { validateCues, validateProject, validateTrack } from './validation'
 export type { ValidationResult } from './validation'

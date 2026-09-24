@@ -140,6 +140,29 @@ export function normalizeCues(cues: SubtitleCue[]): SubtitleCue[] {
   return sorted
 }
 
+/**
+ * Shift every cue (and its words) by a whole-track offset (manual nudge /
+ * engine δ, Spec 02 §1 `syncOffsetMs`). Pure — never mutates input; times
+ * clamp at 0 so early cues can't go negative.
+ */
+export function shiftCues(cues: SubtitleCue[], deltaMs: number): SubtitleCue[] {
+  const shift = (t: number) => Math.max(0, t + deltaMs)
+  return cues.map((cue) => ({
+    ...cue,
+    startMs: shift(cue.startMs),
+    endMs: shift(cue.endMs),
+    ...(cue.words
+      ? {
+          words: cue.words.map((w) => ({
+            ...w,
+            startMs: shift(w.startMs),
+            endMs: shift(w.endMs),
+          })),
+        }
+      : {}),
+  }))
+}
+
 /** Fast check of which cue is active at a playback position. */
 export function activeCueAt(cues: SubtitleCue[], currentMs: number): SubtitleCue | null {
   // Cues are ordered; binary search for the last cue starting at/before currentMs.
