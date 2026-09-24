@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+env:
+  HUSKY: 0
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (ESLint)
+        run: pnpm lint
+
+      - name: Docs link check
+        run: pnpm lint:links
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Install Playwright browsers (Chromium + deps)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Unit tests (incl. Playwright e2e over engine + player)
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Sync-accuracy corpus report
+        run: pnpm sync:measure
+
+      - name: E2E (Chromium, headless)
+        run: pnpm e2e
+
+      - name: E2E (extension, headless via chromium channel)
+        run: pnpm e2e:extension
+        if: always()

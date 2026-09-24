@@ -1,0 +1,45 @@
+{
+  "name": "sublight",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "lint:links": "node scripts/lint-links.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm -r test",
+    "e2e": "pnpm --filter @sublight/e2e test",
+    "e2e:chromium": "pnpm --filter @sublight/e2e test:chromium",
+    "e2e:extension": "pnpm --filter @sublight/e2e test:extension",
+    "sync:measure": "node e2e/sync-corpus/measure.mjs",
+    "dev:player": "pnpm --filter @sublight/player dev",
+    "dev:engine": "pnpm --filter @sublight/engine dev",
+    "dev:extension": "pnpm --filter @sublight/extension dev",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "eslint": "catalog:",
+    "globals": "catalog:",
+    "husky": "catalog:",
+    "lint-staged": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,mts,cts,js,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": [
+      "prettier --write"
+    ]
+  }
+}

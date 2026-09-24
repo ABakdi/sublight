@@ -4,6 +4,11 @@ dist/
 build/
 *.tsbuildinfo
 
+# Lint / format / hooks
+.eslintcache
+.husky/_
+coverage/
+
 # Env / secrets
 .env
 .env.*

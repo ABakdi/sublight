@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.wxt/
+.output/
+coverage/
+playwright-report/
+test-results/
+docs/.obsidian/
+*.tsbuildinfo
