@@ -3,13 +3,14 @@ import type { SubtitleStyle } from '@sublight/core'
 /**
  * Map the shared style schema to CSS custom properties the Shadow DOM stylesheet
  * consumes (Spec 02 §6 / Spec 05). Serialized as a flat record of `--sl-*`.
+ * `scale` applies the Spec 05 §3 font scaling (baseline @ 720 px height).
  */
-export function styleToCssVars(style: SubtitleStyle): Record<string, string> {
+export function styleToCssVars(style: SubtitleStyle, scale = 1): Record<string, string> {
   const vars: Record<string, string> = {
     '--sl-color': style.color,
     '--sl-bg-color': style.bgColor,
     '--sl-bg-opacity': String(style.bgOpacity),
-    '--sl-font-size': `${style.fontSize}px`,
+    '--sl-font-size': `${Math.round(style.fontSize * scale)}px`,
     '--sl-font-family': style.fontFamily,
     '--sl-font-weight': String(style.fontWeight),
     '--sl-text-shadow': style.textShadow ? '1px 1px 2px rgba(0,0,0,0.9)' : 'none',
@@ -29,15 +30,17 @@ export function styleToCssVars(style: SubtitleStyle): Record<string, string> {
   return vars
 }
 
-/** Injected into the shadow root: rules keyed off the custom properties. */
+/**
+ * Injected into the shadow root: rules keyed off the custom properties.
+ * Anchor alignment + margin edge come from `geometry.anchorLayout` via the
+ * `sl-margin-*` classes; `data-anchor` is kept for debugging/DOM queries.
+ */
 export const OVERLAY_CSS = `
 :host { all: initial; }
 .sl-cuebox {
   position: absolute;
-  inset: auto 0 auto 0;
+  inset: 0;
   display: flex;
-  justify-content: var(--sl-align, center);
-  align-items: flex-end;
   width: 100%;
   height: 100%;
   pointer-events: none;
@@ -45,7 +48,6 @@ export const OVERLAY_CSS = `
 }
 .sl-cue {
   max-width: 90%;
-  margin-bottom: var(--sl-position-margin, 32px);
   padding: 0.2em 0.45em;
   color: var(--sl-color, #fff);
   background: color-mix(in srgb, var(--sl-bg-color, #000) calc(var(--sl-bg-opacity, 0.65) * 100%), transparent);
@@ -62,8 +64,17 @@ export const OVERLAY_CSS = `
   -webkit-line-clamp: var(--sl-max-lines, 2);
   -webkit-box-orient: vertical;
 }
+.sl-margin-top { margin-top: var(--sl-position-margin, 32px); }
+.sl-margin-bottom { margin-bottom: var(--sl-position-margin, 32px); }
+.sl-margin-left { margin-left: var(--sl-position-margin, 32px); }
+.sl-margin-right { margin-right: var(--sl-position-margin, 32px); }
 .sl-line { display: block; }
+.sl-draft-badge { margin-right: 0.35em; font-size: 0.8em; }
 .sl-cue.is-empty { visibility: hidden; }
+.sl-cue.is-draft {
+  opacity: 0.9;
+  border-bottom: 2px dashed currentColor;
+}
 @media (prefers-reduced-motion: no-preference) {
   .sl-cue { transition: opacity 80ms linear; }
 }
