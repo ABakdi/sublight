@@ -18,6 +18,7 @@
     "e2e:chromium": "pnpm --filter @sublight/e2e test:chromium",
     "e2e:extension": "pnpm --filter @sublight/e2e test:extension",
     "sync:measure": "node e2e/sync-corpus/measure.mjs",
+    "seed:staging": "node e2e/sync-corpus/seed.mjs",
     "dev:player": "pnpm --filter @sublight/player dev",
     "dev:engine": "pnpm --filter @sublight/engine dev",
     "dev:extension": "pnpm --filter @sublight/extension dev",

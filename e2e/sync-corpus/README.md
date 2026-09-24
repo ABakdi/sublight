@@ -21,12 +21,19 @@ hand-timed to ~10 ms precision (click-track count-in, pause-safe recording).
 ## Running
 
 ```sh
+pnpm seed:staging   # generate staging fixtures into transcripts/ (M00; engine ASR replaces this in M03)
 pnpm sync:measure
 ```
 
 The report prints, per clip, the median word-onset error (ms) and word
 coverage once `transcripts/<id>.cues.json` exists — before that it prints the
 corpus overview and `0 clips transcribed`, which is the expected M00 state.
+
+`seed:staging` is a deterministic fixture generator: it seeds a fixed PRNG and
+applies a fixed onset-offset pattern (plus occasional dropped short function
+words) to every clip with word-level ground truth, so reruns are byte-identical
+and the report shows _real numbers_ (a pass on F4 for the example clip). The
+real engine ASR job (M03) will write these files from actual recordings.
 
 ## Adding a clip
 

@@ -1,0 +1,70 @@
+{
+  "clipId": "en-001",
+  "generator": "seed.mjs — staging fixture; engine ASR output lands in M03",
+  "cues": [
+    {
+      "startMs": 0,
+      "endMs": 1613,
+      "text": "Local AI subtitles for any video.",
+      "words": [
+        {
+          "word": "Local",
+          "startMs": 0,
+          "endMs": 261
+        },
+        {
+          "word": "AI",
+          "startMs": 338,
+          "endMs": 461
+        },
+        {
+          "word": "subtitles",
+          "startMs": 458,
+          "endMs": 918
+        },
+        {
+          "word": "for",
+          "startMs": 891,
+          "endMs": 1025
+        },
+        {
+          "word": "any",
+          "startMs": 1115,
+          "endMs": 1258
+        },
+        {
+          "word": "video.",
+          "startMs": 1257,
+          "endMs": 1613
+        }
+      ]
+    },
+    {
+      "startMs": 1684,
+      "endMs": 2941,
+      "text": "Everything runs your machine.",
+      "words": [
+        {
+          "word": "Everything",
+          "startMs": 1684,
+          "endMs": 2183
+        },
+        {
+          "word": "runs",
+          "startMs": 2265,
+          "endMs": 2424
+        },
+        {
+          "word": "your",
+          "startMs": 2481,
+          "endMs": 2602
+        },
+        {
+          "word": "machine.",
+          "startMs": 2713,
+          "endMs": 2941
+        }
+      ]
+    }
+  ]
+}
