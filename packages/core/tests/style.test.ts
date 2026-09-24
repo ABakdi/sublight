@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SUBTITLE_STYLE, shiftCues, validateStyle } from '../src/index'
-import type { SubtitleCue } from '../src/types'
+import type { SubtitleCue, SubtitleStyle } from '../src/types'
 
 describe('validateStyle (Spec 02 §6)', () => {
   it('accepts the default style', () => {
@@ -8,6 +8,8 @@ describe('validateStyle (Spec 02 §6)', () => {
   })
 
   it('rejects invalid colors, ranges and enum values', () => {
+    // Deliberately invalid runtime values — the validator must catch them even
+    // though the TS types reject them (that cast is the point of the test).
     const r = validateStyle({
       ...DEFAULT_SUBTITLE_STYLE,
       color: 'white', // not #RRGGBB
@@ -17,7 +19,7 @@ describe('validateStyle (Spec 02 §6)', () => {
       align: 'middle',
       casing: 'shouty',
       position: { anchor: 'center-ish', marginPx: -4 },
-    })
+    } as unknown as SubtitleStyle)
     expect(r.valid).toBe(false)
     const joined = r.errors.join('\n')
     expect(joined).toContain('style.color')
