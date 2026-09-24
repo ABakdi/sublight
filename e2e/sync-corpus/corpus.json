@@ -1,0 +1,87 @@
+{
+  "schema": 1,
+  "updated": "2026-09-23",
+  "description": "Ground-truth corpus for the sync-accuracy promises (Requirements F4): hand-timed word boundaries on short clips across languages. Real recordings are recorded with a click-track count-in and timed by hand to ~10 ms; `transcripts/<id>.cues.json` holds the engine's ASR output for comparison.",
+  "thresholds": {
+    "maxMedianOnsetErrorMs": 250,
+    "maxDriftMsPer2h": 500,
+    "wordCoverageMin": 0.9
+  },
+  "clips": [
+    {
+      "id": "en-001",
+      "language": "en",
+      "source": "audio/en-001.flac",
+      "recorded": false,
+      "example": true,
+      "notes": "ILLUSTRATIVE EXAMPLE ONLY — text is boilerplate until the real recording is committed. Demonstrates the expected schema shape.",
+      "expectedCues": [
+        {
+          "startMs": 0,
+          "endMs": 1600,
+          "text": "Local AI subtitles for any video.",
+          "words": [
+            { "word": "Local", "startMs": 0, "endMs": 280 },
+            { "word": "AI", "startMs": 300, "endMs": 420 },
+            { "word": "subtitles", "startMs": 440, "endMs": 900 },
+            { "word": "for", "startMs": 920, "endMs": 1050 },
+            { "word": "any", "startMs": 1070, "endMs": 1210 },
+            { "word": "video.", "startMs": 1240, "endMs": 1600 }
+          ]
+        },
+        {
+          "startMs": 1700,
+          "endMs": 2900,
+          "text": "Everything runs on your machine.",
+          "words": [
+            { "word": "Everything", "startMs": 1700, "endMs": 2200 },
+            { "word": "runs", "startMs": 2230, "endMs": 2390 },
+            { "word": "on", "startMs": 2410, "endMs": 2480 },
+            { "word": "your", "startMs": 2510, "endMs": 2640 },
+            { "word": "machine.", "startMs": 2670, "endMs": 2900 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fr-001",
+      "language": "fr",
+      "source": "audio/fr-001.flac",
+      "recorded": false,
+      "notes": "Recording pending — French, ~15 s, natural pace.",
+      "expectedCues": []
+    },
+    {
+      "id": "de-001",
+      "language": "de",
+      "source": "audio/de-001.flac",
+      "recorded": false,
+      "notes": "Recording pending — German, compound-word stress, ~15 s.",
+      "expectedCues": []
+    },
+    {
+      "id": "es-001",
+      "language": "es",
+      "source": "audio/es-001.flac",
+      "recorded": false,
+      "notes": "Recording pending — Spanish, fast speech, ~15 s.",
+      "expectedCues": []
+    },
+    {
+      "id": "pt-001",
+      "language": "pt-BR",
+      "source": "audio/pt-001.flac",
+      "recorded": false,
+      "notes": "Recording pending — Brazilian Portuguese, ~15 s.",
+      "expectedCues": []
+    },
+    {
+      "id": "ar-001",
+      "language": "ar",
+      "source": "audio/ar-001.flac",
+      "recorded": false,
+      "notes": "Recording pending — Arabic, RTL word boundaries, ~15 s.",
+      "expectedCues": []
+    }
+  ]
+}

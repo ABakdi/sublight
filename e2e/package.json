@@ -1,0 +1,19 @@
+{
+  "name": "@sublight/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Playwright cross-app harness: Chromium + Brave (ADR-0003), engine e2e, extension load check",
+  "scripts": {
+    "test": "playwright test",
+    "test:chromium": "playwright test --project=chromium",
+    "test:extension": "cross-env EXTENSION_TESTS=1 playwright test tests/extension.spec.ts --project=chromium",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "cross-env": "^7.0.3",
+    "typescript": "catalog:"
+  }
+}
