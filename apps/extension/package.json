@@ -1,0 +1,29 @@
+{
+  "name": "@sublight/extension",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Chromium MV3 extension (WXT) — video discovery, overlay, engine bridge",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sublight/core": "workspace:*",
+    "@sublight/overlay": "workspace:*",
+    "@sublight/protocol": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@wxt-dev/module-react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "wxt": "catalog:"
+  }
+}
