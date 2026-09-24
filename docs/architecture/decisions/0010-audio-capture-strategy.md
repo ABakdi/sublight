@@ -13,7 +13,7 @@ date: 2026-09-23
 To transcribe, the engine needs audio. Client-side options, in order of desirability:
 
 1. **`HTMLMediaElement.captureStream()`** — captures the element's own audio track directly with zero UX friction. Works for **same-origin / CORS-clean media** (many sites, self-hosted videos). On **cross-origin media it is blocked/tainted** (Chrome mutes or throws), and **DRM/EME content (YouTube's Widevine on most videos) yields black video + muted audio**.
-2. **`chrome.tabCapture.capture({ audio: true, video: false })`** — captures the *browser tab's* audio output (exactly what you hear), works for **any site including YouTube**, requires a user gesture + permission prompt, and captures in real time (you must play the video).
+2. **`chrome.tabCapture.capture({ audio: true, video: false })`** — captures the _browser tab's_ audio output (exactly what you hear), works for **any site including YouTube**, requires a user gesture + permission prompt, and captures in real time (you must play the video).
 3. **File/project upload** — local files: the player streams the file to the engine ([ADR-0011](0011-local-video-processing.md)); no capture at all.
 4. **`yt-dlp` (optional, advanced)** — the engine downloads the audio stream directly (needs network + ToS mindfulness; signature deciphering breaks occasionally).
 

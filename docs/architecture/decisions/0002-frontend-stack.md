@@ -16,7 +16,7 @@ The player app and the extension UI both need a modern, typed, fast-fed React co
 
 - **React 19** + **TypeScript 5.x** (strict) everywhere interactive.
 - **Vite 7** for the player app; **WXT** for the extension (bundles the MV3 service worker, content scripts, popup/options pages, and cross-browser output — Chrome + Brave now, Firefox later per [ADR-0015](0015-firefox-port.md)).
-- **Tailwind CSS 4** for *application chrome* (player UI, popup, options). The **subtitle overlay itself uses hand-written CSS** via the shared overlay package — no framework in the Shadow DOM (see ADR-0012).
+- **Tailwind CSS 4** for _application chrome_ (player UI, popup, options). The **subtitle overlay itself uses hand-written CSS** via the shared overlay package — no framework in the Shadow DOM (see ADR-0012).
 - **Zustand** for app state (player, popup) — small, no boilerplate, works in React 19.
 - **TanStack Query** for engine-client data fetching/caching in the player (jobs, models, status).
 - **Vitest** for unit tests, **Playwright** (with Chromium and Brave binaries) for e2e.

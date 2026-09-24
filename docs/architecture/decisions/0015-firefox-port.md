@@ -10,7 +10,7 @@ date: 2026-09-23
 
 ## Context
 
-Chromium + Brave ship first (user requirement). Firefox is a stated later target. The cost of porting is governed by how well the codebase avoided Chromium-specific APIs. WXT ([ADR-0002](0002-frontend-stack.md)) already emits Firefox add-ons; the remaining risk is **API surface**: `chrome.tabCapture` (audio capture is *core* to online captioning), MV3 differences, `all_frames` behaviors, and the `browser` namespace conventions.
+Chromium + Brave ship first (user requirement). Firefox is a stated later target. The cost of porting is governed by how well the codebase avoided Chromium-specific APIs. WXT ([ADR-0002](0002-frontend-stack.md)) already emits Firefox add-ons; the remaining risk is **API surface**: `chrome.tabCapture` (audio capture is _core_ to online captioning), MV3 differences, `all_frames` behaviors, and the `browser` namespace conventions.
 
 ## Decision (proposed)
 
@@ -26,7 +26,7 @@ Chromium + Brave ship first (user requirement). Firefox is a stated later target
 ## Consequences
 
 **Good:** Chromium ships earlier; the port is low-risk because the surface is small and instrumented.
-**Cost:** Firefox news *will* be in tab capture and possibly overlay scaling in fullscreen; acceptance criteria for M08 include "live captioning on YouTube in Firefox == Chrome parity".
+**Cost:** Firefox news _will_ be in tab capture and possibly overlay scaling in fullscreen; acceptance criteria for M08 include "live captioning on YouTube in Firefox == Chrome parity".
 
 ## Open questions (to resolve during M08 planning)
 

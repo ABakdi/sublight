@@ -16,15 +16,16 @@ The target GPU holds **4 GB VRAM** with no tensor cores (Quadro T1000). The Whis
 
 A **model matrix**, selectable per job with sensible defaults:
 
-| Model | VRAM (approx) | Speed on T1000 | Use |
-|---|---|---|---|
-| `base` | ~1 GB | ~6–10× realtime | Quick drafts, shorts, weak-machines, live fallback |
-| **`small`** | ~2.0–2.5 GB | ~2–4× realtime | **Default** — accuracy/latency sweet spot |
-| `distil-large-v3-turbo` | ~1.5 GB | ~4–8× realtime | **Best quality default** where users opt in; near-large accuracy at small speed |
-| `medium` / `large-v3` | 4 GB+ → CPU-offloaded layers | slow (0.3–1× R) | Offline batch only; max accuracy for local files |
-| CPU-only (no GPU) | 0 VRAM | 0.5–2× realtime | Degraded-but-works mode, e.g. no CUDA build |
+| Model                   | VRAM (approx)                | Speed on T1000  | Use                                                                             |
+| ----------------------- | ---------------------------- | --------------- | ------------------------------------------------------------------------------- |
+| `base`                  | ~1 GB                        | ~6–10× realtime | Quick drafts, shorts, weak-machines, live fallback                              |
+| **`small`**             | ~2.0–2.5 GB                  | ~2–4× realtime  | **Default** — accuracy/latency sweet spot                                       |
+| `distil-large-v3-turbo` | ~1.5 GB                      | ~4–8× realtime  | **Best quality default** where users opt in; near-large accuracy at small speed |
+| `medium` / `large-v3`   | 4 GB+ → CPU-offloaded layers | slow (0.3–1× R) | Offline batch only; max accuracy for local files                                |
+| CPU-only (no GPU)       | 0 VRAM                       | 0.5–2× realtime | Degraded-but-works mode, e.g. no CUDA build                                     |
 
 Rules:
+
 - **One model resident at a time.** ASR and translation never contend for VRAM ([Spec 06](../../specification/06-Engine-Server.md) model swap).
 - fp16 **off** for ASR on Turing (no tensor cores → fp16 runs on CUDA cores at ~2× fp32; still fine for `small`).
 - `medium`+ only when the job is offline and the user accepts the wait; surfaced in the UI as "slow but most accurate".

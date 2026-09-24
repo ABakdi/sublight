@@ -40,12 +40,12 @@ flowchart LR
 
 ## Process & port notes
 
-| Process | Port | Auth | Notes |
-|---|---|---|---|
-| Engine API | `127.0.0.1:17421` | Bearer token (+ Origin/Host checks) | The only publicly reachable surface to clients ([Spec 03](../../specification/03-Protocol.md)). |
+| Process        | Port              | Auth                                    | Notes                                                                                              |
+| -------------- | ----------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Engine API     | `127.0.0.1:17421` | Bearer token (+ Origin/Host checks)     | The only publicly reachable surface to clients ([Spec 03](../../specification/03-Protocol.md)).    |
 | whisper-server | `127.0.0.1:17422` | none (loopback only, spawned by engine) | Word timestamps enabled per [ADR-0007](../../architecture/decisions/0007-whisper-model-matrix.md). |
-| llama-server | `127.0.0.1:17423` | none (loopback only, spawned by engine) | OpenAI-compatible /v1/chat/completions. |
-| ffmpeg | — | — | One-shot CLI per normalization job; never a listener. |
+| llama-server   | `127.0.0.1:17423` | none (loopback only, spawned by engine) | OpenAI-compatible /v1/chat/completions.                                                            |
+| ffmpeg         | —                 | —                                       | One-shot CLI per normalization job; never a listener.                                              |
 
 ## Lifecycle
 

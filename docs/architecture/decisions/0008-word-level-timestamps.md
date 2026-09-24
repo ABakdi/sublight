@@ -13,7 +13,7 @@ date: 2026-09-23
 "Perfectly synced to the audio" is the defining quality bar. Whisper provides segment timestamps (good to ~±200–500 ms) and, with word-level output, per-word timestamps (better). But two systematic problems remain:
 
 1. **The audio we transcribe rarely starts at video time 0.** Online, capture begins mid-video (T₀ = `video.currentTime` at capture start); offline, audio starts at 0. If we ignore T₀, every cue is offset by T₀.
-2. **Drift.** Whisper timestamps are relative to the captured audio stream; the stream is the real audio, so there is no intrinsic drift — but *pipeline* artifacts (buffer delay, MediaRecorder start latency, tab-audio capture startup) add small offsets.
+2. **Drift.** Whisper timestamps are relative to the captured audio stream; the stream is the real audio, so there is no intrinsic drift — but _pipeline_ artifacts (buffer delay, MediaRecorder start latency, tab-audio capture startup) add small offsets.
 
 ## Decision
 

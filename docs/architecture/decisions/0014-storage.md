@@ -14,19 +14,19 @@ State exists in four different lifetimes: (1) **user preferences** (subtitle sty
 
 ## Decision
 
-| Lifetime | Store | Notes |
-|---|---|---|
-| Preferences | `chrome.storage.sync` (extension) · localStorage mirror/unify via shared prefs module (player) | Small key/values only; style schema from [Spec 05](../../specification/05-Overlay-Rendering.md). |
-| Player projects | **IndexedDB** (single DB `sublight-projects`, stores: `projects`, `tracks` (keyed by project+track, blob-friendly), `media` refs) | Offline, fast, survives restarts; project = JSON doc that can also be exported/imported as a `.sublight.json` file. |
-| Engine machine-state | `~/.sublight/` — `config.json` (token, settings), `models/`, `media-cache/`, `jobs.jsonl` (append-only job log) | Jobs are **resumable**: completed chunks + idempotency keys persist; a crash loses only in-flight worker progress ([Spec 06](../../specification/06-Engine-Server.md)). |
-| Transient | `chrome.storage.session` / memory | Service-worker wake-up state; never durable. |
+| Lifetime             | Store                                                                                                                             | Notes                                                                                                                                                                   |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Preferences          | `chrome.storage.sync` (extension) · localStorage mirror/unify via shared prefs module (player)                                    | Small key/values only; style schema from [Spec 05](../../specification/05-Overlay-Rendering.md).                                                                        |
+| Player projects      | **IndexedDB** (single DB `sublight-projects`, stores: `projects`, `tracks` (keyed by project+track, blob-friendly), `media` refs) | Offline, fast, survives restarts; project = JSON doc that can also be exported/imported as a `.sublight.json` file.                                                     |
+| Engine machine-state | `~/.sublight/` — `config.json` (token, settings), `models/`, `media-cache/`, `jobs.jsonl` (append-only job log)                   | Jobs are **resumable**: completed chunks + idempotency keys persist; a crash loses only in-flight worker progress ([Spec 06](../../specification/06-Engine-Server.md)). |
+| Transient            | `chrome.storage.session` / memory                                                                                                 | Service-worker wake-up state; never durable.                                                                                                                            |
 
 **No remote sync in v1** (privacy-first); a manual project export/import is the escape hatch, and the language-learning milestone (M09) may add a local-portable library file (`.sublight.json` bundle).
 
 ## Consequences
 
 **Good:** each store matches its data's lifetime exactly; browser storage holds no model weights or audio; crash-resilience lives where it's cheap (engine log).
-**Cost:** three storage *backends* to learn once, tested separately; IndexedDB migrations must be planned (schema version + migration functions from day one); engine cache eviction policy needed (disk budget).
+**Cost:** three storage _backends_ to learn once, tested separately; IndexedDB migrations must be planned (schema version + migration functions from day one); engine cache eviction policy needed (disk budget).
 
 ## Alternatives considered
 

@@ -18,13 +18,13 @@ _The React web app: local playback, projects, captioning orchestration, editing,
 
 ## 2. Routes & structure
 
-| Route | Purpose |
-|---|---|
-| `/` | Library: recent projects, import, engine status bar |
-| `/open` | Entry point for a migrated page video (§9): parses payload, creates the project, resolves the source |
-| `/player/:projectId` | Playback + overlay + tracks panel |
-| `/editor/:projectId` | Cue grid + word bar (M07) |
-| `/settings` | Styles, defaults, glossary, engine/health/cache |
+| Route                | Purpose                                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------------------------- |
+| `/`                  | Library: recent projects, import, engine status bar                                                  |
+| `/open`              | Entry point for a migrated page video (§9): parses payload, creates the project, resolves the source |
+| `/player/:projectId` | Playback + overlay + tracks panel                                                                    |
+| `/editor/:projectId` | Cue grid + word bar (M07)                                                                            |
+| `/settings`          | Styles, defaults, glossary, engine/health/cache                                                      |
 
 Engine-client logic is a framework-light module (`packages/protocol` consumer + WS reconnect + token store) shared conceptually with the extension — see [09 §6](09-Browser-Extension.md#6-messaging-and-state).
 
@@ -33,7 +33,7 @@ Engine-client logic is a framework-light module (`packages/protocol` consumer + 
 - `<video>` element with: seek, speed (0.25–2×), fullscreen, picture-in-picture, keyboard map (space, arrows, `[`/`]` nudge).
 - Position persisted per project; resumes on open.
 - `currentTime` drives the overlay cue scheduler directly (rAF sampling; no setTimeout drift).
-- Local files only **except** videos migrated from a page (see [§9](#9-opening-a-pages-video-open-in-player-adr-0017)). The player never lets a user paste an arbitrary remote URL in v1 — remote playback exists *only* through the open-in-player flow.
+- Local files only **except** videos migrated from a page (see [§9](#9-opening-a-pages-video-open-in-player-adr-0017)). The player never lets a user paste an arbitrary remote URL in v1 — remote playback exists _only_ through the open-in-player flow.
 - HLS (`.m3u8`) and DASH (`.mpd`) sources are handled with bundled `hls.js` / `dash.js` on the resolution pipeline (§9).
 
 ## 4. File handling (per [ADR-0011](../architecture/decisions/0011-local-video-processing.md))
@@ -72,38 +72,38 @@ Part of [M05b](../plan/milestones/05b-Open-in-Player.md). The extension detects 
 
 ### 9.1 Entry & payload delivery
 
-| Delivery | When | Mechanism |
-|---|---|---|
-| `chrome.storage.session.openInPlayer.last` | packaged player (extension page) | written by the SW, **consumed once** on `/open` |
-| URL hash `#sl=<base64url(json)>` | dev player (localhost:5173) | hash keeps the payload out of server logs; cap ~16 KB |
+| Delivery                                   | When                             | Mechanism                                             |
+| ------------------------------------------ | -------------------------------- | ----------------------------------------------------- |
+| `chrome.storage.session.openInPlayer.last` | packaged player (extension page) | written by the SW, **consumed once** on `/open`       |
+| URL hash `#sl=<base64url(json)>`           | dev player (localhost:5173)      | hash keeps the payload out of server logs; cap ~16 KB |
 
 `introspectOpenPayload()` prefers storage, falls back to the hash, and deletes storage on success. No payload → `/open` shows a friendly "nothing to open" card.
 
 ```ts
 interface OpenInPlayerSource {
-  kind: "https-direct" | "hls" | "dash" | "engine-fetchable" | "blob-mse" | "live";
-  url: string;
-  mime?: string;
-  quality?: string;
-  canPlayDirectly?: boolean;   // decided by the extension classifier (09 §8.2)
+  kind: 'https-direct' | 'hls' | 'dash' | 'engine-fetchable' | 'blob-mse' | 'live'
+  url: string
+  mime?: string
+  quality?: string
+  canPlayDirectly?: boolean // decided by the extension classifier (09 §8.2)
 }
 
 interface OpenInPlayerPayload {
-  version: 1;
-  source: { pageUrl: string; pageTitle?: string };
-  media: { title?: string; durationMs?: number; isLive: boolean; sources: OpenInPlayerSource[] };
-  resumeAtMs?: number;         // prefer over ratio when known
-  resumeAtRatio?: number;
-  requestedBy: "popup" | "overlay-chip" | "context-menu";
+  version: 1
+  source: { pageUrl: string; pageTitle?: string }
+  media: { title?: string; durationMs?: number; isLive: boolean; sources: OpenInPlayerSource[] }
+  resumeAtMs?: number // prefer over ratio when known
+  resumeAtRatio?: number
+  requestedBy: 'popup' | 'overlay-chip' | 'context-menu'
 }
 ```
 
 ### 9.2 Resolution pipeline (first success wins)
 
-1. **S1 — direct URL**: `https-direct` → native `<video>` (no CORS needed to *play*; capture is a separate concern, see 9.4).
+1. **S1 — direct URL**: `https-direct` → native `<video>` (no CORS needed to _play_; capture is a separate concern, see 9.4).
 2. **S1b — manifests**: `hls`/`dash` → `hls.js` / `dash.js`, feeding the same `<video>`.
 3. **S3 — engine resolve & relay**: `engine-fetchable` sources → `POST /v1/media/resolve {url, site}` → engine returns `{ mediaId, durationMs, title }`; the player plays `GET /v1/relay/:id` and shows a **"Preparing media…"** progress while the engine buffers (v1), with `Range`-aware seeking once ready ([06 §4.1](06-Engine-Server.md)).
-4. **Failure** → error screen with copy family from [10 §3](../specification/10-Non-Goals-And-Failure-Modes.md) and alternatives: *"Caption this page in place instead"* (opens the extension's live path) or *"Open the source page"*.
+4. **Failure** → error screen with copy family from [10 §3](../specification/10-Non-Goals-And-Failure-Modes.md) and alternatives: _"Caption this page in place instead"_ (opens the extension's live path) or _"Open the source page"_.
 
 ### 9.3 Project wiring
 
@@ -122,7 +122,7 @@ Fixtures: a page with a direct `.mp4`, an HLS page (hls.js fixture), a page with
 
 ## 10. Out of scope for the player
 
-- Playing *online* videos in place (extension territory) — but *migrating* them into the player **is** in scope (§9).
+- Playing _online_ videos in place (extension territory) — but _migrating_ them into the player **is** in scope (§9).
 - Running models (engine) or rendering outside its own page (overlay package handles the rendering it does have).
 - Direct pasting of arbitrary remote URLs (v1: only the open-in-player flow). Revisit in a later milestone if users ask.
 - Remote sync; multi-user.

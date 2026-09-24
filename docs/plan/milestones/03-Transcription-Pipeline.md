@@ -6,7 +6,7 @@ updated: 2026-09-23
 
 # M03 — Transcription pipeline (player ↔ engine, end-to-end sync)
 
-**Goal:** the *first complete user journey*: open a local video in the Player, get accurate word-synced captions. This is where "perfectly synced to the audio" gets measured against the corpus.
+**Goal:** the _first complete user journey_: open a local video in the Player, get accurate word-synced captions. This is where "perfectly synced to the audio" gets measured against the corpus.
 
 ## Scope
 
@@ -15,7 +15,7 @@ updated: 2026-09-23
 - Sync pipeline per [ADR-0008](../../architecture/decisions/0008-word-level-timestamps.md):
   - Anchoring: T₀=0 for local files; δ estimation at first speech onset; user nudge persists.
   - Cue construction from words (min/max durations, merge/split, gap-closing) — [Spec 02 §4](../../specification/02-Data-Model.md).
-  - **Refinement pass**: re-transcribe full audio with the *selected* model, re-anchor at control points, replace draft.
+  - **Refinement pass**: re-transcribe full audio with the _selected_ model, re-anchor at control points, replace draft.
 - Sync QA: run the [M00.8 corpus harness](../../plan/milestones/00-Foundations.md) against real ASR; publish numbers in the checkpoint.
 - Progress UX in the player: progress bar, cancel, model picker, language detection display.
 

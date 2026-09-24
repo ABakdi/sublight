@@ -60,19 +60,19 @@ Three cooperating parts, one machine, zero cloud. See the [component diagram](di
 
 ## Contents of this area
 
-| Doc | What it covers |
-|---|---|
-| [Requirements](Requirements.md) | Hardware/software requirements, model constraints, non-functional targets (accuracy, latency, privacy). |
-| [Decisions](Decisions.md) | **The ADR index** — every significant decision, current status, and a process for changing one. |
-| [Diagrams](diagrams/Components.md) | Component diagram with responsibilities. |
-| [Diagrams](diagrams/Data-Flow.md) | Sequence diagrams: live captioning, offline refinement, local-file captioning, translation. |
-| [Diagrams](diagrams/Deployment.md) | Runtime topology: processes, ports, subprocesses, data paths. |
+| Doc                                | What it covers                                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| [Requirements](Requirements.md)    | Hardware/software requirements, model constraints, non-functional targets (accuracy, latency, privacy). |
+| [Decisions](Decisions.md)          | **The ADR index** — every significant decision, current status, and a process for changing one.         |
+| [Diagrams](diagrams/Components.md) | Component diagram with responsibilities.                                                                |
+| [Diagrams](diagrams/Data-Flow.md)  | Sequence diagrams: live captioning, offline refinement, local-file captioning, translation.             |
+| [Diagrams](diagrams/Deployment.md) | Runtime topology: processes, ports, subprocesses, data paths.                                           |
 
 ## Related areas
 
 - [Specification](../specification/README.md) — component-level detail of what the architecture decides.
 - [Plan](../plan/README.md) — the milestones that build this architecture in order.
-- [Checkpoints](../checkpoints/README.md) — realities that contradict this architecture get found *there*, then fixed *here*.
+- [Checkpoints](../checkpoints/README.md) — realities that contradict this architecture get found _there_, then fixed _here_.
 - [Audits](../audits/README.md) — security/quality audits of the implementation of this architecture.
 
 ---

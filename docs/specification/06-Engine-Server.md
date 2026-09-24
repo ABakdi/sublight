@@ -46,11 +46,11 @@ The "Open in Sublight Player" flow ([ADR-0017](../architecture/decisions/0017-op
   - Direct URLs → probe via ffprobe over an HTTP range request; if reachable and media-like, return `{ kind: "direct-url", directUrl: url, durationMs, title }` without downloading.
   - Failure (auth-walled, geo, DRM, dead link) → structured error the player maps to honest copy ("can't reach this video from the engine"), never a silent hang.
   - The media is **stored like any upload** (`media-cache/{sha256}.wav` normalized) so captions reuse the local-file pipeline ([04 §9.4](04-Player-App.md#94-captioning-a-migrated-video)) with T₀ = 0.
-- `GET /v1/relay/:mediaId` — byte proxy for the *original* (non-normalized) media so the player can seek:
+- `GET /v1/relay/:mediaId` — byte proxy for the _original_ (non-normalized) media so the player can seek:
   - v1 (M05b): engine buffers the fetch to `media-cache/relay/{mediaId}.{ext}` with **"Preparing media…" progress** via WS (`relay.progress`), then serves `Range`-aware requests from disk.
   - v2: on-the-fly streaming with upstream `Range` passthrough (target: YouTube-sized files start playing within a few seconds).
   - Relay entries are LRU-evicted like media; re-resolve is cheap (`resolve` again → same `mediaId` from hash key).
-- Security: resolve/relay follow the same auth + Origin/Host checks as everything else ([Protocol §3](03-Protocol.md#3-auth--hardening)); the engine only ever fetches what a *resolved* payload from the extension asked for (no open proxy: relay ids are unguessable hashes, no arbitrary `GET /v1/relay?url=`).
+- Security: resolve/relay follow the same auth + Origin/Host checks as everything else ([Protocol §3](03-Protocol.md#3-auth--hardening)); the engine only ever fetches what a _resolved_ payload from the extension asked for (no open proxy: relay ids are unguessable hashes, no arbitrary `GET /v1/relay?url=`).
 
 ## 5. Job runner
 
@@ -69,7 +69,7 @@ The "Open in Sublight Player" flow ([ADR-0017](../architecture/decisions/0017-op
 ## 7. Llama worker (translation)
 
 - Spawns `llama-server` on `127.0.0.1:17423` (model per translate job's `model`, GGUF Q4_K_M default `qwen2.5-3b-instruct`); OpenAI-compatible chat endpoint.
-- [07 §2](07-ASR-And-Translation.md) for the chunking/prompt/validation protocol the worker drives; a *translator adapter* interface (`translate(paragraphLines, meta) → lines`) keeps NLLB/CTranslate2 a swappable alternative (same interface, different impl — a future `translate-nllb` worker).
+- [07 §2](07-ASR-And-Translation.md) for the chunking/prompt/validation protocol the worker drives; a _translator adapter_ interface (`translate(paragraphLines, meta) → lines`) keeps NLLB/CTranslate2 a swappable alternative (same interface, different impl — a future `translate-nllb` worker).
 
 ## 8. Observability
 

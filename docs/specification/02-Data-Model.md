@@ -13,61 +13,61 @@ _The nouns of sublight: projects, tracks, cues, words — plus their serialized 
 ```ts
 /** One subtitle entry. All times are integer milliseconds. */
 interface SubtitleCue {
-  id: string;              // UUID
-  startMs: number;
-  endMs: number;
-  text: string;            // may contain newlines = multiple rendered lines
-  words?: SpeechWord[];    // present when ASR produced word timestamps
-  speaker?: string | null; // from [SPEAKER] markers or future diarization
-  style?: Partial<CueStyle>; // per-cue overrides (rare)
+  id: string // UUID
+  startMs: number
+  endMs: number
+  text: string // may contain newlines = multiple rendered lines
+  words?: SpeechWord[] // present when ASR produced word timestamps
+  speaker?: string | null // from [SPEAKER] markers or future diarization
+  style?: Partial<CueStyle> // per-cue overrides (rare)
 }
 
 /** Word-level atom from ASR/alignment. */
 interface SpeechWord {
-  word: string;
-  startMs: number;
-  endMs: number;
-  confidence?: number;     // 0..1
+  word: string
+  startMs: number
+  endMs: number
+  confidence?: number // 0..1
 }
 
 interface SubtitleTrack {
-  id: string;
-  projectId: string;
-  language: string;        // BCP-47, e.g. "en", "pt-BR"
-  title?: string;          // optional human label, e.g. "English (AI)"
-  kind: "transcript" | "translation" | "import";
-  derivedFrom?: { trackId: string; sourceLanguage: string }; // for translations
-  draft?: boolean;         // true while live captions are replacing
-  cues: SubtitleCue[];
-  style?: SubtitleStyle;   // track-level style (defaults to user global)
-  syncOffsetMs?: number;   // whole-track nudge (δ or manual)
-  createdAt: number;       // epoch ms
+  id: string
+  projectId: string
+  language: string // BCP-47, e.g. "en", "pt-BR"
+  title?: string // optional human label, e.g. "English (AI)"
+  kind: 'transcript' | 'translation' | 'import'
+  derivedFrom?: { trackId: string; sourceLanguage: string } // for translations
+  draft?: boolean // true while live captions are replacing
+  cues: SubtitleCue[]
+  style?: SubtitleStyle // track-level style (defaults to user global)
+  syncOffsetMs?: number // whole-track nudge (δ or manual)
+  createdAt: number // epoch ms
 }
 
 interface SubtitleProject {
-  id: string;
-  title: string;
+  id: string
+  title: string
   media: {
-    kind: "local-file" | "page-video";
-    source?: string;       // file name / page URL
-    durationMs?: number;
-    mediaHash?: string;    // engine normalized-audio hash (transcription cache key)
+    kind: 'local-file' | 'page-video'
+    source?: string // file name / page URL
+    durationMs?: number
+    mediaHash?: string // engine normalized-audio hash (transcription cache key)
     // --- page-video only (opened via "Open in Sublight Player", ADR-0017; see 04 §9) ---
-    pageUrl?: string;                 // origin page, retained for context/licensing
-    pageTitle?: string;               // default project name source
-    sources?: OpenInPlayerSource[];   // as captured on the page (ordered preference)
-    transport?: "direct" | "hls" | "dash" | "engine-relay" | "none";
-    directUrl?: string;               // effective playback URL (may be an engine relay URL)
-    relayId?: string;                 // engine media id when relayed (06 §4.1)
-    resumeAtMs?: number;              // position migrated mid-play
-  };
-  tracks: SubtitleTrack[];
+    pageUrl?: string // origin page, retained for context/licensing
+    pageTitle?: string // default project name source
+    sources?: OpenInPlayerSource[] // as captured on the page (ordered preference)
+    transport?: 'direct' | 'hls' | 'dash' | 'engine-relay' | 'none'
+    directUrl?: string // effective playback URL (may be an engine relay URL)
+    relayId?: string // engine media id when relayed (06 §4.1)
+    resumeAtMs?: number // position migrated mid-play
+  }
+  tracks: SubtitleTrack[]
   settings: {
-    activeTrackId?: string;
-    bilingual?: { sourceTrackId: string; translationTrackId: string } | null;
-    style: SubtitleStyle;  // user-global style (player + extension share schema)
-  };
-  updatedAt: number;
+    activeTrackId?: string
+    bilingual?: { sourceTrackId: string; translationTrackId: string } | null
+    style: SubtitleStyle // user-global style (player + extension share schema)
+  }
+  updatedAt: number
 }
 ```
 
@@ -75,19 +75,19 @@ The `OpenInPlayerSource` list mirrors the extension's classifier ([09 §8.2](09-
 
 ```ts
 type OpenInPlayerSourceKind =
-  | "https-direct"      // plain media file → play directly
-  | "hls"               // .m3u8 → hls.js
-  | "dash"              // .mpd → dash.js
-  | "engine-fetchable"  // blob:/MSE but site supported by the engine relay (yt-dlp)
-  | "blob-mse"          // blob:/MSE, not transferable → cannot migrate
-  | "live";             // video.isLive — playback only, transcription deferred (N7)
+  | 'https-direct' // plain media file → play directly
+  | 'hls' // .m3u8 → hls.js
+  | 'dash' // .mpd → dash.js
+  | 'engine-fetchable' // blob:/MSE but site supported by the engine relay (yt-dlp)
+  | 'blob-mse' // blob:/MSE, not transferable → cannot migrate
+  | 'live' // video.isLive — playback only, transcription deferred (N7)
 
 interface OpenInPlayerSource {
-  kind: OpenInPlayerSourceKind;
-  url: string;
-  mime?: string;
-  quality?: string;
-  canPlayDirectly?: boolean;
+  kind: OpenInPlayerSourceKind
+  url: string
+  mime?: string
+  quality?: string
+  canPlayDirectly?: boolean
 }
 ```
 
@@ -103,20 +103,21 @@ Resolution of those kinds into a playing track is spec'd in [04 §9](04-Player-A
 
 ## 3. Format mapping
 
-| Format | Direction | Status | Notes |
-|---|---|---|---|
-| **SRT** | import + export | v1 | `HH:MM:SS,mmm`; CRLF-tolerant on import; HTML tags stripped; `<i>` kept in export as `*…*`? → no, keep literal plain text (policy: subtitles we generate are plain; user-imported italics are preserved as-is) |
-| **VTT** | import (best-effort) + export | M07+ | cues with `00:00:00.000`; `WEBVTT` header |
-| **SSA/ASS** | export later | deferred | styles map from schema; see [Data model open items] |
-| **`.sublight.json`** | project export/import | M06+ | full project (tracks+cues+styles+settings); also the **study-mode library exchange** format (M09) |
+| Format               | Direction                     | Status   | Notes                                                                                                                                                                                                          |
+| -------------------- | ----------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SRT**              | import + export               | v1       | `HH:MM:SS,mmm`; CRLF-tolerant on import; HTML tags stripped; `<i>` kept in export as `*…*`? → no, keep literal plain text (policy: subtitles we generate are plain; user-imported italics are preserved as-is) |
+| **VTT**              | import (best-effort) + export | M07+     | cues with `00:00:00.000`; `WEBVTT` header                                                                                                                                                                      |
+| **SSA/ASS**          | export later                  | deferred | styles map from schema; see [Data model open items]                                                                                                                                                            |
+| **`.sublight.json`** | project export/import         | M06+     | full project (tracks+cues+styles+settings); also the **study-mode library exchange** format (M09)                                                                                                              |
 
-SRT writer rules: time rounding, `-->` spacing (` --> `), blank line between cues, no trailing newline duplication, final newline present.
+SRT writer rules: time rounding, `-->` spacing (`-->`), blank line between cues, no trailing newline duplication, final newline present.
 
 ## 4. Cue construction & normalization
 
 _Engine and editor share these rules._
 
 From words → cues (ASR side):
+
 - Group words greedily: target 2–3 lines of ≤ 42 chars each, or ≤ 7 s max cue; hard break at sentence-final punctuation (`.!?…`) and pauses ≥ 300 ms between words.
 - Merge: cues closer than 80 ms apart merge (end of A + 80 ≥ start of B).
 - Minimum duration 200 ms enforced by stretching end (never move start past start).
@@ -125,15 +126,15 @@ From user edits (editor side): splitting a cue keeps `words` split at the word b
 
 ## 5. Storage layout
 
-| Store | What | Key/granularity | Owner |
-|---|---|---|---|
-| IndexedDB `sublight-projects` | projects store (`keyPath: id`), tracks store (`keyPath: id`, indexes `projectId`), settings | per-project docs | Player |
-| `chrome.storage.sync` | user prefs: style schema, default model, default language, glossary | flat keys, ≤ 8 KB | Extension (+ player mirrors via prefs module) |
-| `chrome.storage.session` | transient: active job ids, last known engine state, draft cues | per-tab/per-extension | Extension |
-| `~/.sublight/config.json` | token, ports, defaults, installed model ids | single file | Engine |
-| `~/.sublight/jobs.jsonl` | append-only job records (state transitions, results pointers, idempotency keys) | per job | Engine |
-| `~/.sublight/models/` | model artifacts (pinned+checksummed) | per model id | Engine |
-| `~/.sublight/media-cache/` | normalized audio by `sha256` | per media hash | Engine |
+| Store                         | What                                                                                        | Key/granularity       | Owner                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------- | --------------------- | --------------------------------------------- |
+| IndexedDB `sublight-projects` | projects store (`keyPath: id`), tracks store (`keyPath: id`, indexes `projectId`), settings | per-project docs      | Player                                        |
+| `chrome.storage.sync`         | user prefs: style schema, default model, default language, glossary                         | flat keys, ≤ 8 KB     | Extension (+ player mirrors via prefs module) |
+| `chrome.storage.session`      | transient: active job ids, last known engine state, draft cues                              | per-tab/per-extension | Extension                                     |
+| `~/.sublight/config.json`     | token, ports, defaults, installed model ids                                                 | single file           | Engine                                        |
+| `~/.sublight/jobs.jsonl`      | append-only job records (state transitions, results pointers, idempotency keys)             | per job               | Engine                                        |
+| `~/.sublight/models/`         | model artifacts (pinned+checksummed)                                                        | per model id          | Engine                                        |
+| `~/.sublight/media-cache/`    | normalized audio by `sha256`                                                                | per media hash        | Engine                                        |
 
 Eviction: media-cache LRU, default cap 20 GB, configurable in Options/engine config. Projects are never auto-evicted (user data).
 
@@ -145,24 +146,35 @@ _Shared by the overlay and both clients._
 
 ```ts
 interface SubtitleStyle {
-  color: string;          // #RRGGBB
-  bgColor: string;        // supports transparent via opacity
-  bgOpacity: number;      // 0..1
-  fontSize: number;       // px at reference video height 720, scaled with video
-  fontFamily: string;     // css font stack
-  fontWeight: number | "normal" | "bold";
-  textShadow: boolean;    // adds outline for contrast
-  edgeStyle: "none" | "outline" | "shadow" | "raised";
-  align: "left" | "center" | "right";
-  position: { anchor: "bottom" | "top" | "left" | "right" | "bottom-left" | "bottom-right" | "top-left" | "top-right"; marginPx: number };
-  maxLines: number;       // 1..4 (dictates pre-wrap)
-  lineHeight: number;     // multiplier
-  wrapStyle: "smart" | "word";   // word = hard wrap by word count (default)
-  opacity: number;        // 0..1 whole cue
-  casing: "normal" | "uppercase" | "title";
+  color: string // #RRGGBB
+  bgColor: string // supports transparent via opacity
+  bgOpacity: number // 0..1
+  fontSize: number // px at reference video height 720, scaled with video
+  fontFamily: string // css font stack
+  fontWeight: number | 'normal' | 'bold'
+  textShadow: boolean // adds outline for contrast
+  edgeStyle: 'none' | 'outline' | 'shadow' | 'raised'
+  align: 'left' | 'center' | 'right'
+  position: {
+    anchor:
+      | 'bottom'
+      | 'top'
+      | 'left'
+      | 'right'
+      | 'bottom-left'
+      | 'bottom-right'
+      | 'top-left'
+      | 'top-right'
+    marginPx: number
+  }
+  maxLines: number // 1..4 (dictates pre-wrap)
+  lineHeight: number // multiplier
+  wrapStyle: 'smart' | 'word' // word = hard wrap by word count (default)
+  opacity: number // 0..1 whole cue
+  casing: 'normal' | 'uppercase' | 'title'
   // study mode (M09)
-  karaoke?: { active: boolean; highlightColor: string; lagMs: number };
-  bilingual?: { secondaryColor: string; secondaryOpacity: number; heightRatio: number };
+  karaoke?: { active: boolean; highlightColor: string; lagMs: number }
+  bilingual?: { secondaryColor: string; secondaryOpacity: number; heightRatio: number }
 }
 ```
 

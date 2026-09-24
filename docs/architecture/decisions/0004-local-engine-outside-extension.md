@@ -37,7 +37,7 @@ The extension and player are **thin clients**: they capture/provide audio, recei
 
 - **In-extension inference** — impossible per MV3 constraints above.
 - **Cloud/API inference** — violates privacy requirement; rejected.
-- **WebGPU in-page inference (transformers.js + whisper)** — real possibility, but: downloaded models land in the browser's cache not a shared store, no GPU swap/scheduling control, slower, and duplicates the model manager. Rejected for v1; noted as a possible *fallback* path in [Spec 10](../../specification/10-Non-Goals-And-Failure-Modes.md) if the engine ever becomes a barrier to entry.
+- **WebGPU in-page inference (transformers.js + whisper)** — real possibility, but: downloaded models land in the browser's cache not a shared store, no GPU swap/scheduling control, slower, and duplicates the model manager. Rejected for v1; noted as a possible _fallback_ path in [Spec 10](../../specification/10-Non-Goals-And-Failure-Modes.md) if the engine ever becomes a barrier to entry.
 
 ## Links
 

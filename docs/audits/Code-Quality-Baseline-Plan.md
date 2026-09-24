@@ -10,14 +10,14 @@ _Quality gates that must hold from **M02 onward**, plus a periodic structural au
 
 ## The floor (enforced by CI from M02)
 
-| Gate | Rule | Feedback time |
-|---|---|---|
-| TypeScript | `strict: true` everywhere; no `any` in `packages/`; protocol types shared not duplicated ([ADR-0001](../architecture/decisions/0001-monorepo-layout.md)) | per commit |
-| Lint | ESLint flat config (recommended + react + ts) ; Prettier formatting | per commit |
-| Tests | `pnpm test` green; `core` ≥ 90% coverage; overlay ≥ 80%; engine job/queue ≥ 85% | per PR |
-| Build | All workspaces build; extension bundles; engine boots | per PR |
-| e2e | Playwright smoke on Chromium + Brave for the flows of the current milestone | per PR (smoke), nightly (full) |
-| Deps | `pnpm audit` zero high/critical; lockfile diff reviewed | per PR + nightly |
+| Gate       | Rule                                                                                                                                                     | Feedback time                  |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| TypeScript | `strict: true` everywhere; no `any` in `packages/`; protocol types shared not duplicated ([ADR-0001](../architecture/decisions/0001-monorepo-layout.md)) | per commit                     |
+| Lint       | ESLint flat config (recommended + react + ts) ; Prettier formatting                                                                                      | per commit                     |
+| Tests      | `pnpm test` green; `core` ≥ 90% coverage; overlay ≥ 80%; engine job/queue ≥ 85%                                                                          | per PR                         |
+| Build      | All workspaces build; extension bundles; engine boots                                                                                                    | per PR                         |
+| e2e        | Playwright smoke on Chromium + Brave for the flows of the current milestone                                                                              | per PR (smoke), nightly (full) |
+| Deps       | `pnpm audit` zero high/critical; lockfile diff reviewed                                                                                                  | per PR + nightly               |
 
 ## Structural audit checklist (run at M02 end, M04/M05 boundary, M07, then pre-release)
 
@@ -38,12 +38,12 @@ _Quality gates that must hold from **M02 onward**, plus a periodic structural au
 
 ## First runs (planned)
 
-| Run | When | Trigger |
-|---|---|---|
-| Q-1 | End of [M02](../plan/milestones/02-Local-ASR-Engine.md) | Engine is the risky core; gate soundness matters before clients lean on it |
-| Q-2 | [M04/M05](../plan/milestones/04-Translation-Pipeline.md) boundary | Two client surfaces join; drift risk peaks |
-| Q-3 | Pre-[M06](../plan/milestones/06-Beta-Release.md) | Release gate full pass |
-| Q-4 | [M07](../plan/milestones/07-Polish-Editing.md) end | Post-Beta hardening |
+| Run | When                                                              | Trigger                                                                    |
+| --- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Q-1 | End of [M02](../plan/milestones/02-Local-ASR-Engine.md)           | Engine is the risky core; gate soundness matters before clients lean on it |
+| Q-2 | [M04/M05](../plan/milestones/04-Translation-Pipeline.md) boundary | Two client surfaces join; drift risk peaks                                 |
+| Q-3 | Pre-[M06](../plan/milestones/06-Beta-Release.md)                  | Release gate full pass                                                     |
+| Q-4 | [M07](../plan/milestones/07-Polish-Editing.md) end                | Post-Beta hardening                                                        |
 
 ## Related
 

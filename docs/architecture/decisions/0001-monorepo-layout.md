@@ -10,7 +10,7 @@ date: 2026-09-23
 
 ## Context
 
-sublight has three runnable pieces (player app, Chromium extension, local engine) and several pieces that *must* be shared without drift (subtitle data model, protocol types, the overlay React component). Without a shared package, the player and extension would each grow their own subtitle model and styling logic and slowly diverge. We also want type-checked, single-command builds and one CI pipeline.
+sublight has three runnable pieces (player app, Chromium extension, local engine) and several pieces that _must_ be shared without drift (subtitle data model, protocol types, the overlay React component). Without a shared package, the player and extension would each grow their own subtitle model and styling logic and slowly diverge. We also want type-checked, single-command builds and one CI pipeline.
 
 ## Decision
 

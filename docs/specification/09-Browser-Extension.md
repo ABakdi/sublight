@@ -45,13 +45,15 @@ action: { default_popup: "popup.html" }
 ## 4. Content script (all frames)
 
 Per frame:
+
 1. Watch for `<video>` elements (`MutationObserver` + periodic + SPA hooks on `history.pushState`/`replaceState`/`popstate`).
 2. The **primary frame** owning a playing video gets the overlay host ([05 §1](05-Overlay-Rendering.md)); a `data-sublight-host` marker prevents duplicates across frames.
 3. Report video state to the SW: `{ tabId, frameId, hasVideo, isPlaying, currentTime, paused, duration }`.
 
-Iframe players: each frame discovers its own video; the frame with a playing, visible video (> 40% viewport) wins the overlay; others stand down. When the mainframe video is *also* playing (e.g. yt ads overlay) the ad instance is ignored (duration < 60 s heuristic + not-user-interacted).
+Iframe players: each frame discovers its own video; the frame with a playing, visible video (> 40% viewport) wins the overlay; others stand down. When the mainframe video is _also_ playing (e.g. yt ads overlay) the ad instance is ignored (duration < 60 s heuristic + not-user-interacted).
 
 YouTube specifics (spec'd, then verified in [checkpoints](../checkpoints/README.md)):
+
 - Hide the host captions when our track is active (click the CC state via the player API if present, else overlay covers it).
 - Use `video` element events (`timeupdate`, `play`, `pause`, `seeking`, `ended`) — resilient to YouTube DOM churn; never internal class names.
 - SPA video switch: on `yt-navigate-finish`-equivalent signals we re-detect; old overlay host removed atomically.
@@ -68,16 +70,16 @@ content script ◄─runtime.sendMessage─► SW ◄─fetch/WS─► engine
       └────────── popup (port, bi-directional)┘
 ```
 
-| Message | Direction | Payload |
-|---|---|---|
-| `video.state` | content→SW | as §4.3 |
-| `capture.start` / `capture.stop` | SW→content (after user click) | — |
-| `track.ready` | SW→content | `SubtitleTrack` (+ `draft` flag) |
-| `track.partial` | SW→content | draft cues |
-| `style.changed` | SW→content (from options) | `SubtitleStyle` |
-| `job.progress` | SW→popup | percentage + phase |
-| `openInPlayer.request` | popup→SW | builds & delivers the payload (§8); returns `{ ok, playerUrl }` |
-| `openInPlayer.probe` | SW→content | asks the owning frame for source classification data (§8.2) |
+| Message                          | Direction                     | Payload                                                         |
+| -------------------------------- | ----------------------------- | --------------------------------------------------------------- |
+| `video.state`                    | content→SW                    | as §4.3                                                         |
+| `capture.start` / `capture.stop` | SW→content (after user click) | —                                                               |
+| `track.ready`                    | SW→content                    | `SubtitleTrack` (+ `draft` flag)                                |
+| `track.partial`                  | SW→content                    | draft cues                                                      |
+| `style.changed`                  | SW→content (from options)     | `SubtitleStyle`                                                 |
+| `job.progress`                   | SW→popup                      | percentage + phase                                              |
+| `openInPlayer.request`           | popup→SW                      | builds & delivers the payload (§8); returns `{ ok, playerUrl }` |
+| `openInPlayer.probe`             | SW→content                    | asks the owning frame for source classification data (§8.2)     |
 
 ## 7. Popup & options
 
@@ -90,7 +92,7 @@ Per [ADR-0017](../architecture/decisions/0017-open-in-player.md): detects the pa
 
 ### 8.1 Entry points
 
-1. **Popup action** (primary, M05b): shown whenever a video is detected; copy: *"Open in Sublight Player"*.
+1. **Popup action** (primary, M05b): shown whenever a video is detected; copy: _"Open in Sublight Player"_.
 2. **Contextual overlay chip** (planned): a small, unobtrusive button pinned near the video's top-right corner (respects the show-on-hover conventions of [05 §8](05-Overlay-Rendering.md#8-interactions); opt-in/off per site).
 3. **Video context-menu item** (planned): on "Inspector"-free right-click on the video.
 
@@ -98,14 +100,14 @@ Per [ADR-0017](../architecture/decisions/0017-open-in-player.md): detects the pa
 
 For the playing `<video>`, gather: `currentSrc`, `src`, all `<source>` children, `isLive`, `duration`, `currentTime`, `videoWidth/Height`. Then classify each candidate URL:
 
-| Rule | Kind |
-|---|---|
+| Rule                                                                             | Kind               |
+| -------------------------------------------------------------------------------- | ------------------ |
 | starts with `blob:` **and** site on the engine resolve list (yt-dlp: YouTube, …) | `engine-fetchable` |
-| starts with `blob:` (otherwise) | `blob-mse` |
-| ends `.m3u8` / is HLS | `hls` |
-| ends `.mpd` / is DASH | `dash` |
-| otherwise a fetchable `https:`/`http:` media URL | `https-direct` |
-| `video.isLive === true` | also sets `isLive` |
+| starts with `blob:` (otherwise)                                                  | `blob-mse`         |
+| ends `.m3u8` / is HLS                                                            | `hls`              |
+| ends `.mpd` / is DASH                                                            | `dash`             |
+| otherwise a fetchable `https:`/`http:` media URL                                 | `https-direct`     |
+| `video.isLive === true`                                                          | also sets `isLive` |
 
 The best candidate wins for `canPlayDirectly` (a `https-direct`/`hls`/`dash` source). Multiple sources are kept in the payload ordered by preference.
 
@@ -116,7 +118,7 @@ The best candidate wins for `canPlayDirectly` (a `https-direct`/`hls`/`dash` sou
 3. **Dev** player: SW opens `DEV_PLAYER_URL + "#sl=" + base64url(json)` (cap ~16 KB; larger payloads keep only top sources).
 4. `tabs.create` needs **no new permissions**; classification needs none either (data from the content script's own frame).
 
-### 8.4 What we deliberately do *not* do
+### 8.4 What we deliberately do _not_ do
 
 - No new host permissions (`<all_urls>` stays out) — engine relay covers the sites we support; S2 SW-relay (v2) is scoped in [ADR-0017](../architecture/decisions/0017-open-in-player.md) when/if it becomes necessary.
 - No DRM migration (N1): EME videos are clamped to "caption in place", per [10 §2](10-Non-Goals-And-Failure-Modes.md).

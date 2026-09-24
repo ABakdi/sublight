@@ -6,11 +6,11 @@ updated: 2026-09-23
 
 # M06 — Beta 1 release
 
-**Goal:** a packaged, installable, *usable-by-a-non-dev* sublight. Pairing is smooth, the engine auto-starts, QA is methodical, and the **first checkpoint** is opened — the rest of the project learns from it.
+**Goal:** a packaged, installable, _usable-by-a-non-dev_ sublight. Pairing is smooth, the engine auto-starts, QA is methodical, and the **first checkpoint** is opened — the rest of the project learns from it.
 
 ## Scope
 
-- Packaging: extension `.zip`/CRX loadable in Chromium + Brave; engine as a launchable binary (Node SEA or static bundle) with a one-click *start* flow; first-run setup walkthrough.
+- Packaging: extension `.zip`/CRX loadable in Chromium + Brave; engine as a launchable binary (Node SEA or static bundle) with a one-click _start_ flow; first-run setup walkthrough.
 - Token pairing UX: paste-token in Options + `sublight://pair?token=…` custom-protocol handshake; rebind/rotate on demand.
 - Engine autostart on login (Linux `systemd` user unit / Windows startup / macOS LaunchAgent — L1: plain instructions, L2: installer does it).
 - Versioning & releases: semver, changelog, signed-ish artifacts, README/install docs.
@@ -33,7 +33,7 @@ updated: 2026-09-23
 
 1. A fresh (non-dev) profile can install the extension, start the engine, pair, and caption a YouTube video and a local file — **with no terminal**.
 2. Pairing fails loudly and recoverably when the token is wrong/engine offline (no silent loops).
-3. Checkpoint Beta-1 is opened with *every* matrix row filled; at least one real bug/underspecification found and routed.
+3. Checkpoint Beta-1 is opened with _every_ matrix row filled; at least one real bug/underspecification found and routed.
 4. The security baseline audit produced findings → fixes with owners or explicit `won't-fix` rationale.
 5. Changelog + version tags exist and match the artifact.
 

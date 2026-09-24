@@ -12,7 +12,7 @@ date: 2026-09-23
 
 Clients (extension background, player app) must talk to the engine over localhost. Options:
 
-1. **Native messaging** (`chrome.runtime.connectNative`) — the "official" secure channel: OS-level registration of a native host, no open port, no token dance. Cost: a native host manifest + installer per OS/browser, Firefox's implement differs slightly, and the *player app* (a web page, not an extension) **cannot use native messaging at all** — it would need yet another channel.
+1. **Native messaging** (`chrome.runtime.connectNative`) — the "official" secure channel: OS-level registration of a native host, no open port, no token dance. Cost: a native host manifest + installer per OS/browser, Firefox's implement differs slightly, and the _player app_ (a web page, not an extension) **cannot use native messaging at all** — it would need yet another channel.
 2. **Localhost HTTP server** — one port, one API for both clients, trivially scriptable and testable. Cost: an open localhost port is a security surface (any website can attempt to reach it — DNS rebinding, CSRF-style calls).
 
 sublight has **two** client types, one of which (the player web app) has no native-messaging path. This is the deciding constraint.

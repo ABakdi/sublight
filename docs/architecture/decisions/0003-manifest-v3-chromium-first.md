@@ -10,7 +10,7 @@ date: 2026-09-23
 
 ## Context
 
-The product targets Chromium and Brave first (user requirement), Firefox later. Modern Chrome extensions are **Manifest V3**: a service worker (short-lived, no DOM), off-main-thread, with strict permission model. Firefox now supports MV3. Any design must respect that the extension process is *not* a place for long-running or heavy work — a constraint that shapes the whole architecture ([ADR-0004](0004-local-engine-outside-extension.md)).
+The product targets Chromium and Brave first (user requirement), Firefox later. Modern Chrome extensions are **Manifest V3**: a service worker (short-lived, no DOM), off-main-thread, with strict permission model. Firefox now supports MV3. Any design must respect that the extension process is _not_ a place for long-running or heavy work — a constraint that shapes the whole architecture ([ADR-0004](0004-local-engine-outside-extension.md)).
 
 ## Decision
 

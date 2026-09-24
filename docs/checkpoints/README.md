@@ -12,7 +12,7 @@ Checkpoints answer three questions honestly:
 
 1. **Did it work?** — the release test matrix (browsers, sites, flows, performance numbers).
 2. **What's broken?** — bugs, with severity and reproduction.
-3. **What did we get wrong?** — missing features, forgotten requirements, underspecified specs; routed to their *owner documents* (specification / plan / decisions / audits).
+3. **What did we get wrong?** — missing features, forgotten requirements, underspecified specs; routed to their _owner documents_ (specification / plan / decisions / audits).
 
 ## Process
 
@@ -37,9 +37,9 @@ flowchart LR
 
 ## Index
 
-| Checkpoint | Release | Status | Opened | Summary |
-|---|---|---|---|---|
-| [Beta 1](Beta-1-Checklist.md) | Beta 1 | `open` (planned — executed at [M06](../plan/milestones/06-Beta-Release.md)) | — | First full matrix incl. live captioning, translation, sync numbers. The template is pre-filled; fill the "actual" columns during M06. |
+| Checkpoint                    | Release | Status                                                                      | Opened | Summary                                                                                                                               |
+| ----------------------------- | ------- | --------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| [Beta 1](Beta-1-Checklist.md) | Beta 1  | `open` (planned — executed at [M06](../plan/milestones/06-Beta-Release.md)) | —      | First full matrix incl. live captioning, translation, sync numbers. The template is pre-filled; fill the "actual" columns during M06. |
 
 ## Template
 
@@ -47,13 +47,13 @@ Copy [Template.md](Template.md) for every new checkpoint. Fill **expected** rows
 
 ## How findings route
 
-| Finding | Goes to | Example |
-|---|---|---|
-| Bug (reproducible) | New task in the owning [milestone](../plan/milestones/) with severity | "Cues overlap after 30-min capture" |
-| Missing feature | New spec section or open item here, + plan task | "No way to delete a word list" |
-| Underspecified | Spec edit + decision if structural | "Spec 07 didn't define re-anchor frequency → now bounded every 2 min" |
-| Forgotten requirement | This list ("things we forgot") + requirement addendum | "Users want per-episode folders" |
-| Security/quality smell | [Audit](../audits/README.md) | "Let's do a code audit before Beta 2" |
+| Finding                | Goes to                                                               | Example                                                               |
+| ---------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Bug (reproducible)     | New task in the owning [milestone](../plan/milestones/) with severity | "Cues overlap after 30-min capture"                                   |
+| Missing feature        | New spec section or open item here, + plan task                       | "No way to delete a word list"                                        |
+| Underspecified         | Spec edit + decision if structural                                    | "Spec 07 didn't define re-anchor frequency → now bounded every 2 min" |
+| Forgotten requirement  | This list ("things we forgot") + requirement addendum                 | "Users want per-episode folders"                                      |
+| Security/quality smell | [Audit](../audits/README.md)                                          | "Let's do a code audit before Beta 2"                                 |
 
 ## Related
 

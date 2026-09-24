@@ -15,7 +15,7 @@ For local files (downloaded movies), the options for getting audio to the engine
 1. **ffmpeg.wasm inside the browser** — the player extracts audio to a compact WAV/MP3, uploads only that. ✓ small uploads. ✗ ~30 MB wasm download per load, Web Worker complexity, re-encoding on the CPU of the browsing tab.
 2. **Stream the whole video to the engine once** — the engine's ffmpeg extracts + normalizes (16 kHz mono PCM WAV — Whisper's home format) and caches by content hash. ✓ zero wasm, one code path (the engine already owns ffmpeg for everything), simple; loopback transfer is fast (a 2 GB film ≈ tens of seconds on the local link). ✗ the file traverses the loopback interface once.
 
-Also decisive: the **File System Access API** gives the *player* a handle, not the engine a path — the browser is the only component legally able to read the file. So whether we like it or not, bytes flow browser → engine.
+Also decisive: the **File System Access API** gives the _player_ a handle, not the engine a path — the browser is the only component legally able to read the file. So whether we like it or not, bytes flow browser → engine.
 
 ## Decision
 

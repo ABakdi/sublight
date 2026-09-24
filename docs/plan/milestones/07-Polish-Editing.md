@@ -41,7 +41,7 @@ updated: 2026-09-23
 
 ## Open questions
 
-- Editor in the extension popup: full-featured vs. minimal (lean minimal: the *player* is the editor; popup handles quick text fix).
+- Editor in the extension popup: full-featured vs. minimal (lean minimal: the _player_ is the editor; popup handles quick text fix).
 
 ## Related
 

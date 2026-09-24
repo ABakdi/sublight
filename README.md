@@ -22,10 +22,10 @@ sublight generates them for you on the spot:
 
 Three cooperating parts, all running on your machine:
 
-| Part | What it does |
-|---|---|
-| **Sublight Engine** | A local companion server (`127.0.0.1`). Receives audio, runs Whisper + the translation model, streams progress back. Installed once, runs in the background. |
-| **Sublight Player** | A React web app. Plays local video files (no upload — it's your disk) and page videos handed over by the extension, manages transcription projects, renders styled subtitles, exports SRT. |
+| Part                   | What it does                                                                                                                                                                                         |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sublight Engine**    | A local companion server (`127.0.0.1`). Receives audio, runs Whisper + the translation model, streams progress back. Installed once, runs in the background.                                         |
+| **Sublight Player**    | A React web app. Plays local video files (no upload — it's your disk) and page videos handed over by the extension, manages transcription projects, renders styled subtitles, exports SRT.           |
 | **Sublight Extension** | A Chromium/Brave extension (Manifest V3). Injects a subtitle overlay into **any** website playing a video (YouTube, Vimeo, embedded players…), captures the tab's audio, and hands it to the engine. |
 
 ```
@@ -70,14 +70,14 @@ See [docs/Home](docs/Home.md) for the full documentation vault.
 
 The `docs/` folder is an **Obsidian vault** used as the living specification for sublight. Every file links to every other; start at [docs/Home.md](docs/Home.md).
 
-| Area | Folder | What lives there |
-|---|---|---|
-| **Home** | [docs/Home.md](docs/Home.md) | Vault landing page, reading order, conventions |
-| **Architecture** | [docs/architecture](docs/architecture/README.md) | System-wide design, decisions, requirements, diagrams |
-| **Plan** | [docs/plan](docs/plan/README.md) | Roadmap, milestones, tasks, acceptance criteria |
+| Area              | Folder                                             | What lives there                                              |
+| ----------------- | -------------------------------------------------- | ------------------------------------------------------------- |
+| **Home**          | [docs/Home.md](docs/Home.md)                       | Vault landing page, reading order, conventions                |
+| **Architecture**  | [docs/architecture](docs/architecture/README.md)   | System-wide design, decisions, requirements, diagrams         |
+| **Plan**          | [docs/plan](docs/plan/README.md)                   | Roadmap, milestones, tasks, acceptance criteria               |
 | **Specification** | [docs/specification](docs/specification/README.md) | Detailed component specs, data model, protocol, failure modes |
-| **Checkpoints** | [docs/checkpoints](docs/checkpoints/README.md) | Post-release test results, bugs found, gaps discovered |
-| **Audits** | [docs/audits](docs/audits/README.md) | Security / code / quality audits and their fixes |
+| **Checkpoints**   | [docs/checkpoints](docs/checkpoints/README.md)     | Post-release test results, bugs found, gaps discovered        |
+| **Audits**        | [docs/audits](docs/audits/README.md)               | Security / code / quality audits and their fixes              |
 
 ### Table of contents
 
@@ -108,12 +108,12 @@ The `docs/` folder is an **Obsidian vault** used as the living specification for
 
 ## Hardware requirements (target machine)
 
-| Resource | Requirement | Notes |
-|---|---|---|
-| RAM | **32 GB** | Whisper + LLM can offload layers to system RAM; headroom for the browser |
-| GPU VRAM | **4 GB** (Quadro T1000) | Fits Whisper `small`/`base` and a quantized 3–4B LLM **one at a time** |
-| CPU | i7-9750H (6C/12T, AVX2) | AVX2 makes CPU-only fallback viable |
-| Disk | ~5 GB models + cache (SSD preferred) | See [Requirements](docs/architecture/Requirements.md) |
+| Resource | Requirement                          | Notes                                                                    |
+| -------- | ------------------------------------ | ------------------------------------------------------------------------ |
+| RAM      | **32 GB**                            | Whisper + LLM can offload layers to system RAM; headroom for the browser |
+| GPU VRAM | **4 GB** (Quadro T1000)              | Fits Whisper `small`/`base` and a quantized 3–4B LLM **one at a time**   |
+| CPU      | i7-9750H (6C/12T, AVX2)              | AVX2 makes CPU-only fallback viable                                      |
+| Disk     | ~5 GB models + cache (SSD preferred) | See [Requirements](docs/architecture/Requirements.md)                    |
 
 > **Assumption:** the target GPU is a **Quadro T1000** (Turing, 4 GB). The architecture deliberately works with any NVIDIA card ≥4 GB and degrades gracefully to CPU-only.
 

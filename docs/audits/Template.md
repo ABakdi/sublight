@@ -16,6 +16,7 @@ updated: 2026-09-23
 ## 1. Scope
 
 What is and isn't in scope:
+
 - In: { }
 - Out: { }
 
@@ -31,15 +32,15 @@ What is and isn't in scope:
 
 ## 4. Findings
 
-| ID | Severity (P0–P3) | Area | Finding | Evidence | Disposition |
-|---|---|---|---|---|---|
-| F1 | | | | | fixed(spec/commit) / scheduled(owner, milestone) / won't-fix(reason) |
+| ID  | Severity (P0–P3) | Area | Finding | Evidence | Disposition                                                          |
+| --- | ---------------- | ---- | ------- | -------- | -------------------------------------------------------------------- |
+| F1  |                  |      |         |          | fixed(spec/commit) / scheduled(owner, milestone) / won't-fix(reason) |
 
 ## 5. Fixes & follow-ups
 
 | Finding | Fix | Verified by | Date |
-|---|---|---|---|
-| F1 | | | |
+| ------- | --- | ----------- | ---- |
+| F1      |     |             |      |
 
 ## 6. Lessons for the project
 

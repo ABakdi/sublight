@@ -10,9 +10,9 @@ updated: 2026-09-23
 
 ## Scope
 
-- **Dual-language study mode** (refined from M04's bilingual render): source line large, translation small/dim, word-by-word synchronization extends to *highlighting the currently-spoken word* (karaoke) using word timestamps.
+- **Dual-language study mode** (refined from M04's bilingual render): source line large, translation small/dim, word-by-word synchronization extends to _highlighting the currently-spoken word_ (karaoke) using word timestamps.
 - **Click-a-word interactions**: tap a word → inline gloss/lemma (from a local dictionary, no cloud), pronunciation toggle (local TTS), save to a word list.
-- **Shared library format**: a portable `.sublight.json` (project + tracks + styles) and a defined *library export* (subtitles + word lists) that the sibling tool consumes; documented data contract in [Spec 02 §7](../../specification/02-Data-Model.md).
+- **Shared library format**: a portable `.sublight.json` (project + tracks + styles) and a defined _library export_ (subtitles + word lists) that the sibling tool consumes; documented data contract in [Spec 02 §7](../../specification/02-Data-Model.md).
 - Vocabulary export: CSV/Anki-friendly format of saved words (with source sentence + translation + timestamp link-back).
 - Snippet save: capture a sentence pair + time range for future review.
 - (Public roadmap) articulation with the sibling tool's own storage — decided in a new ADR at M09 planning ("language-learning bridge protocol").

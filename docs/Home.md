@@ -25,13 +25,13 @@ Start with the areas below. Suggested reading order for newcomers:
 
 ## The documentation areas
 
-| Area | Folder | Purpose |
-|---|---|---|
-| 🏛 **Architecture** | [architecture/](architecture/README.md) | System design, **decisions** (the ADR log), requirements, diagrams. Anything that — if changed — would considerably impact the project lives here and *must* be documented. |
-| 🗺 **Plan** | [plan/](plan/README.md) | The roadmap, milestones, and every task per milestone with acceptance criteria. |
-| 📐 **Specification** | [specification/](specification/README.md) | Detailed specs of each system component: how they work, their interfaces, diagrams, and how they relate. |
-| ✅ **Checkpoints** | [checkpoints/](checkpoints/README.md) | After each release/beta: what we tested, bugs found, features missed, things forgotten or underspecified. |
-| 🔍 **Audits** | [audits/](audits/README.md) | Periodic security, code, and quality audits — findings, fixes, follow-ups. |
+| Area                 | Folder                                    | Purpose                                                                                                                                                                     |
+| -------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🏛 **Architecture**   | [architecture/](architecture/README.md)   | System design, **decisions** (the ADR log), requirements, diagrams. Anything that — if changed — would considerably impact the project lives here and _must_ be documented. |
+| 🗺 **Plan**           | [plan/](plan/README.md)                   | The roadmap, milestones, and every task per milestone with acceptance criteria.                                                                                             |
+| 📐 **Specification** | [specification/](specification/README.md) | Detailed specs of each system component: how they work, their interfaces, diagrams, and how they relate.                                                                    |
+| ✅ **Checkpoints**   | [checkpoints/](checkpoints/README.md)     | After each release/beta: what we tested, bugs found, features missed, things forgotten or underspecified.                                                                   |
+| 🔍 **Audits**        | [audits/](audits/README.md)               | Periodic security, code, and quality audits — findings, fixes, follow-ups.                                                                                                  |
 
 ### Direct links
 
@@ -55,7 +55,7 @@ Hardware target: **32 GB RAM · 4 GB VRAM (Quadro T1000) · i7 9th gen** → see
 
 ## Conventions used in this vault
 
-- **Links** — plain relative Markdown links, e.g. `text → architecture/Requirements.md`, so the vault renders on both Obsidian *and* GitHub. Obsidian wikilinks also work; prefer relative links for anything that must survive GitHub rendering.
+- **Links** — plain relative Markdown links, e.g. `text → architecture/Requirements.md`, so the vault renders on both Obsidian _and_ GitHub. Obsidian wikilinks also work; prefer relative links for anything that must survive GitHub rendering.
 - **Diagrams** — [Mermaid](https://mermaid.js.org/) code blocks; rendered natively by Obsidian and GitHub.
 - **Metadata** — every file starts with YAML frontmatter (`tags`, `status`, `updated`).
 - **Statuses** — used across files in italic `_status: …_` or frontmatter. Legend:
@@ -74,4 +74,4 @@ Hardware target: **32 GB RAM · 4 GB VRAM (Quadro T1000) · i7 9th gen** → see
 - Every release produces a **[checkpoint](checkpoints/README.md)**.
 - Periodically, an **[audit](audits/README.md)** reviews security, code quality, and model/dependency health.
 
-**If you change something big — an engine transport, a model, a storage scheme — it needs an ADR entry *before* it hits the code.**
+**If you change something big — an engine transport, a model, a storage scheme — it needs an ADR entry _before_ it hits the code.**

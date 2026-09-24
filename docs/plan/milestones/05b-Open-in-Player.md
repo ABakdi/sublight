@@ -6,7 +6,7 @@ updated: 2026-09-23
 
 # M05b — Open in Sublight Player (page-video migration)
 
-**Goal:** a requested, flagship flow — the extension detects the video on *any* page, the user clicks **"Open in Sublight Player"**, a new tab opens, and the video plays there with every player feature: overlay, styling, captioning, translation, editing, export, projects.
+**Goal:** a requested, flagship flow — the extension detects the video on _any_ page, the user clicks **"Open in Sublight Player"**, a new tab opens, and the video plays there with every player feature: overlay, styling, captioning, translation, editing, export, projects.
 
 Design lives in [ADR-0017](../../architecture/decisions/0017-open-in-player.md) and [Spec 04 §9](../../specification/04-Player-App.md#9-opening-a-pages-video-open-in-player-adr-0017) / [Spec 09 §8](../../specification/09-Browser-Extension.md#8-open-in-sublight-player).
 

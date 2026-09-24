@@ -18,27 +18,30 @@ _The wire contract between clients (extension, player) and the engine. Typed in 
 ## 2. Endpoints
 
 ### Health & meta
-| Endpoint | Response |
-|---|---|
-| `GET /v1/health` | `{ status: "online", version, engineUptimeMs, gpu: { available, name, vramTotal, vramFree }, activeJobs }` |
-| `GET /v1/version` | `{ engine: semver, protocol: 1 }` |
+
+| Endpoint          | Response                                                                                                   |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| `GET /v1/health`  | `{ status: "online", version, engineUptimeMs, gpu: { available, name, vramTotal, vramFree }, activeJobs }` |
+| `GET /v1/version` | `{ engine: semver, protocol: 1 }`                                                                          |
 
 ### Models
-| Endpoint | Notes |
-|---|---|
-| `GET /v1/models` | each: `{ id, role: "asr"|"translate", name, sizeBytes, vramClass, license, installed, state: "not-installed"|"downloading"|"installed"|"error", progress }` |
+
+| Endpoint                      | Notes                                                                      |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `GET /v1/models`              | each: `{ id, role: "asr"                                                   | "translate", name, sizeBytes, vramClass, license, installed, state: "not-installed" | "downloading" | "installed" | "error", progress }` |
 | `POST /v1/models/:id/install` | starts/queues download; progress via WS `model.install.progress`; `{ ok }` |
-| `POST /v1/models/:id/remove` | removes artifact + evicts cache entries using it |
-| `GET /v1/models/:id` | single model detail |
+| `POST /v1/models/:id/remove`  | removes artifact + evicts cache entries using it                           |
+| `GET /v1/models/:id`          | single model detail                                                        |
 
 ### Jobs (the core)
-| Endpoint | Notes |
-|---|---|
-| `POST /v1/jobs` | body + idempotency-key header (below) |
-| `GET /v1/jobs/:id` | state, progress, partial result, error |
+
+| Endpoint                   | Notes                                    |
+| -------------------------- | ---------------------------------------- |
+| `POST /v1/jobs`            | body + idempotency-key header (below)    |
+| `GET /v1/jobs/:id`         | state, progress, partial result, error   |
 | `POST /v1/jobs/:id/cancel` | best-effort cancel of queued/running job |
-| `GET /v1/jobs/:id/result` | full result (cues/tracks) |
-| `GET /v1/jobs` | list, filter by `status` |
+| `GET /v1/jobs/:id/result`  | full result (cues/tracks)                |
+| `GET /v1/jobs`             | list, filter by `status`                 |
 
 Job creation bodies (discriminated by `type`):
 
@@ -60,16 +63,18 @@ Job creation bodies (discriminated by `type`):
 ```
 
 ### Media upload & relay
-| Endpoint | Notes |
-|---|---|
-| `PUT /v1/media/:mediaId` | streaming upload (octet-stream, `X-Source-Name`, `X-Source-MediaHash?`); engine normalizes to 16 kHz mono PCM, stores under `sha256`, responds `{ mediaHash, durationMs, normalizedBytes }` |
-| `DELETE /v1/media/:mediaHash` | free cache |
-| `POST /v1/media/resolve` *(M05b, planned)* | `{ url, site? }` → engine fetches/probes the URL (fetch rules / yt-dlp) → `{ mediaId, durationMs, title, kind: "relay"|"direct-url", directUrl? }`; used by "Open in Sublight Player" |
-| `GET /v1/relay/:mediaId` *(M05b, planned)* | streaming byte proxy with `Range` support so the player can seek a relayed video; v1 buffers to disk before serving, v2 streams on the fly |
+
+| Endpoint                                   | Notes                                                                                                                                                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUT /v1/media/:mediaId`                   | streaming upload (octet-stream, `X-Source-Name`, `X-Source-MediaHash?`); engine normalizes to 16 kHz mono PCM, stores under `sha256`, responds `{ mediaHash, durationMs, normalizedBytes }` |
+| `DELETE /v1/media/:mediaHash`              | free cache                                                                                                                                                                                  |
+| `POST /v1/media/resolve` _(M05b, planned)_ | `{ url, site? }` → engine fetches/probes the URL (fetch rules / yt-dlp) → `{ mediaId, durationMs, title, kind: "relay"                                                                      | "direct-url", directUrl? }`; used by "Open in Sublight Player" |
+| `GET /v1/relay/:mediaId` _(M05b, planned)_ | streaming byte proxy with `Range` support so the player can seek a relayed video; v1 buffers to disk before serving, v2 streams on the fly                                                  |
 
 ### Auth pairing (v1 handshake)
-| Endpoint | Notes |
-|---|---|
+
+| Endpoint                              | Notes                                                                                                                                                                                                               |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /v1/pair/info` (unauthenticated) | returns the **presence** of pairing (`{ requiresToken: true }`) and a short-lived pairing nonce when the token isn't set — used by the `sublight://pair?token=` flow ([M06](../plan/milestones/06-Beta-Release.md)) |
 
 ## 3. Auth & hardening
@@ -88,13 +93,13 @@ _Verified by tests + the [security baseline](../audits/Security-Baseline-Plan.md
 
 ```ts
 type WsEvent =
-  | { type: "job.state"; jobId: string; state: JobState }            // queued|running|done|failed|cancelled|interrupted
-  | { type: "job.progress"; jobId: string; progress: number; detail?: string } // 0..1
-  | { type: "job.partial"; jobId: string; draft: SubtitleTrack }     // live captions & chunk-commits
-  | { type: "job.log"; jobId: string; level: "debug"|"info"|"warn"|"error"; message: string }
-  | { type: "model.install.progress"; modelId: string; progress: number }
-  | { type: "model.state"; modelId: string; state: ModelState }
-  | { type: "engine.gpu"; vramFree: number; residentModel: string | null };
+  | { type: 'job.state'; jobId: string; state: JobState } // queued|running|done|failed|cancelled|interrupted
+  | { type: 'job.progress'; jobId: string; progress: number; detail?: string } // 0..1
+  | { type: 'job.partial'; jobId: string; draft: SubtitleTrack } // live captions & chunk-commits
+  | { type: 'job.log'; jobId: string; level: 'debug' | 'info' | 'warn' | 'error'; message: string }
+  | { type: 'model.install.progress'; modelId: string; progress: number }
+  | { type: 'model.state'; modelId: string; state: ModelState }
+  | { type: 'engine.gpu'; vramFree: number; residentModel: string | null }
 ```
 
 Clients subscribe per job; the engine fans out. Reconnect rule: on socket loss, clients re-`GET /v1/jobs/:id` (REST is the source of truth; WS is an accelerator).
@@ -123,13 +128,13 @@ Codes: `UNAUTHORIZED`, `BAD_ORIGIN`, `MODEL_NOT_INSTALLED`, `MODEL_INSTALL_FAILE
 
 ## 7. Limits (v1 defaults)
 
-| Limit | Value | Configurable |
-|---|---|---|
-| Upload size | 20 GB | yes |
-| Job duration | none (batch ok) | — |
-| In-flight GPU jobs | 1 ASR + 1 translation **share** one GPU slot | no (policy) |
-| Concurrent non-GPU jobs (translation chunk fetches) | 4 | yes |
-| WS message rate | 20 msg/s per client | internal |
+| Limit                                               | Value                                        | Configurable |
+| --------------------------------------------------- | -------------------------------------------- | ------------ |
+| Upload size                                         | 20 GB                                        | yes          |
+| Job duration                                        | none (batch ok)                              | —            |
+| In-flight GPU jobs                                  | 1 ASR + 1 translation **share** one GPU slot | no (policy)  |
+| Concurrent non-GPU jobs (translation chunk fetches) | 4                                            | yes          |
+| WS message rate                                     | 20 msg/s per client                          | internal     |
 
 ## 8. Conventions
 

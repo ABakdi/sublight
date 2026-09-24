@@ -10,13 +10,13 @@ _Every now and then we do a security, code, or quality audit and record it here 
 
 ## Audit types
 
-| Type | Focus | Cadence (target) |
-|---|---|---|
-| **Security** | Attack surface: localhost auth, injection, supply chain, extension permissions, data privacy | At M06 (Beta 1), then each major release |
-| **Code quality** | Structure, dead code, error handling, type safety, test health | At M02, M04/M05 boundaries, M07 |
-| **Performance** | Memory, latency budgets, GPU scheduling, long-video behavior | At M06, M07 |
-| **Dependency & license** | `pnpm audit`, outdated pins, model/license manifest drift | Quarterly + before releases |
-| **Privacy** | "Nothing leaves the machine" claim re-verified end-to-end | At M06, then annually |
+| Type                     | Focus                                                                                        | Cadence (target)                         |
+| ------------------------ | -------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **Security**             | Attack surface: localhost auth, injection, supply chain, extension permissions, data privacy | At M06 (Beta 1), then each major release |
+| **Code quality**         | Structure, dead code, error handling, type safety, test health                               | At M02, M04/M05 boundaries, M07          |
+| **Performance**          | Memory, latency budgets, GPU scheduling, long-video behavior                                 | At M06, M07                              |
+| **Dependency & license** | `pnpm audit`, outdated pins, model/license manifest drift                                    | Quarterly + before releases              |
+| **Privacy**              | "Nothing leaves the machine" claim re-verified end-to-end                                    | At M06, then annually                    |
 
 ## Process
 
@@ -28,10 +28,10 @@ _Every now and then we do a security, code, or quality audit and record it here 
 
 ## Index
 
-| Audit | Type | Status | Opened | Summary |
-|---|---|---|---|---|
-| [Security baseline plan](Security-Baseline-Plan.md) | Security | `planned` (run at [M06](../plan/milestones/06-Beta-Release.md)) | — | First full pass over the engine boundary, extension permissions, prompt injection, model supply chain, privacy claim. |
-| [Code quality baseline plan](Code-Quality-Baseline-Plan.md) | Code quality | `planned` | — | Gates to enforce from M02: lint/typecheck, test coverage floors, error-handling review, dependency hygiene. |
+| Audit                                                       | Type         | Status                                                          | Opened | Summary                                                                                                               |
+| ----------------------------------------------------------- | ------------ | --------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------- |
+| [Security baseline plan](Security-Baseline-Plan.md)         | Security     | `planned` (run at [M06](../plan/milestones/06-Beta-Release.md)) | —      | First full pass over the engine boundary, extension permissions, prompt injection, model supply chain, privacy claim. |
+| [Code quality baseline plan](Code-Quality-Baseline-Plan.md) | Code quality | `planned`                                                       | —      | Gates to enforce from M02: lint/typecheck, test coverage floors, error-handling review, dependency hygiene.           |
 
 > The two plans above are **criteria, not results** — they're the checklist the first audits will execute. Results get recorded under this index as the audits run.
 
