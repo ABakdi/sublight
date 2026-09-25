@@ -11,7 +11,7 @@ const SILENT_FALLBACK_MS = 4000
 const SILENCE_DB = -60
 /** Cap and headroom for the live display delay. */
 const MAX_LAG_MS = 8000
-const LAG_MARGIN_MS = 500
+const LAG_MARGIN_MS = 300
 
 const send = (msg: Message) => browser.runtime.sendMessage(msg).catch(() => {})
 
@@ -91,6 +91,7 @@ export class LiveSession {
     // falls back to tabCapture after the silence window.
     this.capture = startPcmCapture(stream, {
       monitor: false, // the page keeps playing its own audio
+      chunkMs: 500, // smaller chunks, lower latency
       onChunk: (pcm, wallMs) => this.onChunk(pcm, wallMs),
     })
     return true
@@ -136,9 +137,11 @@ export class LiveSession {
       this.overlay.setCues(track.cues, false, 0)
       return
     }
-    const last = track.cues[track.cues.length - 1]
-    if (last) {
-      const lag = this.video.currentTime * 1000 - last.endMs
+    // Measure from the last *spoken* word: cue ends include the reading hold.
+    const lastWordEnd =
+      track.cues.flatMap((c) => c.words ?? []).at(-1)?.endMs ?? track.cues.at(-1)?.endMs
+    if (lastWordEnd !== undefined) {
+      const lag = this.video.currentTime * 1000 - lastWordEnd
       const clamped = Math.max(0, Math.min(MAX_LAG_MS, lag + LAG_MARGIN_MS))
       this.lagMs = this.lagMs === 0 ? clamped : Math.round(this.lagMs * 0.7 + clamped * 0.3)
     }

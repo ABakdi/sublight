@@ -37,6 +37,7 @@ async function start(jobId: string, streamId: string): Promise<void> {
   })
   capture = startPcmCapture(stream, {
     monitor: true,
+    chunkMs: 500,
     onChunk: (pcm, wallMs) => {
       const msg: Message = { type: 'live.audio', jobId, wallMs, pcm: pcmToBase64(pcm) }
       void browser.runtime.sendMessage(msg).catch(() => {})
