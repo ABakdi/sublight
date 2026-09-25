@@ -1,4 +1,5 @@
 import { openSync, readSync, closeSync, fstatSync } from 'node:fs'
+import type { SpeechWord } from '@sublight/core'
 
 /** 16 kHz mono s16 PCM (the normalized WAV). */
 const SAMPLE_RATE = 16000
@@ -71,3 +72,38 @@ export function speechOnsetsMs(wavPath: string, opts?: OnsetOptions): number[] {
 }
 
 export { SAMPLE_RATE }
+
+/** Frame levels (dBFS, 10 ms frames) of in-memory 16 kHz PCM. */
+export function levelsFromPcm(pcm: Int16Array): Float32Array {
+  const frames = Math.floor(pcm.length / FRAME)
+  const levels = new Float32Array(frames)
+  for (let f = 0; f < frames; f++) {
+    let sum = 0
+    for (let i = f * FRAME; i < (f + 1) * FRAME; i++) sum += pcm[i]! * pcm[i]!
+    const rms = Math.sqrt(sum / FRAME) / 32768
+    levels[f] = rms > 0 ? 20 * Math.log10(rms) : -120
+  }
+  return levels
+}
+
+/** Only move a start this far (whisper's segment-start guess vs the real onset). */
+export const SNAP_MAX_MS = 500
+const SNAP_PAUSE_MS = 150
+
+/**
+ * Whisper times the first word of a segment at the segment's start, which is
+ * often the end of the preceding silence rather than where speech begins
+ * (JFK: "And" at 0.00 s vs 0.32 s). For words after a pause, move the start
+ * forward to an energy onset inside the word (≤ 500 ms later, before its
+ * end). Never earlier, never past the word.
+ */
+export function snapToOnsets(words: SpeechWord[], onsetsMs: number[]): SpeechWord[] {
+  return words.map((w, i) => {
+    const prev = words[i - 1]
+    if (prev && w.startMs - prev.endMs < SNAP_PAUSE_MS) return w
+    const onset = onsetsMs.find(
+      (o) => o > w.startMs && o <= w.startMs + SNAP_MAX_MS && o < w.endMs - 20,
+    )
+    return onset === undefined ? w : { ...w, startMs: onset }
+  })
+}

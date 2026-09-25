@@ -12,7 +12,7 @@ import type { TranscribeJob } from '@sublight/protocol'
 import { meanVolumeDb, sliceWav, type FfmpegBinaries } from '../media/ffmpeg'
 import { SILENCE_DB } from '../media/store'
 import { estimateDelta } from './delta'
-import { speechOnsetsMs } from './onsets'
+import { snapToOnsets, speechOnsetsMs } from './onsets'
 import type { MediaStore } from '../media/store'
 import { JobError, type JobRunner, type RunContext, type RunOutput } from '../jobs/queue'
 import type { ModelManager } from '../models/manager'
@@ -29,7 +29,7 @@ import { segmentsFromVerbose, wordsFromVerbose, type Segment, type VerboseJson }
 export const CHUNK_MS = 2 * 60 * 1000
 export const CHUNK_OVERLAP_MS = 1000
 /** Bump when output changes for the same input, so stale cache entries miss. */
-const PIPELINE_VERSION = 4
+const PIPELINE_VERSION = 6
 
 export interface TranscribeDeps {
   media: MediaStore
@@ -234,8 +234,10 @@ export function transcribeRunner(deps: TranscribeDeps): JobRunner<TranscribeJob>
 
       // δ (Spec 07 §1.4a): energy onsets vs word/segment starts after pauses.
       ctx.progress(1, 'aligning')
+      const onsets = speechOnsetsMs(wav)
+      if (task !== 'translate') words.splice(0, words.length, ...snapToOnsets(words, onsets))
       const timed = task === 'translate' ? segments.map((s) => ({ word: s.text, ...s })) : words
-      const { deltaMs } = estimateDelta(timed, speechOnsetsMs(wav))
+      const { deltaMs } = estimateDelta(timed, onsets)
       const track = {
         ...makeTrack(task, language, build(), false),
         ...(deltaMs ? { syncOffsetMs: deltaMs } : {}),

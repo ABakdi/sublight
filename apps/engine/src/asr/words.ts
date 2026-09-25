@@ -117,6 +117,7 @@ export function wordsFromVerbose(json: VerboseJson, offsetMs = 0): SpeechWord[] 
     }
     flush()
   }
+  dropAnnotations(words)
   // Monotonic, non-overlapping, at least 10 ms each.
   for (let i = 0; i < words.length; i++) {
     const w = words[i]!
@@ -128,6 +129,36 @@ export function wordsFromVerbose(json: VerboseJson, offsetMs = 0): SpeechWord[] 
     if (w.endMs < w.startMs + 10) w.endMs = w.startMs + 10
   }
   return words
+}
+
+/** Longest `( … )` span treated as a sound annotation ("(laughs)", "(upbeat music)"). */
+const MAX_PAREN_WORDS = 4
+
+/**
+ * Remove sound annotations whisper writes inline across several tokens
+ * ("[ Applause ]", "(upbeat music)") and ">>" speaker-change markers. Whole
+ * bracketed spans go; a "(…)" span only when short, since parentheses can be
+ * real speech in some outputs. Mutates in place.
+ */
+export function dropAnnotations(words: SpeechWord[]): void {
+  const out: SpeechWord[] = []
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]!
+    const open = w.word.startsWith('[') ? ']' : w.word.startsWith('(') ? ')' : null
+    if (open) {
+      let j = i
+      while (j < words.length && !words[j]!.word.includes(open)) j++
+      const span = j - i + 1
+      if (j < words.length && (open === ']' || span <= MAX_PAREN_WORDS)) {
+        i = j
+        continue
+      }
+    }
+    const text = w.word.replace(/^>>\s*/, '')
+    if (!text || text === '>>' || text === '-') continue
+    out.push(text === w.word ? w : { ...w, word: text })
+  }
+  words.splice(0, words.length, ...out)
 }
 
 /** Segment-level output (used for `translate`, where word times don't map to speech). */

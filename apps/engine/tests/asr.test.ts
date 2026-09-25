@@ -244,3 +244,34 @@ describe('language names', () => {
     expect(whisperLanguageCode('klingon')).toBeNull()
   })
 })
+
+describe('sound annotations', () => {
+  it('drops [ … ] spans, short ( … ) spans and >> markers, keeping speech', async () => {
+    const { dropAnnotations } = await import('../src/asr/words')
+    const words = [
+      '[',
+      'Applause',
+      ']',
+      '>>',
+      'Thank',
+      'you.',
+      '(laughs)',
+      'I',
+      '(upbeat',
+      'music)',
+      'mean',
+      'it',
+    ].map((word, i) => ({ word, startMs: i * 100, endMs: i * 100 + 50 }))
+    dropAnnotations(words)
+    expect(words.map((w) => w.word)).toEqual(['Thank', 'you.', 'I', 'mean', 'it'])
+  })
+
+  it('keeps a long parenthetical and an unclosed bracket', async () => {
+    const { dropAnnotations } = await import('../src/asr/words')
+    const words = ['(which', 'I', 'think', 'is', 'really', 'true)', '[unclosed', 'text'].map(
+      (word, i) => ({ word, startMs: i * 100, endMs: i * 100 + 50 }),
+    )
+    dropAnnotations(words)
+    expect(words).toHaveLength(8)
+  })
+})

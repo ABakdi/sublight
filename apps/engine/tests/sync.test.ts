@@ -90,3 +90,15 @@ describe('chunk continuity and hallucinations', () => {
     ).toBe(false)
   })
 })
+
+describe('onset snapping', () => {
+  it('moves a post-pause word start forward to the onset inside it, never earlier', async () => {
+    const { snapToOnsets } = await import('../src/asr/onsets')
+    const words = [
+      { word: 'And', startMs: 0, endMs: 400 },
+      { word: 'so', startMs: 400, endMs: 520 }, // no pause before: left alone
+      { word: 'ask', startMs: 3000, endMs: 3500 },
+    ]
+    expect(snapToOnsets(words, [320, 3600, 2900]).map((w) => w.startMs)).toEqual([320, 400, 3000])
+  })
+})
