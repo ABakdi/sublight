@@ -6,11 +6,12 @@ import { DEV_EXTENSION_ID } from '@sublight/protocol'
 const config: EngineConfig = {
   token: 'a'.repeat(64),
   port: 17421,
-  defaults: { asrModel: 'whisper-small', translateModel: 'qwen2.5-3b-instruct' },
+  defaults: { asrModel: 'whisper-small', translateModel: 'qwen3-4b-instruct' },
   autoRetry: true,
   allowedOrigins: [],
   cacheLimits: { mediaBytes: 20 * 1024 ** 3, uploadBytes: 20 * 1024 ** 3 },
   whisper: { port: 17422, gpu: 'off', threads: 4 },
+  llama: { port: 17423, gpu: 'off', threads: 4, contextTokens: 4096 },
   ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
 }
 

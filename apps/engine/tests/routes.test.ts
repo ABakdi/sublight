@@ -13,6 +13,8 @@ import type {
 import { createApp } from '../src/app'
 import { transcribeRunner } from '../src/asr/transcribe'
 import { WhisperWorker } from '../src/asr/whisper'
+import { LlamaWorker } from '../src/llm/llama'
+import { GpuResidency } from '../src/workers/gpu'
 import type { EngineConfig } from '../src/config'
 import { EventBus } from '../src/events'
 import { JobQueue, type JobRunner } from '../src/jobs/queue'
@@ -28,11 +30,12 @@ const hasFfmpeg = spawnSync('ffmpeg', ['-version']).status === 0
 const config: EngineConfig = {
   token: 'a'.repeat(64),
   port: 17421,
-  defaults: { asrModel: 'whisper-small', translateModel: 'qwen2.5-3b-instruct' },
+  defaults: { asrModel: 'whisper-small', translateModel: 'qwen3-4b-instruct' },
   autoRetry: true,
   allowedOrigins: [],
   cacheLimits: { mediaBytes: 1024 ** 3, uploadBytes: 50 * 1024 ** 2 },
   whisper: { port: 17999, gpu: 'off', threads: 2 },
+  llama: { port: 17998, gpu: 'off', threads: 2, contextTokens: 4096 },
   ffmpeg: SYSTEM_FFMPEG,
 }
 const H = { host: '127.0.0.1:17421', authorization: `Bearer ${config.token}` }
@@ -55,7 +58,14 @@ function services(runner?: JobRunner): EngineServices {
   const jobs = new JobQueue(new JobStore(paths.jobs), bus, { autoRetry: true })
   jobs.register(runner ?? transcribeRunner({ media, models, whisper, ffmpeg: SYSTEM_FFMPEG }))
   jobs.start()
-  return { bus, models, media, jobs, whisper, paths }
+  const llama = new LlamaWorker({
+    binary: '/nonexistent',
+    port: 17998,
+    useGpu: false,
+    logDir: paths.logs,
+  })
+  const gpu = new GpuResidency({ asr: whisper, llm: llama })
+  return { bus, models, media, jobs, whisper, llama, gpu, paths }
 }
 
 /** Stand-in for whisper: instant, deterministic output. */

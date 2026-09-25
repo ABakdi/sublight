@@ -8,7 +8,7 @@ import { validateCues } from '@sublight/core'
 import type { JobResult } from '@sublight/protocol'
 import { loadConfig, sublightHome } from '../src/config'
 import { enginePaths } from '../src/paths'
-import { createServices, whisperBinary } from '../src/services'
+import { createServices, runtimeBinary } from '../src/services'
 
 /**
  * Real ASR through the pinned whisper-server (M02 AC3). Runs only where
@@ -19,7 +19,7 @@ import { createServices, whisperBinary } from '../src/services'
 const realHome = sublightHome()
 const realPaths = enginePaths(realHome)
 const config = loadConfig({ whisper: { port: 17498, gpu: 'auto', threads: 4 } })
-const { binary } = whisperBinary(config, realPaths)
+const { binary } = runtimeBinary('whisper', config, realPaths)
 const modelFile = join(realPaths.models, 'ggml-small.bin')
 const ready =
   existsSync(binary) && existsSync(modelFile) && spawnSync('ffmpeg', ['-version']).status === 0

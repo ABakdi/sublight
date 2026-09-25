@@ -29,12 +29,14 @@ import { segmentsFromVerbose, wordsFromVerbose, type Segment, type VerboseJson }
 export const CHUNK_MS = 2 * 60 * 1000
 export const CHUNK_OVERLAP_MS = 1000
 /** Bump when output changes for the same input, so stale cache entries miss. */
-const PIPELINE_VERSION = 3
+const PIPELINE_VERSION = 4
 
 export interface TranscribeDeps {
   media: MediaStore
   models: ModelManager
   whisper: WhisperWorker
+  /** Unloads the LLM before whisper loads (one resident model, Spec 06 §2). */
+  gpu?: { use(kind: string): Promise<void> }
   ffmpeg: FfmpegBinaries
   chunkMs?: number
 }
@@ -157,6 +159,7 @@ export function transcribeRunner(deps: TranscribeDeps): JobRunner<TranscribeJob>
       const maxCue = req.params?.maxCueDurationMs ?? MAX_CUE_DURATION_MS
 
       ctx.progress(0, 'loading model')
+      await deps.gpu?.use('asr')
       await deps.whisper.ensure(req.model, deps.models.pathOf(req.model))
 
       const chunks = planChunks(durationMs, chunkMs)

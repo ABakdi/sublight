@@ -95,18 +95,20 @@ export const MODEL_MANIFEST: readonly ManifestEntry[] = [
     tasks: ['transcribe'],
   },
   {
-    // License is the Qwen Research License (HF: "other"), not Apache-2.0 — the
-    // 1.5B and 7B sizes are Apache-2.0. Open question for M04 (ADR-0016).
-    id: 'qwen2.5-3b-instruct',
+    // Translator (ADR-0019): the closest Apache-2.0 successor to Qwen2.5-3B,
+    // whose own license (Qwen Research) forbids commercial use. Qwen publishes
+    // no GGUF for this release; bartowski's Q4_K_M of the upstream weights
+    // (Qwen/Qwen3-4B-Instruct-2507 @ cdbee75f) is pinned by revision + SHA-256.
+    id: 'qwen3-4b-instruct',
     role: 'translate',
-    name: 'Qwen2.5 3B Instruct, Q4_K_M',
-    repo: 'Qwen/Qwen2.5-3B-Instruct-GGUF',
-    revision: '7dabda4d13d513e3e842b20f0d435c732f172cbe',
-    file: 'qwen2.5-3b-instruct-q4_k_m.gguf',
-    sha256: '626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d',
-    sizeBytes: 2104932768,
-    vramClass: '~2.5 GB',
-    license: 'qwen-research',
+    name: 'Qwen3 4B Instruct 2507, Q4_K_M',
+    repo: 'bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF',
+    revision: 'ae44f08e1392f39c0e474af10c3ff8355c8b6688',
+    file: 'Qwen_Qwen3-4B-Instruct-2507-Q4_K_M.gguf',
+    sha256: '2fde00ce69dd4899c70d020845e2638353015bba0fdf161b3eb965f2bca4464e',
+    sizeBytes: 2497280736,
+    vramClass: '~3 GB',
+    license: 'Apache-2.0',
   },
 ]
 

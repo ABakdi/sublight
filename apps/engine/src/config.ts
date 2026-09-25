@@ -33,6 +33,14 @@ export interface EngineConfig {
     gpu: 'auto' | 'off'
     threads: number
   }
+  llama: {
+    /** llama-server binary; default from `pnpm engine:setup-llama` (~/.sublight/bin). */
+    binary?: string
+    port: number
+    gpu: 'auto' | 'off'
+    threads: number
+    contextTokens: number
+  }
   ffmpeg: { ffmpeg: string; ffprobe: string }
 }
 
@@ -40,12 +48,13 @@ const DEFAULTS: Omit<EngineConfig, 'token'> = {
   port: ENGINE_DEFAULT_PORT,
   defaults: {
     asrModel: 'whisper-small',
-    translateModel: 'qwen2.5-3b-instruct',
+    translateModel: 'qwen3-4b-instruct',
   },
   autoRetry: true,
   allowedOrigins: [],
   cacheLimits: { mediaBytes: 20 * 1024 ** 3, uploadBytes: 20 * 1024 ** 3 },
   whisper: { port: 17422, gpu: 'auto', threads: 4 },
+  llama: { port: 17423, gpu: 'auto', threads: 4, contextTokens: 4096 },
   ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
 }
 
@@ -77,6 +86,7 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
     defaults: { ...DEFAULTS.defaults, ...(raw?.defaults ?? {}) },
     cacheLimits: { ...DEFAULTS.cacheLimits, ...(raw?.cacheLimits ?? {}) },
     whisper: { ...DEFAULTS.whisper, ...(raw?.whisper ?? {}) },
+    llama: { ...DEFAULTS.llama, ...(raw?.llama ?? {}) },
     ffmpeg: { ...DEFAULTS.ffmpeg, ...(raw?.ffmpeg ?? {}) },
   }
   // A freshly generated token must survive restarts, or every paired client breaks.
@@ -89,6 +99,7 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
     defaults: { ...base.defaults, ...(overrides?.defaults ?? {}) },
     cacheLimits: { ...base.cacheLimits, ...(overrides?.cacheLimits ?? {}) },
     whisper: { ...base.whisper, ...(overrides?.whisper ?? {}) },
+    llama: { ...base.llama, ...(overrides?.llama ?? {}) },
     ffmpeg: { ...base.ffmpeg, ...(overrides?.ffmpeg ?? {}) },
   }
   const port = Number(envPort)

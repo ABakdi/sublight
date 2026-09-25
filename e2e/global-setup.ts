@@ -15,7 +15,7 @@ export default async function globalSetup(): Promise<() => void> {
       {
         token: E2E_TOKEN,
         port: E2E_ENGINE_PORT,
-        defaults: { asrModel: 'whisper-small', translateModel: 'qwen2.5-3b-instruct' },
+        defaults: { asrModel: 'whisper-small', translateModel: 'qwen3-4b-instruct' },
         autoRetry: true,
         cacheLimits: { mediaBytes: 20 * 1024 ** 3 },
       },

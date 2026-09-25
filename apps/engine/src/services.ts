@@ -2,6 +2,9 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { WhisperWorker } from './asr/whisper'
 import { transcribeRunner } from './asr/transcribe'
+import { LlamaWorker } from './llm/llama'
+import { translateRunner } from './translate/runner'
+import { GpuResidency } from './workers/gpu'
 import type { EngineConfig } from './config'
 import { EventBus } from './events'
 import { JobQueue } from './jobs/queue'
@@ -16,26 +19,32 @@ export interface EngineServices {
   media: MediaStore
   jobs: JobQueue
   whisper: WhisperWorker
+  llama: LlamaWorker
+  gpu: GpuResidency
   paths: EnginePaths
 }
 
-interface WhisperBuildInfo {
+interface BuildInfo {
   path: string
   backend: 'cuda' | 'cpu'
 }
 
-/** The whisper-server built by `pnpm engine:setup-whisper`, unless config names one. */
-export function whisperBinary(
+/**
+ * A model server built by `pnpm engine:setup-<name>` (~/.sublight/bin/<name>.json),
+ * unless config names a binary. GPU only for CUDA builds, and never with `gpu: "off"`.
+ */
+export function runtimeBinary(
+  name: 'whisper' | 'llama',
   config: EngineConfig,
   paths: EnginePaths,
 ): { binary: string; gpu: boolean } {
-  const infoFile = join(paths.bin, 'whisper.json')
+  const conf = config[name]
+  const infoFile = join(paths.bin, `${name}.json`)
   const info = existsSync(infoFile)
-    ? (JSON.parse(readFileSync(infoFile, 'utf8')) as WhisperBuildInfo)
+    ? (JSON.parse(readFileSync(infoFile, 'utf8')) as BuildInfo)
     : null
-  const binary = config.whisper.binary ?? info?.path ?? join(paths.bin, 'whisper-server')
-  const gpu =
-    config.whisper.gpu !== 'off' && (config.whisper.binary ? true : info?.backend === 'cuda')
+  const binary = conf.binary ?? info?.path ?? join(paths.bin, `${name}-server`)
+  const gpu = conf.gpu !== 'off' && (conf.binary ? true : info?.backend === 'cuda')
   return { binary, gpu }
 }
 
@@ -48,16 +57,28 @@ export function createServices(config: EngineConfig, paths: EnginePaths): Engine
     maxUploadBytes: config.cacheLimits.uploadBytes,
     cacheLimitBytes: config.cacheLimits.mediaBytes,
   })
-  const { binary, gpu } = whisperBinary(config, paths)
+  const asr = runtimeBinary('whisper', config, paths)
   const whisper = new WhisperWorker({
-    binary,
+    binary: asr.binary,
     port: config.whisper.port,
-    useGpu: gpu,
+    useGpu: asr.gpu,
     threads: config.whisper.threads,
     logDir: paths.logs,
     runDir: paths.run,
   })
+  const llm = runtimeBinary('llama', config, paths)
+  const llama = new LlamaWorker({
+    binary: llm.binary,
+    port: config.llama.port,
+    useGpu: llm.gpu,
+    threads: config.llama.threads,
+    contextTokens: config.llama.contextTokens,
+    logDir: paths.logs,
+    runDir: paths.run,
+  })
+  const gpu = new GpuResidency({ asr: whisper, llm: llama })
   const jobs = new JobQueue(new JobStore(paths.jobs), bus, { autoRetry: config.autoRetry })
-  jobs.register(transcribeRunner({ media, models, whisper, ffmpeg: config.ffmpeg }))
-  return { bus, models, media, jobs, whisper, paths }
+  jobs.register(transcribeRunner({ media, models, whisper, gpu, ffmpeg: config.ffmpeg }))
+  jobs.register(translateRunner({ models, llama, gpu }))
+  return { bus, models, media, jobs, whisper, llama, gpu, paths }
 }

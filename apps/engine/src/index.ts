@@ -47,6 +47,7 @@ async function shutdown(signal: string) {
   setTimeout(() => process.exit(1), 8000).unref()
   await services.jobs.shutdown()
   await services.whisper.stop()
+  await services.llama.stop()
   server.close(() => process.exit(0))
 }
 

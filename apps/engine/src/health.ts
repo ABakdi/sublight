@@ -22,7 +22,7 @@ export function buildHealth(
     ...(services
       ? {
           queuedJobs: stats!.queued,
-          residentModel: services.whisper.residentModel,
+          residentModel: services.gpu.resident,
           mediaCacheBytes: services.media.all().reduce((n, m) => n + m.normalizedBytes, 0),
         }
       : {}),
