@@ -9,14 +9,22 @@ import {
 } from '@sublight/protocol'
 import { engineRequest, EngineRequestError, getToken } from './engine'
 import type { CaptureSource, LiveState, Message } from './messages'
-import { base64ToBytes } from './pcm'
+import { base64ToBytes, levelDb } from './pcm'
 
 export const LIVE_MODEL_KEY = 'liveModel'
 export const LIVE_LANGUAGE_KEY = 'liveLanguage'
+/** 'transcribe' (spoken language) or 'translate' (English, ADR-0018). */
+export const LIVE_TASK_KEY = 'liveTask'
 export const DEFAULT_LIVE_MODEL = 'whisper-small'
 const OFFSCREEN_URL = 'offscreen.html'
 
 const liveKey = (tabId: number) => `live:${tabId}`
+/** The last finished live track per tab, for "Download SRT" in the popup. */
+export const liveTrackKey = (tabId: number) => `liveTrack:${tabId}`
+/** Tab audio silent this long while the video plays → probably muted tab or DRM. */
+const TAB_SILENT_NOTICE_MS = 8000
+const NO_SOUND_NOTICE =
+  'No sound from this tab. Unmute the tab, or the video may be protected (DRM), which sublight can’t caption.'
 
 /**
  * One tab's live captioning, run from the service worker (Spec 09 §3, §5):
@@ -29,6 +37,10 @@ class LiveController {
   private ws: WebSocket | null = null
   /** Audio posts stay in order: each waits for the previous one. */
   private audioChain: Promise<unknown> = Promise.resolve()
+  /** The page moved on: keep the result for download but don't show it there. */
+  detached = false
+  private playing = true
+  private silentMs = 0
 
   constructor(
     readonly tabId: number,
@@ -61,7 +73,7 @@ class LiveController {
   private async onEvent(e: WsEvent): Promise<void> {
     if (!('jobId' in e) || e.jobId !== this.jobId) return
     if (e.type === 'job.partial') {
-      this.toPage({ type: 'live.track', track: e.draft, final: false })
+      if (!this.detached) this.toPage({ type: 'live.track', track: e.draft, final: false })
       await this.save({ cues: e.draft.cues.length })
     } else if (e.type === 'job.progress' && e.detail) {
       await this.save({
@@ -80,8 +92,18 @@ class LiveController {
   private async finish(): Promise<void> {
     const result = await engineRequest<JobResult>(`/v1/jobs/${this.jobId}/result`)
     const track: SubtitleTrack | undefined = result.tracks[0]
-    if (track) this.toPage({ type: 'live.track', track, final: true })
-    await this.save({ phase: 'done', detail: undefined, cues: track?.cues.length ?? 0 })
+    if (track) {
+      if (!this.detached) this.toPage({ type: 'live.track', track, final: true })
+      await browser.storage.session.set({ [liveTrackKey(this.tabId)]: track })
+    }
+    await this.save({
+      phase: this.detached ? 'stopped' : 'done',
+      detail: this.detached
+        ? 'The page moved to another video; the captions so far can be downloaded.'
+        : undefined,
+      notice: undefined,
+      cues: track?.cues.length ?? 0,
+    })
     this.ws?.close()
   }
 
@@ -94,6 +116,7 @@ class LiveController {
 
   audio(wallMs: number, pcm: string): void {
     const body = base64ToBytes(pcm)
+    if (this.state.source === 'tab') this.trackSilence(body)
     this.audioChain = this.audioChain
       .then(() =>
         engineRequest(`/v1/live/${this.jobId}/audio?wallMs=${Math.round(wallMs)}`, {
@@ -104,7 +127,21 @@ class LiveController {
       .catch(() => {})
   }
 
+  /** Spec 08 §7: tab audio silent while the video plays → muted tab or DRM; say so. */
+  private trackSilence(bytes: Uint8Array<ArrayBuffer>): void {
+    const pcm = new Int16Array(bytes.buffer, bytes.byteOffset, bytes.byteLength >> 1)
+    if (this.playing && levelDb(pcm) < -60) this.silentMs += (pcm.length / 16000) * 1000
+    else this.silentMs = 0
+    const notice = this.silentMs >= TAB_SILENT_NOTICE_MS ? NO_SOUND_NOTICE : undefined
+    if (notice !== this.state.notice) void this.save({ notice })
+  }
+
+  hint(message: string | null): void {
+    void this.save({ notice: message ?? undefined })
+  }
+
   anchor(a: LiveAnchor): void {
+    this.playing = a.playing
     void engineRequest(`/v1/live/${this.jobId}/anchor`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -168,7 +205,7 @@ function describe(err: unknown): string {
 /** Start live captions on the tab's primary video (frame from its video reports). */
 export async function startLive(tabId: number, frameId: number): Promise<LiveState> {
   await stopLive(tabId)
-  const prefs = await browser.storage.local.get([LIVE_MODEL_KEY, LIVE_LANGUAGE_KEY])
+  const prefs = await browser.storage.local.get([LIVE_MODEL_KEY, LIVE_LANGUAGE_KEY, LIVE_TASK_KEY])
   let job: JobSummary
   try {
     job = await engineRequest<JobSummary>('/v1/jobs', {
@@ -177,7 +214,10 @@ export async function startLive(tabId: number, frameId: number): Promise<LiveSta
       body: JSON.stringify({
         type: 'live',
         model: (prefs[LIVE_MODEL_KEY] as string | undefined) || DEFAULT_LIVE_MODEL,
-        params: { language: (prefs[LIVE_LANGUAGE_KEY] as string | undefined) || null },
+        params: {
+          language: (prefs[LIVE_LANGUAGE_KEY] as string | undefined) || null,
+          ...(prefs[LIVE_TASK_KEY] === 'translate' ? { task: 'translate' } : {}),
+        },
         priority: 'interactive',
       }),
     })
@@ -202,10 +242,15 @@ export async function startLive(tabId: number, frameId: number): Promise<LiveSta
       { type: 'live.begin', jobId: job.id, captureElement: true } satisfies Message,
       { frameId },
     )) as { ok: boolean; captured?: boolean; reason?: string } | undefined
-    if (!reply?.ok)
+    if (!reply?.ok) {
       throw new Error(
-        reply?.reason === 'no-video' ? 'No video on this page.' : 'The page didn’t answer.',
+        reply?.reason === 'no-video'
+          ? 'No video on this page.'
+          : reply?.reason === 'player'
+            ? 'This is the Sublight Player: use its Caption tab instead.'
+            : 'The page didn’t answer.',
       )
+    }
     if (reply.captured) await c.useSource('element')
     else await startTabCapture(c)
   } catch (err) {
@@ -247,6 +292,17 @@ export async function onLiveMessage(
     case 'live.anchor':
       ;(find(message.jobId) ?? finishing.get(message.jobId))?.anchor(message.anchor)
       return { ok: true }
+    case 'live.hint':
+      find(message.jobId)?.hint(message.message)
+      return { ok: true }
+    case 'live.navigated': {
+      const c = find(message.jobId)
+      if (c && sender.tab?.id === c.tabId) {
+        c.detached = true
+        await stopLive(c.tabId)
+      }
+      return { ok: true }
+    }
     case 'live.fallback': {
       const c = find(message.jobId)
       if (c && sender.tab?.id === c.tabId) {

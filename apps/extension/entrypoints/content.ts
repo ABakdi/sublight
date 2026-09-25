@@ -74,14 +74,26 @@ export default defineContentScript({
       subtree: true,
     })
     // SPA navigations (YouTube etc.) swap videos without a page load.
+    let live: LiveSession | null = null
+
+    /** The page moved on (SPA navigation, new src): drop the session and its captions. */
+    const endLiveForNavigation = () => {
+      if (!live) return
+      const jobId = live.jobId
+      live.destroy()
+      live = null
+      void browser.runtime
+        .sendMessage({ type: 'live.navigated', jobId } satisfies Message)
+        .catch(() => {})
+    }
+
     setInterval(() => {
       if (location.href !== lastUrl) {
         lastUrl = location.href
+        endLiveForNavigation()
         schedule(true)
       } else schedule()
     }, RESCAN_MS)
-
-    let live: LiveSession | null = null
 
     browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
       if (!isMessage(message)) return undefined
@@ -98,10 +110,15 @@ export default defineContentScript({
             sendResponse({ ok: false, reason: 'no-video' })
             return undefined
           }
+          // The Sublight Player captions its own video: never add a second overlay (Spec 01 §5).
+          if (document.querySelector('[data-sublight-host]:not([data-sublight-frame] *)')) {
+            sendResponse({ ok: false, reason: 'player' })
+            return undefined
+          }
           live?.destroy()
           demoOn = false
           syncOverlay(null) // live captions replace test captions
-          live = new LiveSession(primary, message.jobId)
+          live = new LiveSession(primary, message.jobId, endLiveForNavigation)
           const captured = message.captureElement ? live.captureElement() : false
           sendResponse({ ok: true, captured })
           return undefined

@@ -50,6 +50,8 @@ export interface LiveState {
   phase: 'starting' | 'listening' | 'refining' | 'done' | 'error' | 'stopped'
   detail?: string
   error?: string
+  /** Something the user should act on while listening (muted, no sound). */
+  notice?: string
   cues: number
 }
 
@@ -68,6 +70,10 @@ export type Message =
   | { type: 'live.audio'; jobId: string; wallMs: number; pcm: string }
   | { type: 'live.anchor'; jobId: string; anchor: LiveAnchor }
   | { type: 'live.fallback'; jobId: string; reason: string }
+  /** The page moved to another video (SPA navigation, new src): end without showing results. */
+  | { type: 'live.navigated'; jobId: string }
+  /** A user-facing hint from the page or offscreen ("unmute the video"), null clears it. */
+  | { type: 'live.hint'; jobId: string; message: string | null }
   // SW → offscreen
   | { type: 'offscreen.start'; jobId: string; streamId: string }
   | { type: 'offscreen.stop' }

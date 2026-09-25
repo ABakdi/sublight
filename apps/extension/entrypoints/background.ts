@@ -59,6 +59,8 @@ async function handle(message: Message, sender: { tab?: { id?: number }; frameId
     case 'live.audio':
     case 'live.anchor':
     case 'live.fallback':
+    case 'live.hint':
+    case 'live.navigated':
       return onLiveMessage(message, sender)
     case 'demo.toggle': {
       const set: Message = { type: 'demo.set', on: message.on }

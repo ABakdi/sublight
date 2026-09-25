@@ -32,10 +32,23 @@ export class LiveSession {
   constructor(
     private readonly video: HTMLVideoElement,
     readonly jobId: string,
+    /** Called when the element switches to another source (a new video). */
+    private readonly onSourceChange: () => void = () => {},
   ) {
     this.overlay = new OverlayFrame(video)
     for (const e of this.events) video.addEventListener(e, this.onPlayback)
+    video.addEventListener('emptied', this.onEmptied)
     this.sendAnchor()
+  }
+
+  private onEmptied = () => this.onSourceChange()
+
+  /** Last hint sent, so it goes out only on change. */
+  private hint: string | null = null
+  private setHint(message: string | null): void {
+    if (message === this.hint) return
+    this.hint = message
+    void send({ type: 'live.hint', jobId: this.jobId, message })
   }
 
   get target(): HTMLVideoElement {
@@ -85,6 +98,13 @@ export class LiveSession {
 
   private onChunk(pcm: Int16Array, wallMs: number): void {
     const playing = !this.video.paused && !this.video.ended
+    // captureStream still carries sound when the element is muted, but tell
+    // the user anyway: a muted tab would be silent on the tabCapture path.
+    this.setHint(
+      playing && (this.video.muted || this.video.volume === 0)
+        ? 'The video is muted — unmute it so it can be captioned.'
+        : null,
+    )
     if (playing && !this.video.muted && this.video.volume > 0 && levelDb(pcm) < SILENCE_DB) {
       this.silentMs += (pcm.length / 16000) * 1000
       if (this.silentMs >= SILENT_FALLBACK_MS && !this.fellBack) {
@@ -134,6 +154,7 @@ export class LiveSession {
   end(): void {
     this.stopCapture()
     for (const e of this.events) this.video.removeEventListener(e, this.onPlayback)
+    this.video.removeEventListener('emptied', this.onEmptied)
   }
 
   destroy(): void {
