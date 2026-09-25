@@ -1,23 +1,101 @@
 import { defineContentScript } from 'wxt/utils/define-content-script'
+import { browser } from 'wxt/browser'
+import { DemoOverlay } from '../src/demoOverlay'
+import { isMessage, type Message } from '../src/messages'
+import { pickPrimary, snapshot } from '../src/videos'
+
+const MEDIA_EVENTS = ['play', 'pause', 'loadedmetadata', 'seeked', 'ratechange', 'ended', 'emptied']
+const RESCAN_MS = 2000
 
 /**
- * All-frames content script (Spec 09 §2, §4): videos can live in iframes, so we
- * inject everywhere at document_idle. M00: presence probe — full video
- * discovery, the overlay host, and tab-capture bridge land in M05.
+ * All-frames content script (Spec 09 §2, §4): videos can live in iframes, so
+ * we inject everywhere at document_idle. Discovers <video> elements, reports
+ * their state to the service worker on media events and DOM changes (not on a
+ * timer, so a playing tab doesn't keep the SW awake), and mounts test
+ * captions on request. Capture wiring lands in M05.
  */
 export default defineContentScript({
   matches: ['<all_urls>'],
   allFrames: true,
   runAt: 'document_idle',
   main() {
-    const videoCount = document.querySelectorAll('video').length
+    const isTop = window.self === window.top
+    const watched = new WeakSet<HTMLVideoElement>()
+    let videos: HTMLVideoElement[] = []
+    let demoOn = false
+    let overlay: DemoOverlay | null = null
+    let lastSent = ''
+    let lastUrl = location.href
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const syncOverlay = (primary: HTMLVideoElement | null) => {
+      if (overlay && (!demoOn || overlay.target !== primary)) {
+        overlay.destroy()
+        overlay = null
+      }
+      // Another sublight overlay (e.g. the Sublight Player page) already owns this video.
+      const foreign = document.querySelector('[data-sublight-host]:not([data-sublight-frame] *)')
+      if (demoOn && primary && !overlay && !foreign) overlay = new DemoOverlay(primary)
+    }
+
+    const report = (force = false) => {
+      videos = Array.from(document.querySelectorAll('video'))
+      for (const v of videos) {
+        if (watched.has(v)) continue
+        watched.add(v)
+        for (const e of MEDIA_EVENTS) v.addEventListener(e, () => schedule(true))
+      }
+      const primary = pickPrimary(videos) ?? videos[0] ?? null
+      syncOverlay(primary)
+      // Frames without video stay silent; the top frame always reports so the popup can say "no video".
+      if (!isTop && videos.length === 0) return
+      const state = snapshot(videos, primary, demoOn)
+      const key = JSON.stringify({
+        ...state,
+        reportedAt: 0,
+        primary: state.primary && { ...state.primary, currentTimeMs: 0 },
+      })
+      if (!force && key === lastSent) return
+      lastSent = key
+      const msg: Message = { type: 'video.state', state }
+      browser.runtime.sendMessage(msg).catch(() => {
+        // SW restarting or extension reloaded; the next event reports again.
+      })
+    }
+
+    const schedule = (force = false) => {
+      clearTimeout(timer)
+      timer = setTimeout(() => report(force), 150)
+    }
+
+    new MutationObserver(() => schedule()).observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    })
+    // SPA navigations (YouTube etc.) swap videos without a page load.
+    setInterval(() => {
+      if (location.href !== lastUrl) {
+        lastUrl = location.href
+        schedule(true)
+      } else schedule()
+    }, RESCAN_MS)
+
+    browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+      if (!isMessage(message) || message.type !== 'demo.set') return undefined
+      demoOn = message.on
+      report(true)
+      sendResponse({ ok: true, mounted: overlay !== null })
+      return undefined
+    })
+
     console.info(
       '[sublight] content script loaded',
       JSON.stringify({
         host: location.hostname,
-        videoCount,
-        frame: window.self !== window.top ? 'iframe' : 'top',
+        videoCount: document.querySelectorAll('video').length,
+        frame: isTop ? 'top' : 'iframe',
       }),
     )
+    report(true)
   },
 })
