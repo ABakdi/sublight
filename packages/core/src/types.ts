@@ -27,6 +27,8 @@ export interface SubtitleCue {
   speaker?: string | null
   /** Per-cue overrides (rare). */
   style?: Partial<SubtitleStyle>
+  /** Translation couldn't be mapped 1:1 and was re-split by duration (Spec 07 §2.3). */
+  lowConfidence?: boolean
 }
 
 export type TrackKind = 'transcript' | 'translation' | 'import'
@@ -102,6 +104,8 @@ export interface SubtitleProject {
   settings: {
     activeTrackId?: string
     bilingual?: { sourceTrackId: string; translationTrackId: string } | null
+    /** Fixed translations for names and terms, sent with LLM translate jobs (Spec 07 §2.2). */
+    glossary?: { source: string; target: string }[]
     /** User-global style (player + extension share the schema). */
     style: SubtitleStyle
   }

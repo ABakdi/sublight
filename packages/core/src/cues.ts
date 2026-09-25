@@ -90,19 +90,76 @@ export function buildCuesFromWords(
   }
   flush()
 
-  // Merge cues closer than MERGE_GAP_MS.
+  // Merge cues closer than MERGE_GAP_MS, then fold fragments into a neighbour.
   const merged: SubtitleCue[] = []
   for (const cue of cues) {
     const prev = merged[merged.length - 1]
-    if (prev && prev.endMs + MERGE_GAP_MS >= cue.startMs) {
-      prev.endMs = Math.max(prev.endMs, cue.endMs)
-      prev.text = `${prev.text}\n${cue.text}`.split('\n').slice(0, MAX_LINES).join('\n')
-      prev.words = [...(prev.words ?? []), ...(cue.words ?? [])]
-    } else {
-      merged.push({ ...cue, words: [...(cue.words ?? [])] })
-    }
+    if (prev && prev.endMs + MERGE_GAP_MS >= cue.startMs) joinInto(prev, cue, maxChars)
+    else merged.push({ ...cue, words: [...(cue.words ?? [])] })
   }
-  return merged
+  return foldFragments(merged, maxCue, maxChars)
+}
+
+/** Append `next` to `into`; the text is re-wrapped from the words, never truncated. */
+function joinInto(into: SubtitleCue, next: SubtitleCue, maxChars: number): void {
+  into.endMs = Math.max(into.endMs, next.endMs)
+  into.words = [...(into.words ?? []), ...(next.words ?? [])]
+  into.text = into.words.length
+    ? wrapWords(
+        into.words.map((w) => w.word),
+        maxChars,
+      ).join('\n')
+    : `${into.text}\n${next.text}`
+}
+
+/** A cue this short reads as a flash: fold it into a neighbour when possible. */
+export const FRAGMENT_MAX_WORDS = 2
+export const FRAGMENT_MAX_MS = 800
+/** Only fold across pauses shorter than this. */
+export const FRAGMENT_MAX_GAP_MS = 1000
+
+function isFragment(cue: SubtitleCue): boolean {
+  return (
+    (cue.words?.length ?? cue.text.split(/\s+/).length) <= FRAGMENT_MAX_WORDS ||
+    cue.endMs - cue.startMs < FRAGMENT_MAX_MS
+  )
+}
+
+/**
+ * Fold fragment cues ("Weitere", "Kafka") into the neighbour they belong to
+ * (Spec 02 §4): the one across the shorter pause, never across a sentence
+ * end, and only when the result still fits one cue.
+ * Pauses in read speech otherwise leave one-word flashes on screen and
+ * break line-by-line translation.
+ */
+function foldFragments(cues: SubtitleCue[], maxCue: number, maxChars: number): SubtitleCue[] {
+  const out = cues.map((c) => ({ ...c, words: [...(c.words ?? [])] }))
+  const fits = (a: SubtitleCue, b: SubtitleCue) =>
+    b.startMs - a.endMs <= FRAGMENT_MAX_GAP_MS &&
+    b.endMs - a.startMs <= maxCue &&
+    a.text.replace(/\n/g, ' ').length + 1 + b.text.replace(/\n/g, ' ').length <=
+      maxChars * MAX_LINES
+  const endsSentence = (c: SubtitleCue) => SENTENCE_END_RE.test(c.text.trimEnd())
+  for (let i = 0; i < out.length; i++) {
+    const cue = out[i]!
+    if (!isFragment(cue)) continue
+    const prev = out[i - 1]
+    const next = out[i + 1]
+    // Never across a sentence end; otherwise the shorter pause wins.
+    const back =
+      prev && !endsSentence(prev) && fits(prev, cue) ? cue.startMs - prev.endMs : Infinity
+    const fwd = next && !endsSentence(cue) && fits(cue, next) ? next.startMs - cue.endMs : Infinity
+    if (back === Infinity && fwd === Infinity) continue
+    if (back <= fwd) {
+      joinInto(prev!, cue, maxChars)
+      out.splice(i, 1)
+    } else {
+      joinInto(cue, next!, maxChars)
+      out.splice(i + 1, 1)
+    }
+    i = Math.max(-1, i - 2) // the merged cue may itself still be a fragment
+  }
+  return out
 }
 
 function wordTextLength(words: SpeechWord[]): number {

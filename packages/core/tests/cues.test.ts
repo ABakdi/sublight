@@ -28,7 +28,8 @@ describe('cue construction (Spec 02 §4)', () => {
   })
 
   it('hard-breaks on pauses >= 300 ms', () => {
-    const words = [w('one', 0, 200), w('two', 900, 1200)]
+    // Lone words closer than FRAGMENT_MAX_GAP_MS would be folded together.
+    const words = [w('one', 0, 200), w('two', 1500, 1800)]
     const cues = buildCuesFromWords(words)
     expect(cues).toHaveLength(2)
   })
@@ -53,6 +54,42 @@ describe('cue construction (Spec 02 §4)', () => {
     const cues = buildCuesFromWords(words)
     expect(cues).toHaveLength(1)
     expect(cues[0]!.endMs).toBe(1200)
+  })
+})
+
+describe('fragment folding (Spec 02 §4)', () => {
+  const words = (text: string, startMs: number, stepMs = 300) =>
+    text.split(' ').map((word, i) => w(word, startMs + i * stepMs, startMs + i * stepMs + 250))
+
+  it('folds a lone word into the sentence it starts, not the one that ended', () => {
+    const cues = buildCuesFromWords([
+      ...words('Alle Aufnahmen sind frei.', 0),
+      ...words('Weitere', 1600), // pause after the sentence, pause after the word
+      ...words('Informationen gibt es hier.', 2300),
+    ])
+    expect(cues.map((c) => c.text.replace(/\n/g, ' '))).toEqual([
+      'Alle Aufnahmen sind frei.',
+      'Weitere Informationen gibt es hier.',
+    ])
+  })
+
+  it('folds a trailing name back into its phrase across the shorter pause', () => {
+    const cues = buildCuesFromWords([
+      ...words('Die Verwandlung von Franz', 0),
+      ...words('Kafka', 1550),
+      ...words('Abschnitt eins.', 3500),
+    ])
+    expect(cues.map((c) => c.text.replace(/\n/g, ' '))).toEqual([
+      'Die Verwandlung von Franz Kafka',
+      'Abschnitt eins.',
+    ])
+  })
+
+  it('never drops words when merged text is long', () => {
+    const many = Array.from({ length: 30 }, (_, i) => w(`word${i}`, i * 100, i * 100 + 90))
+    const cues = buildCuesFromWords(many, { maxCueDurationMs: 7000 })
+    const text = cues.map((c) => c.text.replace(/\n/g, ' ')).join(' ')
+    for (let i = 0; i < 30; i++) expect(text).toContain(`word${i}`)
   })
 })
 
