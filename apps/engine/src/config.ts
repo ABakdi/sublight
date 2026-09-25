@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -43,25 +43,26 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
   mkdirSync(dir, { recursive: true })
   const file = join(dir, 'config.json')
 
-  let base: EngineConfig
+  let raw: Partial<EngineConfig> | null = null
   if (existsSync(file)) {
     try {
-      const raw = JSON.parse(readFileSync(file, 'utf8')) as Partial<EngineConfig>
-      base = {
-        ...DEFAULTS,
-        ...raw,
-        token:
-          typeof raw.token === 'string' && raw.token ? raw.token : randomBytes(32).toString('hex'),
-        defaults: { ...DEFAULTS.defaults, ...(raw.defaults ?? {}) },
-        cacheLimits: { ...DEFAULTS.cacheLimits, ...(raw.cacheLimits ?? {}) },
-      }
+      raw = JSON.parse(readFileSync(file, 'utf8')) as Partial<EngineConfig>
     } catch {
-      base = { ...DEFAULTS, token: randomBytes(32).toString('hex') }
+      // Unreadable config: keep it aside rather than overwrite what the user wrote.
+      renameSync(file, `${file}.corrupt-${Date.now()}`)
     }
-  } else {
-    base = { ...DEFAULTS, token: randomBytes(32).toString('hex') }
-    writeFileSync(file, JSON.stringify(base, null, 2) + '\n', 'utf8')
   }
+
+  const hasToken = typeof raw?.token === 'string' && raw.token !== ''
+  const base: EngineConfig = {
+    ...DEFAULTS,
+    ...raw,
+    token: hasToken ? raw!.token! : randomBytes(32).toString('hex'),
+    defaults: { ...DEFAULTS.defaults, ...(raw?.defaults ?? {}) },
+    cacheLimits: { ...DEFAULTS.cacheLimits, ...(raw?.cacheLimits ?? {}) },
+  }
+  // A freshly generated token must survive restarts, or every paired client breaks.
+  if (!hasToken) writeFileSync(file, JSON.stringify(base, null, 2) + '\n', 'utf8')
 
   const envPort = process.env.SUBLIGHT_PORT
   const merged: EngineConfig = {
@@ -70,6 +71,7 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
     defaults: { ...base.defaults, ...(overrides?.defaults ?? {}) },
     cacheLimits: { ...base.cacheLimits, ...(overrides?.cacheLimits ?? {}) },
   }
-  if (envPort) merged.port = Number(envPort)
+  const port = Number(envPort)
+  if (envPort && Number.isInteger(port) && port > 0 && port < 65536) merged.port = port
   return merged
 }
