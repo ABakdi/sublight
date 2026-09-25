@@ -16,8 +16,15 @@ export default defineConfig({
     name: 'sublight',
     description: 'Local AI subtitles for any video',
     key: DEV_PUBLIC_KEY,
-    permissions: ['storage', 'tabCapture', 'activeTab', 'scripting'],
+    permissions: ['storage', 'tabCapture', 'activeTab', 'scripting', 'offscreen'],
     host_permissions: ['http://127.0.0.1:17421/*', 'http://localhost:17421/*'],
     action: { default_title: 'sublight' },
+    // A real invocation (like a toolbar click) grants activeTab, which tabCapture needs.
+    commands: {
+      'toggle-live': {
+        suggested_key: { default: 'Alt+Shift+L' },
+        description: 'Start or stop live captions on this tab',
+      },
+    },
   },
 })

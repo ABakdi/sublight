@@ -1,6 +1,7 @@
 import { defineContentScript } from 'wxt/utils/define-content-script'
 import { browser } from 'wxt/browser'
 import { DemoOverlay } from '../src/demoOverlay'
+import { LiveSession } from '../src/liveContent'
 import { isMessage, type Message } from '../src/messages'
 import { pickPrimary, snapshot } from '../src/videos'
 
@@ -80,12 +81,46 @@ export default defineContentScript({
       } else schedule()
     }, RESCAN_MS)
 
+    let live: LiveSession | null = null
+
     browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-      if (!isMessage(message) || message.type !== 'demo.set') return undefined
-      demoOn = message.on
-      report(true)
-      sendResponse({ ok: true, mounted: overlay !== null })
-      return undefined
+      if (!isMessage(message)) return undefined
+      switch (message.type) {
+        case 'demo.set':
+          demoOn = message.on
+          report(true)
+          sendResponse({ ok: true, mounted: overlay !== null })
+          return undefined
+        case 'live.begin': {
+          // Only the frame that owns the primary video takes the session.
+          const primary = pickPrimary(videos) ?? videos[0] ?? null
+          if (!primary) {
+            sendResponse({ ok: false, reason: 'no-video' })
+            return undefined
+          }
+          live?.destroy()
+          demoOn = false
+          syncOverlay(null) // live captions replace test captions
+          live = new LiveSession(primary, message.jobId)
+          const captured = message.captureElement ? live.captureElement() : false
+          sendResponse({ ok: true, captured })
+          return undefined
+        }
+        case 'live.track':
+          live?.showTrack(message.track, message.final)
+          sendResponse({ ok: true })
+          return undefined
+        case 'live.end':
+          live?.end()
+          sendResponse({ ok: true })
+          return undefined
+        case 'live.notice':
+          if (message.message) console.info('[sublight]', message.message)
+          sendResponse({ ok: true })
+          return undefined
+        default:
+          return undefined
+      }
     })
 
     console.info(

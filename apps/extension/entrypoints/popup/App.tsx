@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { browser } from 'wxt/browser'
 import { EngineBadge } from '../../src/EngineBadge'
-import type { EngineStatus, TabStatus, VideoState } from '../../src/messages'
+import type { EngineStatus, LiveState, TabStatus, VideoState } from '../../src/messages'
 import { send } from '../../src/send'
 import { button, clock, colors, primaryButton } from '../../src/ui'
 
@@ -39,6 +39,7 @@ export function PopupApp() {
   const [tab, setTab] = useState<TabStatus | null>(null)
   const [now, setNow] = useState(Date.now())
   const [error, setError] = useState<string | null>(null)
+  const [live, setLive] = useState<LiveState | null>(null)
 
   const refreshEngine = useCallback(() => {
     setEngine(null)
@@ -57,6 +58,7 @@ export function PopupApp() {
     const poll = () => {
       setNow(Date.now())
       send({ type: 'tab.status', tabId }).then(setTab, () => setTab(null))
+      send({ type: 'live.status', tabId }).then(setLive, () => setLive(null))
     }
     poll()
     const id = setInterval(poll, POLL_MS)
@@ -67,6 +69,17 @@ export function PopupApp() {
   const videoCount = tab?.frames.reduce((n, f) => n + f.videoCount, 0) ?? 0
   const demoOn = tab?.frames.some((f) => f.demoCaptions) ?? false
   const reported = (tab?.frames.length ?? 0) > 0
+
+  const liveActive = live?.phase === 'starting' || live?.phase === 'listening'
+  const toggleLive = async () => {
+    if (tabId === null) return
+    setError(null)
+    try {
+      setLive(await send({ type: liveActive ? 'live.stop' : 'live.start', tabId }))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   const toggleDemo = async () => {
     if (tabId === null) return
@@ -132,6 +145,22 @@ export function PopupApp() {
         )}
       </section>
 
+      <section style={{ display: 'grid', gap: 6 }} data-testid="live-section">
+        <button
+          data-testid="live-toggle"
+          style={
+            frame && engine?.state === 'online'
+              ? primaryButton
+              : { ...button, opacity: 0.5, cursor: 'default' }
+          }
+          disabled={!frame || engine?.state !== 'online'}
+          onClick={toggleLive}
+        >
+          {liveActive ? 'Stop live captions' : 'Caption live'}
+        </button>
+        <LiveLine live={live} />
+      </section>
+
       <section style={{ display: 'grid', gap: 6 }}>
         <button
           data-testid="demo-toggle"
@@ -160,5 +189,39 @@ export function PopupApp() {
         </button>
       </footer>
     </main>
+  )
+}
+
+const SOURCE: Record<string, string> = { element: 'this video’s audio', tab: 'the tab’s audio' }
+
+/** One line of live status (Spec 08 §7: surfaced, never silent). */
+function LiveLine({ live }: { live: LiveState | null }) {
+  if (!live) {
+    return (
+      <div style={{ fontSize: 11, color: colors.muted, lineHeight: 1.4 }}>
+        Captions appear a few seconds behind the speech, then get refined when you stop.
+      </div>
+    )
+  }
+  const text: Record<LiveState['phase'], string> = {
+    starting: 'Starting…',
+    listening: `Listening to ${SOURCE[live.source ?? ''] ?? 'the video'} · ${live.cues} cues${live.detail?.startsWith('live') ? ` · ${live.detail.replace('live · ', '')}` : ''}`,
+    refining: 'Refining the captions with full context…',
+    done: `Done · ${live.cues} cues`,
+    error: live.error ?? 'Live captions failed.',
+    stopped: 'Stopped.',
+  }
+  return (
+    <div
+      data-testid="live-status"
+      data-phase={live.phase}
+      style={{
+        fontSize: 11,
+        lineHeight: 1.4,
+        color: live.phase === 'error' ? colors.bad : colors.muted,
+      }}
+    >
+      {text[live.phase]}
+    </div>
   )
 }

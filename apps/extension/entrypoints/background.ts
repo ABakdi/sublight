@@ -1,6 +1,7 @@
 import { defineBackground } from 'wxt/utils/define-background'
 import { browser } from 'wxt/browser'
 import { probeEngine } from '../src/engine'
+import { liveStatus, onLiveMessage, startLive, stopLive } from '../src/liveController'
 import { isMessage, type Message, type TabStatus, type VideoState } from '../src/messages'
 
 type FrameMap = Record<string, VideoState>
@@ -35,6 +36,30 @@ async function handle(message: Message, sender: { tab?: { id?: number }; frameId
       return tabStatus(message.tabId)
     case 'engine.status':
       return probeEngine()
+    case 'live.start': {
+      const frames = await readFrames(message.tabId)
+      // The frame that owns the primary video (a playing one if any).
+      const entries = Object.entries(frames).filter(([, f]) => f.primary)
+      const owner = entries.find(([, f]) => f.primary!.isPlaying) ?? entries[0]
+      if (!owner)
+        return {
+          tabId: message.tabId,
+          jobId: '',
+          source: null,
+          phase: 'error',
+          error: 'No video on this page.',
+          cues: 0,
+        }
+      return startLive(message.tabId, Number(owner[0]))
+    }
+    case 'live.stop':
+      return stopLive(message.tabId)
+    case 'live.status':
+      return liveStatus(message.tabId)
+    case 'live.audio':
+    case 'live.anchor':
+    case 'live.fallback':
+      return onLiveMessage(message, sender)
     case 'demo.toggle': {
       const set: Message = { type: 'demo.set', on: message.on }
       await browser.tabs.sendMessage(message.tabId, set)
@@ -59,6 +84,16 @@ export default defineBackground(() => {
       sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) }),
     )
     return true // async sendResponse
+  })
+
+  // Alt+Shift+L: toggle live captions on the active tab (Spec 09 §7).
+  browser.commands.onCommand.addListener((command, tab) => {
+    if (command !== 'toggle-live' || tab?.id === undefined) return
+    const tabId = tab.id
+    void liveStatus(tabId).then((state) => {
+      const active = state?.phase === 'starting' || state?.phase === 'listening'
+      return handle({ type: active ? 'live.stop' : 'live.start', tabId }, {})
+    })
   })
 
   browser.tabs.onRemoved.addListener((tabId) => {

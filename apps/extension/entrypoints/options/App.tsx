@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { ENGINE_BASE_URL } from '@sublight/protocol'
 import { browser } from 'wxt/browser'
 import { EngineBadge } from '../../src/EngineBadge'
-import { getToken, probeEngine, setToken } from '../../src/engine'
+import { engineRequest, getToken, probeEngine, setToken } from '../../src/engine'
+import { DEFAULT_LIVE_MODEL, LIVE_LANGUAGE_KEY, LIVE_MODEL_KEY } from '../../src/liveController'
+import type { ModelsResponse } from '@sublight/protocol'
 import type { EngineStatus } from '../../src/messages'
 import { button, colors, primaryButton } from '../../src/ui'
 
@@ -96,10 +98,106 @@ export function OptionsApp() {
         </div>
       </section>
 
+      <LiveSettings online={status?.state === 'online'} />
+
       <p style={{ color: colors.muted, fontSize: 12, marginTop: 20 }}>
         Style presets, default models and languages, cache controls and one-click pairing arrive in
         M06.
       </p>
     </main>
+  )
+}
+
+const LANGUAGES: [string, string][] = [
+  ['', 'Detect automatically'],
+  ['en', 'English'],
+  ['de', 'German'],
+  ['fr', 'French'],
+  ['es', 'Spanish'],
+  ['it', 'Italian'],
+  ['pt', 'Portuguese'],
+  ['ru', 'Russian'],
+  ['ar', 'Arabic'],
+  ['ja', 'Japanese'],
+  ['zh', 'Chinese'],
+]
+
+/** Live-caption defaults (M05): speech model and spoken language. */
+function LiveSettings({ online }: { online: boolean }) {
+  const [models, setModels] = useState<ModelsResponse['models']>([])
+  const [model, setModel] = useState(DEFAULT_LIVE_MODEL)
+  const [language, setLanguage] = useState('')
+
+  useEffect(() => {
+    void browser.storage.local.get([LIVE_MODEL_KEY, LIVE_LANGUAGE_KEY]).then((got) => {
+      setModel((got[LIVE_MODEL_KEY] as string | undefined) || DEFAULT_LIVE_MODEL)
+      setLanguage((got[LIVE_LANGUAGE_KEY] as string | undefined) ?? '')
+    })
+  }, [])
+  useEffect(() => {
+    if (!online) return
+    void engineRequest<ModelsResponse>('/v1/models').then(
+      (r) => setModels(r.models.filter((m) => m.role === 'asr')),
+      () => {},
+    )
+  }, [online])
+
+  const save = (patch: Record<string, string>) => void browser.storage.local.set(patch)
+  const field = {
+    font: '13px system-ui',
+    padding: '6px 8px',
+    borderRadius: 6,
+    border: `1px solid ${colors.border}`,
+  }
+
+  return (
+    <section
+      style={{ border: `1px solid ${colors.border}`, borderRadius: 8, padding: 16, marginTop: 16 }}
+    >
+      <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>Live captions</h2>
+      <p style={{ fontSize: 13, color: colors.muted, margin: '0 0 12px', lineHeight: 1.5 }}>
+        Used by “Caption live” in the popup. Faster models show captions sooner; they are refined
+        when you stop.
+      </p>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
+          Speech model
+          <select
+            data-testid="live-model"
+            style={field}
+            value={model}
+            onChange={(e) => {
+              setModel(e.target.value)
+              save({ [LIVE_MODEL_KEY]: e.target.value })
+            }}
+          >
+            {(models.length ? models : [{ id: model, name: model, installed: true }]).map((m) => (
+              <option key={m.id} value={m.id} disabled={!m.installed}>
+                {m.name}
+                {m.installed ? '' : ' (not installed)'}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
+          Spoken language
+          <select
+            data-testid="live-language"
+            style={field}
+            value={language}
+            onChange={(e) => {
+              setLanguage(e.target.value)
+              save({ [LIVE_LANGUAGE_KEY]: e.target.value })
+            }}
+          >
+            {LANGUAGES.map(([code, name]) => (
+              <option key={code} value={code}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </section>
   )
 }

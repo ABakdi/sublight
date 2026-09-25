@@ -1,7 +1,5 @@
-import { createElement } from 'react'
-import { createRoot, type Root } from 'react-dom/client'
 import type { SubtitleCue } from '@sublight/core'
-import { SubtitleOverlay } from '@sublight/overlay'
+import { OverlayFrame } from './overlayFrame'
 
 const DEMO_STEP_MS = 2500
 const DEMO_CUE_MS = 2000
@@ -36,59 +34,10 @@ export function demoCues(video: HTMLVideoElement): SubtitleCue[] {
   return cues
 }
 
-/**
- * Overlay over a page video (Spec 05 §1, extension case). The page's own
- * layout is never touched: a fixed-position frame on <html> tracks the
- * video's box every animation frame, and the shared Shadow-DOM overlay
- * renders inside it. In fullscreen the frame moves into the fullscreen
- * element so it stays visible.
- */
-export class DemoOverlay {
-  private frame: HTMLDivElement
-  private root: Root
-  private raf = 0
-
-  constructor(private readonly video: HTMLVideoElement) {
-    this.frame = document.createElement('div')
-    this.frame.dataset.sublightFrame = ''
-    Object.assign(this.frame.style, {
-      position: 'fixed',
-      pointerEvents: 'none',
-      zIndex: '2147483647',
-      margin: '0',
-      padding: '0',
-      border: '0',
-    })
-    document.documentElement.append(this.frame)
-    this.root = createRoot(this.frame)
-    this.root.render(createElement(SubtitleOverlay, { cues: demoCues(video), video }))
-    this.track()
-  }
-
-  get target(): HTMLVideoElement {
-    return this.video
-  }
-
-  private track = () => {
-    this.raf = requestAnimationFrame(this.track)
-    const parent =
-      document.fullscreenElement && document.fullscreenElement !== this.video
-        ? document.fullscreenElement
-        : document.documentElement
-    if (this.frame.parentElement !== parent) parent.append(this.frame)
-    const r = this.video.getBoundingClientRect()
-    const s = this.frame.style
-    const next = [`${r.left}px`, `${r.top}px`, `${r.width}px`, `${r.height}px`]
-    if (s.left !== next[0]) s.left = next[0]!
-    if (s.top !== next[1]) s.top = next[1]!
-    if (s.width !== next[2]) s.width = next[2]!
-    if (s.height !== next[3]) s.height = next[3]!
-    s.display = r.width > 0 && r.height > 0 && this.video.isConnected ? 'block' : 'none'
-  }
-
-  destroy(): void {
-    cancelAnimationFrame(this.raf)
-    this.root.unmount()
-    this.frame.remove()
+/** Test captions over a page video: an OverlayFrame showing `demoCues`. */
+export class DemoOverlay extends OverlayFrame {
+  constructor(video: HTMLVideoElement) {
+    super(video)
+    this.setCues(demoCues(video), false)
   }
 }

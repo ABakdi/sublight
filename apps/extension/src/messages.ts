@@ -1,6 +1,9 @@
+import type { SubtitleTrack } from '@sublight/core'
+import type { LiveAnchor } from '@sublight/protocol'
+
 /**
- * Runtime messages between content script, service worker and popup
- * (Spec 09 §6). Only the slice needed before capture lands (M05) lives here.
+ * Runtime messages between content script, service worker, offscreen
+ * document and popup (Spec 09 §6).
  */
 
 /** What a frame reports about its videos (Spec 09 §4.3). */
@@ -36,8 +39,38 @@ export interface TabStatus {
   frames: VideoState[]
 }
 
+/** Where live audio comes from (Spec 08 §1): the element itself, or the whole tab. */
+export type CaptureSource = 'element' | 'tab'
+
+/** One tab's live-captioning session, kept by the SW in storage.session. */
+export interface LiveState {
+  tabId: number
+  jobId: string
+  source: CaptureSource | null
+  phase: 'starting' | 'listening' | 'refining' | 'done' | 'error' | 'stopped'
+  detail?: string
+  error?: string
+  cues: number
+}
+
 export type Message =
   | { type: 'video.state'; state: VideoState }
+  // popup → SW
+  | { type: 'live.start'; tabId: number }
+  | { type: 'live.stop'; tabId: number }
+  | { type: 'live.status'; tabId: number }
+  // SW → content
+  | { type: 'live.begin'; jobId: string; captureElement: boolean }
+  | { type: 'live.end' }
+  | { type: 'live.track'; track: SubtitleTrack; final: boolean }
+  | { type: 'live.notice'; message: string | null }
+  // content / offscreen → SW
+  | { type: 'live.audio'; jobId: string; wallMs: number; pcm: string }
+  | { type: 'live.anchor'; jobId: string; anchor: LiveAnchor }
+  | { type: 'live.fallback'; jobId: string; reason: string }
+  // SW → offscreen
+  | { type: 'offscreen.start'; jobId: string; streamId: string }
+  | { type: 'offscreen.stop' }
   | { type: 'engine.status' }
   | { type: 'tab.status'; tabId: number }
   | { type: 'demo.toggle'; tabId: number; on: boolean }

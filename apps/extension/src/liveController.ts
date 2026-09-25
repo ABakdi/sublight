@@ -1,0 +1,264 @@
+import { browser } from 'wxt/browser'
+import type { SubtitleTrack } from '@sublight/core'
+import {
+  WS_BASE_URL,
+  type JobResult,
+  type JobSummary,
+  type LiveAnchor,
+  type WsEvent,
+} from '@sublight/protocol'
+import { engineRequest, EngineRequestError, getToken } from './engine'
+import type { CaptureSource, LiveState, Message } from './messages'
+import { base64ToBytes } from './pcm'
+
+export const LIVE_MODEL_KEY = 'liveModel'
+export const LIVE_LANGUAGE_KEY = 'liveLanguage'
+export const DEFAULT_LIVE_MODEL = 'whisper-small'
+const OFFSCREEN_URL = 'offscreen.html'
+
+const liveKey = (tabId: number) => `live:${tabId}`
+
+/**
+ * One tab's live captioning, run from the service worker (Spec 09 §3, §5):
+ * creates the engine `live` job, relays audio and anchors from the page (or
+ * the offscreen tabCapture document), follows the job over the engine WS,
+ * forwards drafts to the page, and on stop waits for the refinement pass.
+ */
+class LiveController {
+  state: LiveState
+  private ws: WebSocket | null = null
+  /** Audio posts stay in order: each waits for the previous one. */
+  private audioChain: Promise<unknown> = Promise.resolve()
+
+  constructor(
+    readonly tabId: number,
+    readonly frameId: number,
+    readonly jobId: string,
+  ) {
+    this.state = { tabId, jobId, source: null, phase: 'starting', cues: 0 }
+  }
+
+  private async save(patch: Partial<LiveState>): Promise<void> {
+    this.state = { ...this.state, ...patch }
+    await browser.storage.session.set({ [liveKey(this.tabId)]: this.state })
+  }
+
+  private toPage(msg: Message): void {
+    void browser.tabs.sendMessage(this.tabId, msg, { frameId: this.frameId }).catch(() => {})
+  }
+
+  async connect(): Promise<void> {
+    const token = await getToken()
+    const ws = new WebSocket(`${WS_BASE_URL}/ws`)
+    this.ws = ws
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'auth', token }))
+      ws.send(JSON.stringify({ type: 'subscribe', jobIds: [this.jobId] }))
+    }
+    ws.onmessage = (m) => void this.onEvent(JSON.parse(String(m.data)) as WsEvent)
+  }
+
+  private async onEvent(e: WsEvent): Promise<void> {
+    if (!('jobId' in e) || e.jobId !== this.jobId) return
+    if (e.type === 'job.partial') {
+      this.toPage({ type: 'live.track', track: e.draft, final: false })
+      await this.save({ cues: e.draft.cues.length })
+    } else if (e.type === 'job.progress' && e.detail) {
+      await this.save({
+        detail: e.detail,
+        ...(e.detail === 'refining' ? { phase: 'refining' } : {}),
+      })
+    } else if (e.type === 'job.state') {
+      if (e.state === 'done') await this.finish()
+      else if (e.state === 'failed') {
+        const job = await engineRequest<JobSummary>(`/v1/jobs/${this.jobId}`).catch(() => null)
+        await this.fail(job?.error?.message ?? 'Live captioning failed.')
+      } else if (e.state === 'cancelled') await this.save({ phase: 'stopped' })
+    }
+  }
+
+  private async finish(): Promise<void> {
+    const result = await engineRequest<JobResult>(`/v1/jobs/${this.jobId}/result`)
+    const track: SubtitleTrack | undefined = result.tracks[0]
+    if (track) this.toPage({ type: 'live.track', track, final: true })
+    await this.save({ phase: 'done', detail: undefined, cues: track?.cues.length ?? 0 })
+    this.ws?.close()
+  }
+
+  async fail(message: string): Promise<void> {
+    await this.save({ phase: 'error', error: message })
+    this.toPage({ type: 'live.end' })
+    await stopOffscreen()
+    this.ws?.close()
+  }
+
+  audio(wallMs: number, pcm: string): void {
+    const body = base64ToBytes(pcm)
+    this.audioChain = this.audioChain
+      .then(() =>
+        engineRequest(`/v1/live/${this.jobId}/audio?wallMs=${Math.round(wallMs)}`, {
+          method: 'POST',
+          body,
+        }),
+      )
+      .catch(() => {})
+  }
+
+  anchor(a: LiveAnchor): void {
+    void engineRequest(`/v1/live/${this.jobId}/anchor`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(a),
+    }).catch(() => {})
+  }
+
+  async useSource(source: CaptureSource): Promise<void> {
+    await this.save({ source, phase: 'listening' })
+  }
+
+  async stop(): Promise<void> {
+    this.toPage({ type: 'live.end' })
+    await stopOffscreen()
+    await this.audioChain
+    await engineRequest(`/v1/live/${this.jobId}/stop`, { method: 'POST' }).catch(() => {})
+    await this.save({ phase: 'refining', detail: 'refining' })
+  }
+}
+
+const controllers = new Map<number, LiveController>()
+
+async function hasOffscreen(): Promise<boolean> {
+  const contexts = await browser.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] })
+  return contexts.length > 0
+}
+
+async function stopOffscreen(): Promise<void> {
+  if (!(await hasOffscreen())) return
+  await browser.runtime.sendMessage({ type: 'offscreen.stop' } satisfies Message).catch(() => {})
+  await browser.offscreen.closeDocument().catch(() => {})
+}
+
+/** tabCapture for the whole tab (Spec 08 §1 row 2), consumed in an offscreen document (MV3). */
+async function startTabCapture(c: LiveController): Promise<void> {
+  const streamId = await browser.tabCapture.getMediaStreamId({ targetTabId: c.tabId })
+  if (!(await hasOffscreen())) {
+    await browser.offscreen.createDocument({
+      url: OFFSCREEN_URL,
+      reasons: ['USER_MEDIA'],
+      justification: 'Capture the tab’s audio for local live captions',
+    })
+  }
+  await browser.runtime.sendMessage({
+    type: 'offscreen.start',
+    jobId: c.jobId,
+    streamId,
+  } satisfies Message)
+  await c.useSource('tab')
+}
+
+function describe(err: unknown): string {
+  if (err instanceof EngineRequestError) {
+    if (err.code === 'MODEL_NOT_INSTALLED')
+      return 'The speech model isn’t installed. Install it from the Sublight Player (Caption tab) or the engine API.'
+    return err.message
+  }
+  return err instanceof Error ? err.message : String(err)
+}
+
+/** Start live captions on the tab's primary video (frame from its video reports). */
+export async function startLive(tabId: number, frameId: number): Promise<LiveState> {
+  await stopLive(tabId)
+  const prefs = await browser.storage.local.get([LIVE_MODEL_KEY, LIVE_LANGUAGE_KEY])
+  let job: JobSummary
+  try {
+    job = await engineRequest<JobSummary>('/v1/jobs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        type: 'live',
+        model: (prefs[LIVE_MODEL_KEY] as string | undefined) || DEFAULT_LIVE_MODEL,
+        params: { language: (prefs[LIVE_LANGUAGE_KEY] as string | undefined) || null },
+        priority: 'interactive',
+      }),
+    })
+  } catch (err) {
+    const state: LiveState = {
+      tabId,
+      jobId: '',
+      source: null,
+      phase: 'error',
+      error: describe(err),
+      cues: 0,
+    }
+    await browser.storage.session.set({ [liveKey(tabId)]: state })
+    return state
+  }
+  const c = new LiveController(tabId, frameId, job.id)
+  controllers.set(tabId, c)
+  await c.connect()
+  try {
+    const reply = (await browser.tabs.sendMessage(
+      tabId,
+      { type: 'live.begin', jobId: job.id, captureElement: true } satisfies Message,
+      { frameId },
+    )) as { ok: boolean; captured?: boolean; reason?: string } | undefined
+    if (!reply?.ok)
+      throw new Error(
+        reply?.reason === 'no-video' ? 'No video on this page.' : 'The page didn’t answer.',
+      )
+    if (reply.captured) await c.useSource('element')
+    else await startTabCapture(c)
+  } catch (err) {
+    await engineRequest(`/v1/jobs/${job.id}/cancel`, { method: 'POST' }).catch(() => {})
+    await c.fail(describe(err))
+    controllers.delete(tabId)
+  }
+  return c.state
+}
+
+export async function stopLive(tabId: number): Promise<LiveState | null> {
+  const c = controllers.get(tabId)
+  if (!c) return null
+  controllers.delete(tabId)
+  await c.stop()
+  // Keep following the job until refinement is done.
+  finishing.set(c.jobId, c)
+  return c.state
+}
+
+/** Stopped controllers still waiting for their refinement result. */
+const finishing = new Map<string, LiveController>()
+
+export async function liveStatus(tabId: number): Promise<LiveState | null> {
+  const got = await browser.storage.session.get(liveKey(tabId))
+  return (got[liveKey(tabId)] as LiveState | undefined) ?? null
+}
+
+/** Audio/anchors/fallback from the page or the offscreen document. */
+export async function onLiveMessage(
+  message: Message,
+  sender: { tab?: { id?: number } },
+): Promise<unknown> {
+  const find = (jobId: string) => [...controllers.values()].find((c) => c.jobId === jobId)
+  switch (message.type) {
+    case 'live.audio':
+      find(message.jobId)?.audio(message.wallMs, message.pcm)
+      return { ok: true }
+    case 'live.anchor':
+      ;(find(message.jobId) ?? finishing.get(message.jobId))?.anchor(message.anchor)
+      return { ok: true }
+    case 'live.fallback': {
+      const c = find(message.jobId)
+      if (c && sender.tab?.id === c.tabId) {
+        try {
+          await startTabCapture(c)
+        } catch (err) {
+          await c.fail(`Couldn’t capture the tab: ${describe(err)}`)
+        }
+      }
+      return { ok: true }
+    }
+    default:
+      return undefined
+  }
+}

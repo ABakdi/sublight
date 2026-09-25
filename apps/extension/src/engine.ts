@@ -41,3 +41,46 @@ export async function probeEngine(token?: string, timeoutMs = 2000): Promise<Eng
   const version = (await res.json()) as VersionResponse
   return { state: 'online', version: version.engine, protocol: version.protocol }
 }
+
+export class EngineRequestError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+  }
+}
+
+/** Authenticated engine call from the SW or an extension page (never content scripts). */
+export async function engineRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = await getToken()
+  if (!token)
+    throw new EngineRequestError(
+      'NO_TOKEN',
+      'Pair the extension with the engine first (Options).',
+      0,
+    )
+  let res: Response
+  try {
+    res = await fetch(`${ENGINE_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        authorization: `Bearer ${token}`,
+        ...(init.headers as Record<string, string> | undefined),
+      },
+    })
+  } catch {
+    throw new EngineRequestError('OFFLINE', 'The engine isn’t running (pnpm dev:engine).', 0)
+  }
+  if (res.status === 204) return undefined as T
+  const body = (await res.json().catch(() => null)) as (T & ErrorEnvelope) | null
+  if (!res.ok) {
+    throw new EngineRequestError(
+      body?.error?.code ?? `HTTP_${res.status}`,
+      body?.error?.message ?? `HTTP ${res.status}`,
+      res.status,
+    )
+  }
+  return body as T
+}

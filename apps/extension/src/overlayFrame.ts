@@ -1,0 +1,95 @@
+import { createElement } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import type { SubtitleCue, SubtitleStyle } from '@sublight/core'
+import { SubtitleOverlay } from '@sublight/overlay'
+
+/** Keep captions above player control bars (YouTube's is ~50 px + progress bar). */
+export function marginFor(videoHeightPx: number): number {
+  return Math.max(32, Math.round(videoHeightPx * 0.14))
+}
+
+/**
+ * Overlay over a page video (Spec 05 §1, extension case). The page's own
+ * layout is never touched: a fixed-position frame on <html> tracks the
+ * video's box every animation frame, and the shared Shadow-DOM overlay
+ * renders inside it. In fullscreen the frame moves into the fullscreen
+ * element so it stays visible.
+ */
+export class OverlayFrame {
+  private frame: HTMLDivElement
+  private root: Root
+  private raf = 0
+  private cues: SubtitleCue[] = []
+  private draft = false
+  private offsetMs = 0
+  private margin = 32
+
+  constructor(private readonly video: HTMLVideoElement) {
+    this.frame = document.createElement('div')
+    this.frame.dataset.sublightFrame = ''
+    Object.assign(this.frame.style, {
+      position: 'fixed',
+      pointerEvents: 'none',
+      zIndex: '2147483647',
+      margin: '0',
+      padding: '0',
+      border: '0',
+    })
+    document.documentElement.append(this.frame)
+    this.root = createRoot(this.frame)
+    this.track()
+  }
+
+  get target(): HTMLVideoElement {
+    return this.video
+  }
+
+  /** `offsetMs` delays display (live drafts arrive after their words were spoken). */
+  setCues(cues: SubtitleCue[], draft: boolean, offsetMs = 0): void {
+    this.cues = cues
+    this.draft = draft
+    this.offsetMs = offsetMs
+    this.render()
+  }
+
+  private render(): void {
+    const style: Partial<SubtitleStyle> = { position: { anchor: 'bottom', marginPx: this.margin } }
+    this.root.render(
+      createElement(SubtitleOverlay, {
+        cues: this.cues,
+        video: this.video,
+        draft: this.draft,
+        syncOffsetMs: this.offsetMs,
+        style,
+      }),
+    )
+  }
+
+  private track = () => {
+    this.raf = requestAnimationFrame(this.track)
+    const parent =
+      document.fullscreenElement && document.fullscreenElement !== this.video
+        ? document.fullscreenElement
+        : document.documentElement
+    if (this.frame.parentElement !== parent) parent.append(this.frame)
+    const r = this.video.getBoundingClientRect()
+    const s = this.frame.style
+    const next = [`${r.left}px`, `${r.top}px`, `${r.width}px`, `${r.height}px`]
+    if (s.left !== next[0]) s.left = next[0]!
+    if (s.top !== next[1]) s.top = next[1]!
+    if (s.width !== next[2]) s.width = next[2]!
+    if (s.height !== next[3]) s.height = next[3]!
+    s.display = r.width > 0 && r.height > 0 && this.video.isConnected ? 'block' : 'none'
+    const margin = marginFor(r.height)
+    if (margin !== this.margin) {
+      this.margin = margin
+      this.render()
+    }
+  }
+
+  destroy(): void {
+    cancelAnimationFrame(this.raf)
+    this.root.unmount()
+    this.frame.remove()
+  }
+}
