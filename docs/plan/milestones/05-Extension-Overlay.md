@@ -1,7 +1,7 @@
 ---
 tags: [plan, milestone]
-status: not-started
-updated: 2026-09-23
+status: in-progress
+updated: 2026-09-25
 ---
 
 # M05 — Extension overlay (any site, live captioning)
@@ -21,11 +21,11 @@ updated: 2026-09-23
 
 ## Tasks
 
-- [ ] **M05.1** — WXT scaffold from M00 becomes the real extension: manifest permissions (storage, tabCapture, host_permissions for engine origin, `activeTab`), background service worker bridge to engine (token from storage; WS reconnect).
-- [ ] **M05.2** — Content script: video discovery + sizing observer + SPA hooks; overlay host append; `all_frames` and cross-frame coordination via `chrome.runtime.sendMessage`.
-- [ ] **M05.3** — Overlay integration (shared component) with live cue scheduler; pause/seek handling.
-- [ ] **M05.4** — Capture: same-origin captureStream; tabCapture fallback with permission flow UX; stream chunks + anchor to engine; capture lifecycle tied to page visibility.
-- [ ] **M05.5** — Live captioning loop (rolling window) with draft cues; progress in popup.
+- [x] **M05.1** — WXT scaffold from M00 becomes the real extension: manifest permissions (storage, tabCapture, host_permissions for engine origin, `activeTab`), background service worker bridge to engine (token from storage; WS reconnect).
+- [x] **M05.2** — Content script: video discovery + sizing observer + SPA hooks; overlay host append; `all_frames` and cross-frame coordination via `chrome.runtime.sendMessage`.
+- [x] **M05.3** — Overlay integration (shared component) with live cue scheduler; pause/seek handling.
+- [x] **M05.4** — Capture: same-origin captureStream; tabCapture fallback with permission flow UX; stream chunks + anchor to engine; capture lifecycle tied to page visibility.
+- [x] **M05.5** — Live captioning loop (rolling window) with draft cues; progress in popup.
 - [ ] **M05.6** — Post-capture refinement + translation wiring; track stored in `chrome.storage.session` (transient) + optional save to project (player import).
 - [ ] **M05.7** — Popup + options UIs (style controls bound to overlay schema; language picker; pairing; model picker).
 - [ ] **M05.8** — yt-dlp toggle (power feature): engine-side fetch + transcribe without watching.
@@ -42,6 +42,22 @@ So the extension can be installed and tested in a real browser before the engine
 - `pnpm ext:try` launcher; `pnpm e2e:extension` covers ID, pairing, discovery and overlay placement.
 
 Found in real Brave 153, to handle in this milestone: captions overlap the YouTube control bar while it shows; the content script bundle (~235 kB) should lazy-load the overlay; unpacked installs need Developer mode on (the launcher seeds it).
+
+## Live captions (built 2026-09-25)
+
+- Engine `live` job: rolling-window whisper passes every 1.5 s, 3 s commit hold, media-time mapping through playback anchors (pause / seek / speed / buffering), refinement per playing stretch on stop with a never-regress guard, 60 s idle stop ([Spec 08 §3-§5](../../specification/08-Audio-Capture.md#3-streaming-to-the-engine-as-built-m05)).
+- Extension: `captureStream()` first (no prompt), tabCapture through an offscreen document as the fallback (audio played back), popup "Caption live" / Stop with status, Options for model and language, **Alt+Shift+L**.
+- Verified: YouTube (Steve Jobs' Stanford speech) in real Brave via the element's audio, first caption after **6.5 s**, drafts ~4 s behind, refinement on stop; a cross-origin video via tabCapture in Brave; the JFK clip end to end in headless Chromium (`E2E_REAL_ASR=1 pnpm e2e:extension`).
+- Found and fixed on the way: drafts were never visible (they arrive after their media time) → shown delayed by the measured lag; runner re-transcribing when no new audio arrived; whisper timing the first word of a segment at the segment start → **onset snapping** (corpus: 93 → 77 ms median); multi-token "[ Applause ]" / ">>" annotations; a Rollup constant-folding bug that emitted an empty `for` loop body.
+
+### Still open in M05
+
+- [ ] SPA navigation mid-session (YouTube reuses the `<video>` element): end the session and clear old captions on URL change.
+- [ ] DRM / muted-tab notices (Spec 08 §7) when tab audio stays silent.
+- [ ] Save a live track into a Player project (M05.6) and live translation (task `translate` exists in the engine, no UI yet).
+- [ ] Popup style quick-toggles (size / position) (M05.7).
+- [ ] M05.8 yt-dlp toggle (overlaps M05b's engine relay).
+- [ ] M05.9 site matrix: Vimeo, embedded iframe players; no double captioning on the Player page (AC6).
 
 ## Acceptance criteria
 
