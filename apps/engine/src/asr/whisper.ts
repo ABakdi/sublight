@@ -53,10 +53,11 @@ export class WhisperWorker {
     return this.server.ensure(modelId, modelPath, args)
   }
 
-  /** Transcribe (or translate → English) one 16 kHz mono WAV. */
-  async infer(wavPath: string, params: InferenceParams): Promise<VerboseJson> {
+  /** Transcribe (or translate → English) one 16 kHz mono WAV (a path, or the bytes). */
+  async infer(wav: string | Buffer, params: InferenceParams): Promise<VerboseJson> {
     const form = new FormData()
-    form.set('file', new Blob([readFileSync(wavPath)], { type: 'audio/wav' }), 'audio.wav')
+    const bytes = typeof wav === 'string' ? readFileSync(wav) : wav
+    form.set('file', new Blob([new Uint8Array(bytes)], { type: 'audio/wav' }), 'audio.wav')
     form.set('response_format', 'verbose_json')
     form.set('language', params.language ?? 'auto')
     form.set('translate', params.translate ? 'true' : 'false')

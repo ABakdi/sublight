@@ -15,6 +15,7 @@ import { transcribeRunner } from '../src/asr/transcribe'
 import { WhisperWorker } from '../src/asr/whisper'
 import { LlamaWorker } from '../src/llm/llama'
 import { GpuResidency } from '../src/workers/gpu'
+import { LiveHub } from '../src/live/hub'
 import type { EngineConfig } from '../src/config'
 import { EventBus } from '../src/events'
 import { JobQueue, type JobRunner } from '../src/jobs/queue'
@@ -65,7 +66,8 @@ function services(runner?: JobRunner): EngineServices {
     logDir: paths.logs,
   })
   const gpu = new GpuResidency({ asr: whisper, llm: llama })
-  return { bus, models, media, jobs, whisper, llama, gpu, paths }
+  const live = new LiveHub(join(paths.jobs, 'live'))
+  return { bus, models, media, jobs, whisper, llama, gpu, live, paths }
 }
 
 /** Stand-in for whisper: instant, deterministic output. */

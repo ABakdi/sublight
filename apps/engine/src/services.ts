@@ -4,6 +4,8 @@ import { WhisperWorker } from './asr/whisper'
 import { transcribeRunner } from './asr/transcribe'
 import { LlamaWorker } from './llm/llama'
 import { translateRunner } from './translate/runner'
+import { LiveHub } from './live/hub'
+import { liveRunner } from './live/runner'
 import { GpuResidency } from './workers/gpu'
 import type { EngineConfig } from './config'
 import { EventBus } from './events'
@@ -21,6 +23,7 @@ export interface EngineServices {
   whisper: WhisperWorker
   llama: LlamaWorker
   gpu: GpuResidency
+  live: LiveHub
   paths: EnginePaths
 }
 
@@ -80,5 +83,7 @@ export function createServices(config: EngineConfig, paths: EnginePaths): Engine
   const jobs = new JobQueue(new JobStore(paths.jobs), bus, { autoRetry: config.autoRetry })
   jobs.register(transcribeRunner({ media, models, whisper, gpu, ffmpeg: config.ffmpeg }))
   jobs.register(translateRunner({ models, llama, gpu }))
-  return { bus, models, media, jobs, whisper, llama, gpu, paths }
+  const live = new LiveHub(join(paths.jobs, 'live'))
+  jobs.register(liveRunner({ models, whisper, gpu, hub: live }))
+  return { bus, models, media, jobs, whisper, llama, gpu, live, paths }
 }

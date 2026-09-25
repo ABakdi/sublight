@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream'
 import type { ReadableStream as NodeWebStream } from 'node:stream/web'
 import { Hono, type Context } from 'hono'
-import type { JobCreation } from '@sublight/protocol'
+import type { JobCreation, LiveAnchor, LiveStatus } from '@sublight/protocol'
 import { IDEMPOTENCY_KEY_HEADER } from '@sublight/protocol'
 import type { EngineConfig } from './config'
 import { allowedOrigins, bearerAuth, corsAllowlist, hostOriginGuard, jsonError } from './auth'
@@ -166,6 +166,82 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
       const job = s.jobs.cancel(c.req.param('id'))
       return job ? c.json(job) : jsonError(c, 'JOB_NOT_FOUND', 'unknown job', 404)
     })
+    // --- live capture (Spec 08 §3-§5) ---
+    /** Only running/queued live jobs accept audio and anchors. */
+    const liveJob = (c: Context) => {
+      const job = s.jobs.get(c.req.param('id') ?? '')
+      if (!job || job.type !== 'live') return jsonError(c, 'JOB_NOT_FOUND', 'unknown live job', 404)
+      if (job.state !== 'queued' && job.state !== 'running') {
+        return jsonError(c, 'JOB_INVALID', `live job is ${job.state}`, 409)
+      }
+      return null
+    }
+    app.post('/v1/live/:id/audio', async (c) => {
+      const refused = liveJob(c)
+      if (refused) return refused
+      const wallMs = Number(c.req.query('wallMs'))
+      if (!Number.isFinite(wallMs))
+        return jsonError(c, 'JOB_INVALID', 'wallMs query parameter required', 400)
+      const body = Buffer.from(await c.req.arrayBuffer())
+      // ≤ 10 s of 16 kHz mono s16le per request.
+      if (body.length === 0 || body.length > 16000 * 2 * 10) {
+        return jsonError(
+          c,
+          'JOB_INVALID',
+          'audio chunk must be 1 byte to 10 s of 16 kHz s16le mono',
+          400,
+        )
+      }
+      const session = s.live.get(c.req.param('id'))
+      if (session.stopping) return jsonError(c, 'JOB_INVALID', 'live job is stopping', 409)
+      session.append(body, wallMs)
+      return c.body(null, 204)
+    })
+    app.post('/v1/live/:id/anchor', async (c) => {
+      const refused = liveJob(c)
+      if (refused) return refused
+      const a = (await c.req.json().catch(() => null)) as LiveAnchor | null
+      if (
+        !a ||
+        ![a.wallMs, a.mediaMs, a.rate].every(Number.isFinite) ||
+        a.rate <= 0 ||
+        a.rate > 16 ||
+        typeof a.playing !== 'boolean'
+      ) {
+        return jsonError(
+          c,
+          'JOB_INVALID',
+          'anchor needs wallMs, mediaMs, rate (0-16] and playing',
+          400,
+        )
+      }
+      s.live
+        .get(c.req.param('id'))
+        .anchor({ wallMs: a.wallMs, mediaMs: a.mediaMs, rate: a.rate, playing: a.playing })
+      return c.body(null, 204)
+    })
+    app.post('/v1/live/:id/stop', (c) => {
+      const refused = liveJob(c)
+      if (refused) return refused
+      s.live.get(c.req.param('id')).stopping = true
+      return c.json(s.jobs.get(c.req.param('id')), 202)
+    })
+    app.get('/v1/live/:id', (c) => {
+      const job = s.jobs.get(c.req.param('id'))
+      if (!job || job.type !== 'live' || !s.live.has(job.id)) {
+        return jsonError(c, 'JOB_NOT_FOUND', 'no live session', 404)
+      }
+      const session = s.live.get(job.id)
+      const status: LiveStatus = {
+        jobId: job.id,
+        receivedMs: Math.round(session.receivedMs),
+        lagMs: Math.max(0, Date.now() - session.wallAt(session.totalSamples)),
+        committedWords: 0,
+        stopping: session.stopping,
+      }
+      return c.json(status)
+    })
+
     app.get('/v1/jobs/:id/result', (c) => {
       const id = c.req.param('id')
       const job = s.jobs.get(id)
