@@ -1,7 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import type { Context, MiddlewareHandler } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
-import { AUTH_HEADER, BEARER_PREFIX } from '@sublight/protocol'
+import { AUTH_HEADER, BEARER_PREFIX, DEV_EXTENSION_ID } from '@sublight/protocol'
 
 /**
  * Auth & hardening (Protocol §3).
@@ -14,11 +14,17 @@ import { AUTH_HEADER, BEARER_PREFIX } from '@sublight/protocol'
 export function allowedHosts(port: number): Set<string> {
   return new Set([`127.0.0.1:${port}`, `localhost:${port}`])
 }
-export const ALLOWED_ORIGINS = new Set([
+/** Built-in origins: the dev player and the unpacked dev extension. */
+export const DEFAULT_ORIGINS: readonly string[] = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
-  // Packaged player + extension origins are appended at runtime (M05/M06).
-])
+  `chrome-extension://${DEV_EXTENSION_ID}`,
+]
+
+/** Built-ins plus `config.allowedOrigins` (packaged/store extension IDs). */
+export function allowedOrigins(extra: readonly string[] = []): Set<string> {
+  return new Set([...DEFAULT_ORIGINS, ...extra])
+}
 
 export function jsonError(
   c: Context,
@@ -43,7 +49,7 @@ function safeEqual(a: string, b: string): boolean {
  * Host + Origin checks for every route, authenticated or not — the pairing
  * probe must not be readable through a DNS-rebound page either.
  */
-export function hostOriginGuard(port: number): MiddlewareHandler {
+export function hostOriginGuard(port: number, origins: Set<string>): MiddlewareHandler {
   const hosts = allowedHosts(port)
   return async (c, next) => {
     const host = c.req.header('host') ?? ''
@@ -51,7 +57,7 @@ export function hostOriginGuard(port: number): MiddlewareHandler {
       return jsonError(c, 'BAD_ORIGIN', 'Host header not allowed (loopback only)', 403)
     }
     const origin = c.req.header('origin')
-    if (origin && !ALLOWED_ORIGINS.has(origin)) {
+    if (origin && !origins.has(origin)) {
       return jsonError(c, 'BAD_ORIGIN', 'Origin not allowed', 403)
     }
     await next()
@@ -71,10 +77,10 @@ export function bearerAuth(expectedToken: string): MiddlewareHandler {
 }
 
 /** Explicit CORS allowlist + JSON-only safety (Protocol §3.4-3.5). */
-export function corsAllowlist(): MiddlewareHandler {
+export function corsAllowlist(origins: Set<string>): MiddlewareHandler {
   return async (c, next) => {
     const origin = c.req.header('origin')
-    if (origin && ALLOWED_ORIGINS.has(origin)) {
+    if (origin && origins.has(origin)) {
       c.header('Access-Control-Allow-Origin', origin)
       c.header('Vary', 'Origin')
       c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')

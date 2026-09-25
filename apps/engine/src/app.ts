@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import type { EngineConfig } from './config'
-import { bearerAuth, corsAllowlist, hostOriginGuard, jsonError } from './auth'
+import { allowedOrigins, bearerAuth, corsAllowlist, hostOriginGuard, jsonError } from './auth'
 import { buildHealth, buildVersion, createEngineState, type EngineState } from './health'
 
 /**
@@ -12,8 +12,9 @@ export function createApp(config: EngineConfig): Hono {
   const app = new Hono()
   const state: EngineState = createEngineState()
 
-  app.use('*', hostOriginGuard(config.port))
-  app.use('*', corsAllowlist())
+  const origins = allowedOrigins(config.allowedOrigins)
+  app.use('*', hostOriginGuard(config.port, origins))
+  app.use('*', corsAllowlist(origins))
 
   // Unauthenticated pairing probe (Protocol §2) — only advertises *presence*.
   app.get('/v1/pair/info', (c) => c.json({ requiresToken: true }))

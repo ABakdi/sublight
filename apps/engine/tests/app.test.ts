@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { createApp } from '../src/app'
 import type { EngineConfig } from '../src/config'
+import { DEV_EXTENSION_ID } from '@sublight/protocol'
 
 const config: EngineConfig = {
   token: 'a'.repeat(64),
   port: 17421,
   defaults: { asrModel: 'whisper-small', translateModel: 'qwen2.5-3b-instruct' },
   autoRetry: true,
+  allowedOrigins: [],
   cacheLimits: { mediaBytes: 20 * 1024 ** 3 },
 }
 
@@ -117,5 +119,30 @@ describe('engine on a non-default port', () => {
       headers: { host: '127.0.0.1:17421', authorization: `Bearer ${config.token}` },
     })
     expect(res.status).toBe(403)
+  })
+})
+
+describe('extension origins (Protocol §3.4)', () => {
+  const auth = { authorization: `Bearer ${config.token}` }
+
+  it('allows the unpacked dev extension', async () => {
+    const origin = `chrome-extension://${DEV_EXTENSION_ID}`
+    const res = await createApp(config).request('/v1/health', {
+      headers: { ...HOST, ...auth, origin },
+    })
+    expect(res.status).toBe(200)
+    expect(res.headers.get('access-control-allow-origin')).toBe(origin)
+  })
+
+  it('refuses other extensions unless configured', async () => {
+    const origin = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop'
+    const refused = await createApp(config).request('/v1/health', {
+      headers: { ...HOST, ...auth, origin },
+    })
+    expect(refused.status).toBe(403)
+    const allowed = await createApp({ ...config, allowedOrigins: [origin] }).request('/v1/health', {
+      headers: { ...HOST, ...auth, origin },
+    })
+    expect(allowed.status).toBe(200)
   })
 })

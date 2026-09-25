@@ -17,6 +17,8 @@ export interface EngineConfig {
     translateModel: string
   }
   autoRetry: boolean
+  /** Extra CORS origins, e.g. `chrome-extension://<store id>` (Protocol §3.4). */
+  allowedOrigins: string[]
   cacheLimits: {
     /** Upload/relay cache cap in bytes (default 20 GB, Protocol §7). */
     mediaBytes: number
@@ -30,6 +32,7 @@ const DEFAULTS: Omit<EngineConfig, 'token'> = {
     translateModel: 'qwen2.5-3b-instruct',
   },
   autoRetry: true,
+  allowedOrigins: [],
   cacheLimits: { mediaBytes: 20 * 1024 ** 3 },
 }
 
