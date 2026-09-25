@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { serializeSrt, type SubtitleTrack } from '@sublight/core'
+import { liveTrackKey } from '../../src/liveController'
+import { OVERLAY_STYLE_KEY, type QuickStyle } from '../../src/overlayFrame'
 import { browser } from 'wxt/browser'
 import { EngineBadge } from '../../src/EngineBadge'
 import type { EngineStatus, LiveState, TabStatus, VideoState } from '../../src/messages'
@@ -159,6 +162,17 @@ export function PopupApp() {
           {liveActive ? 'Stop live captions' : 'Caption live'}
         </button>
         <LiveLine live={live} />
+        {live?.notice && (live.phase === 'listening' || live.phase === 'starting') && (
+          <div
+            data-testid="live-notice"
+            style={{ fontSize: 11, color: colors.warn, lineHeight: 1.4 }}
+          >
+            {live.notice}
+          </div>
+        )}
+        {tabId !== null && (live?.phase === 'done' || live?.phase === 'stopped') && (
+          <DownloadSrt tabId={tabId} />
+        )}
       </section>
 
       <section style={{ display: 'grid', gap: 6 }}>
@@ -179,6 +193,8 @@ export function PopupApp() {
         </button>
         {error && <div style={{ fontSize: 11, color: colors.bad }}>{error}</div>}
       </section>
+
+      <QuickStyleRow />
 
       <footer style={{ borderTop: `1px solid ${colors.border}`, paddingTop: 8 }}>
         <button
@@ -223,5 +239,86 @@ function LiveLine({ live }: { live: LiveState | null }) {
     >
       {text[live.phase]}
     </div>
+  )
+}
+
+/** Save the finished live track as SRT (Spec 09 §7). */
+function DownloadSrt({ tabId }: { tabId: number }) {
+  const [track, setTrack] = useState<SubtitleTrack | null>(null)
+  useEffect(() => {
+    void browser.storage.session.get(liveTrackKey(tabId)).then((got) => {
+      setTrack((got[liveTrackKey(tabId)] as SubtitleTrack | undefined) ?? null)
+    })
+  }, [tabId])
+  if (!track || track.cues.length === 0) return null
+  const download = () => {
+    const url = URL.createObjectURL(
+      new Blob([serializeSrt(track.cues)], { type: 'text/plain;charset=utf-8' }),
+    )
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `sublight-live.${track.language}.srt`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  }
+  return (
+    <button data-testid="live-download" style={button} onClick={download}>
+      Download SRT ({track.cues.length} cues)
+    </button>
+  )
+}
+
+const SIZES: [string, number][] = [
+  ['S', 26],
+  ['M', 34],
+  ['L', 44],
+]
+
+/** Caption size and position, applied live to every overlay (M05.7). */
+function QuickStyleRow() {
+  const [style, setStyle] = useState<QuickStyle>({})
+  useEffect(() => {
+    void browser.storage.local
+      .get(OVERLAY_STYLE_KEY)
+      .then((got) => setStyle((got[OVERLAY_STYLE_KEY] as QuickStyle | undefined) ?? {}))
+  }, [])
+  const update = (patch: QuickStyle) => {
+    const next = { ...style, ...patch }
+    setStyle(next)
+    void browser.storage.local.set({ [OVERLAY_STYLE_KEY]: next })
+  }
+  const chip = (active: boolean) => ({
+    ...button,
+    padding: '3px 8px',
+    ...(active ? { borderColor: colors.accent, color: colors.accent } : {}),
+  })
+  return (
+    <section
+      style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: colors.muted }}
+      data-testid="quick-style"
+    >
+      <span>Captions</span>
+      {SIZES.map(([label, size]) => (
+        <button
+          key={label}
+          data-testid={`size-${label}`}
+          style={chip((style.fontSize ?? 34) === size)}
+          onClick={() => update({ fontSize: size })}
+        >
+          {label}
+        </button>
+      ))}
+      <span style={{ marginLeft: 4 }} />
+      {(['bottom', 'top'] as const).map((a) => (
+        <button
+          key={a}
+          data-testid={`anchor-${a}`}
+          style={chip((style.anchor ?? 'bottom') === a)}
+          onClick={() => update({ anchor: a })}
+        >
+          {a === 'bottom' ? 'Bottom' : 'Top'}
+        </button>
+      ))}
+    </section>
   )
 }

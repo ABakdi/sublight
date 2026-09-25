@@ -2,6 +2,26 @@ import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type { SubtitleCue, SubtitleStyle } from '@sublight/core'
 import { SubtitleOverlay } from '@sublight/overlay'
+import { browser } from 'wxt/browser'
+
+/** User caption style from the popup's quick toggles (storage.local). */
+export const OVERLAY_STYLE_KEY = 'overlayStyle'
+export interface QuickStyle {
+  fontSize?: number
+  anchor?: 'bottom' | 'top'
+}
+
+const frames = new Set<OverlayFrame>()
+let quickStyle: QuickStyle = {}
+void browser.storage.local.get(OVERLAY_STYLE_KEY).then((got) => {
+  quickStyle = (got[OVERLAY_STYLE_KEY] as QuickStyle | undefined) ?? {}
+  for (const f of frames) f.refresh()
+})
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes[OVERLAY_STYLE_KEY]) return
+  quickStyle = (changes[OVERLAY_STYLE_KEY].newValue as QuickStyle | undefined) ?? {}
+  for (const f of frames) f.refresh()
+})
 
 /** Keep captions above player control bars (YouTube's is ~50 px + progress bar). */
 export function marginFor(videoHeightPx: number): number {
@@ -37,7 +57,13 @@ export class OverlayFrame {
     })
     document.documentElement.append(this.frame)
     this.root = createRoot(this.frame)
+    frames.add(this)
     this.track()
+  }
+
+  /** Re-render with the current quick style. */
+  refresh(): void {
+    this.render()
   }
 
   get target(): HTMLVideoElement {
@@ -53,7 +79,10 @@ export class OverlayFrame {
   }
 
   private render(): void {
-    const style: Partial<SubtitleStyle> = { position: { anchor: 'bottom', marginPx: this.margin } }
+    const style: Partial<SubtitleStyle> = {
+      ...(quickStyle.fontSize ? { fontSize: quickStyle.fontSize } : {}),
+      position: { anchor: quickStyle.anchor ?? 'bottom', marginPx: this.margin },
+    }
     this.root.render(
       createElement(SubtitleOverlay, {
         cues: this.cues,
@@ -88,6 +117,7 @@ export class OverlayFrame {
   }
 
   destroy(): void {
+    frames.delete(this)
     cancelAnimationFrame(this.raf)
     this.root.unmount()
     this.frame.remove()

@@ -3,7 +3,12 @@ import { ENGINE_BASE_URL } from '@sublight/protocol'
 import { browser } from 'wxt/browser'
 import { EngineBadge } from '../../src/EngineBadge'
 import { engineRequest, getToken, probeEngine, setToken } from '../../src/engine'
-import { DEFAULT_LIVE_MODEL, LIVE_LANGUAGE_KEY, LIVE_MODEL_KEY } from '../../src/liveController'
+import {
+  DEFAULT_LIVE_MODEL,
+  LIVE_LANGUAGE_KEY,
+  LIVE_MODEL_KEY,
+  LIVE_TASK_KEY,
+} from '../../src/liveController'
 import type { ModelsResponse } from '@sublight/protocol'
 import type { EngineStatus } from '../../src/messages'
 import { button, colors, primaryButton } from '../../src/ui'
@@ -127,12 +132,16 @@ function LiveSettings({ online }: { online: boolean }) {
   const [models, setModels] = useState<ModelsResponse['models']>([])
   const [model, setModel] = useState(DEFAULT_LIVE_MODEL)
   const [language, setLanguage] = useState('')
+  const [task, setTask] = useState('transcribe')
 
   useEffect(() => {
-    void browser.storage.local.get([LIVE_MODEL_KEY, LIVE_LANGUAGE_KEY]).then((got) => {
-      setModel((got[LIVE_MODEL_KEY] as string | undefined) || DEFAULT_LIVE_MODEL)
-      setLanguage((got[LIVE_LANGUAGE_KEY] as string | undefined) ?? '')
-    })
+    void browser.storage.local
+      .get([LIVE_MODEL_KEY, LIVE_LANGUAGE_KEY, LIVE_TASK_KEY])
+      .then((got) => {
+        setTask((got[LIVE_TASK_KEY] as string | undefined) || 'transcribe')
+        setModel((got[LIVE_MODEL_KEY] as string | undefined) || DEFAULT_LIVE_MODEL)
+        setLanguage((got[LIVE_LANGUAGE_KEY] as string | undefined) ?? '')
+      })
   }, [])
   useEffect(() => {
     if (!online) return
@@ -195,6 +204,21 @@ function LiveSettings({ online }: { online: boolean }) {
                 {name}
               </option>
             ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
+          Subtitles in
+          <select
+            data-testid="live-task"
+            style={field}
+            value={task}
+            onChange={(e) => {
+              setTask(e.target.value)
+              save({ [LIVE_TASK_KEY]: e.target.value })
+            }}
+          >
+            <option value="transcribe">The spoken language</option>
+            <option value="translate">English (translated)</option>
           </select>
         </label>
       </div>
