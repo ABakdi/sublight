@@ -29,6 +29,8 @@ catalog:
   '@hono/node-server': ^2.1.1
   esbuild: ^0.28.2
   tsx: ^4.23.15
+  ws: ^8.21.3
+  '@types/ws': ^8.18.1
 
   # App state / data fetching
   zustand: ^5.0.15

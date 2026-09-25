@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "build": "pnpm typecheck && esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.mjs",
+    "build": "pnpm typecheck && esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "token": "tsx src/token.ts"
@@ -19,10 +19,12 @@
     "@hono/node-server": "catalog:",
     "@sublight/core": "workspace:*",
     "@sublight/protocol": "workspace:*",
-    "hono": "catalog:"
+    "hono": "catalog:",
+    "ws": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/ws": "catalog:",
     "esbuild": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",

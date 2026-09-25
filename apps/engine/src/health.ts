@@ -1,36 +1,36 @@
-import type { HealthResponse, VersionResponse } from '@sublight/protocol'
+import type { GpuInfo, HealthResponse, VersionResponse } from '@sublight/protocol'
 import { PROTOCOL_VERSION } from '@sublight/protocol'
+import type { EngineServices } from './services'
 
-export const ENGINE_VERSION = '0.0.0'
+export const ENGINE_VERSION = '0.1.0'
 
-export interface EngineState {
-  bootedAt: number
-  activeJobs: number
-  jobsTotal: number
-  jobsDone: number
-  jobsFailed: number
-}
+const NO_GPU: GpuInfo = { available: false, name: null, vramTotal: null, vramFree: null }
 
-export function createEngineState(): EngineState {
-  return { bootedAt: Date.now(), activeJobs: 0, jobsTotal: 0, jobsDone: 0, jobsFailed: 0 }
-}
-
-/**
- * Health payload (Protocol §2). GPU probing arrives with the model manager
- * (M02); until then we report the available flag honestly.
- */
-export function buildHealth(state: EngineState): HealthResponse {
+/** Health payload (Protocol §2, Spec 06 §8): GPU, queue, resident model, cache, counters. */
+export function buildHealth(
+  bootedAt: number,
+  services?: EngineServices,
+  gpu: GpuInfo = NO_GPU,
+): HealthResponse {
+  const stats = services?.jobs.stats()
   return {
     status: 'online',
     version: ENGINE_VERSION,
-    engineUptimeMs: Date.now() - state.bootedAt,
-    gpu: { available: false, name: null, vramTotal: null, vramFree: null },
-    activeJobs: state.activeJobs,
+    engineUptimeMs: Date.now() - bootedAt,
+    gpu,
+    activeJobs: stats?.activeJobs ?? 0,
+    ...(services
+      ? {
+          queuedJobs: stats!.queued,
+          residentModel: services.whisper.residentModel,
+          mediaCacheBytes: services.media.all().reduce((n, m) => n + m.normalizedBytes, 0),
+        }
+      : {}),
     metrics: {
-      jobsTotal: state.jobsTotal,
-      jobsDone: state.jobsDone,
-      jobsFailed: state.jobsFailed,
-      avgAsrRealtimeFactor: null,
+      jobsTotal: stats?.jobsTotal ?? 0,
+      jobsDone: stats?.jobsDone ?? 0,
+      jobsFailed: stats?.jobsFailed ?? 0,
+      avgAsrRealtimeFactor: stats?.avgAsrRealtimeFactor ?? null,
       avgTranslationTokPerSec: null,
     },
   }
