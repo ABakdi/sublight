@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import type { SubtitleTrack } from '@sublight/core'
-import type { AsrTask, JobSummary, WsEvent } from '@sublight/protocol'
+import type { AsrTask, JobCreation, JobResult, JobSummary, WsEvent } from '@sublight/protocol'
+import { chooseTranslationPath } from '@sublight/protocol'
 import { engine, EngineError } from '../lib/engine'
-import { socket } from './engine'
+import { socket, useEngineStore } from './engine'
 import { usePlayerStore } from './player'
 
 export type CaptionPhase =
@@ -13,6 +14,14 @@ export interface CaptionRequest {
   /** null = auto-detect. */
   language: string | null
   task: AsrTask
+}
+
+export type Activity = 'caption' | 'translate'
+
+export interface TranslateOptions {
+  targetLang: string
+  style: 'casual' | 'neutral' | 'formal'
+  glossary: { source: string; target: string }[]
 }
 
 export interface CaptionError {
@@ -31,12 +40,28 @@ interface CaptionState {
   error: CaptionError | null
   /** Summary of the last finished run. */
   resultNote: string | null
+  /** What the current/last run does, and for translations which track it started from. */
+  activity: Activity
+  sourceTrackId: string | null
   start: (req: CaptionRequest) => Promise<void>
+  /** Translate a track (Spec 07 §2.0 routing: English from audio via Whisper, else the LLM). */
+  translate: (sourceTrackId: string, opts: TranslateOptions) => Promise<void>
   cancel: () => Promise<void>
   reset: () => void
 }
 
 const POLL_MS = 1500
+
+function resultNote(track: SubtitleTrack, result: JobResult, cached: boolean): string {
+  const parts = [`${track.cues.length} cues`, track.language]
+  const low = result.translation?.lowConfidenceCues ?? 0
+  if (low) parts.push(`${low} to review`)
+  if (cached) parts.push('from cache')
+  else if (result.realtimeFactor) parts.push(`${(1 / result.realtimeFactor).toFixed(1)}× realtime`)
+  else if (result.translation?.tokensPerSecond)
+    parts.push(`${result.translation.tokensPerSecond} tokens/s`)
+  return parts.join(' · ')
+}
 
 /** Plain-language messages for engine error codes (Spec 04 §5.3). */
 export function describeError(err: unknown): CaptionError {
@@ -50,7 +75,7 @@ export function describeError(err: unknown): CaptionError {
     AUDIO_EMPTY: 'This video’s audio is silent, so there is nothing to transcribe.',
     AUDIO_UNSUPPORTED: 'The engine found no audio track it can read in this file.',
     MEDIA_TOO_LARGE: 'The file is larger than the engine’s upload limit.',
-    MODEL_NOT_INSTALLED: 'That model isn’t installed yet. Install it above, then caption again.',
+    MODEL_NOT_INSTALLED: 'That model isn’t installed yet. Install it, then try again.',
     WORKER_UNAVAILABLE:
       'The speech engine (whisper-server) couldn’t start. Build it once with `pnpm engine:setup-whisper`.',
   }
@@ -118,7 +143,80 @@ export const useCaptionStore = create<CaptionState>((set, get) => {
       }
     })
 
+  const begin = (activity: Activity, sourceTrackId: string | null = null) => {
+    abort = new AbortController()
+    set({
+      activity,
+      sourceTrackId,
+      phase: 'uploading',
+      progress: 0,
+      detail: null,
+      jobId: null,
+      draft: null,
+      error: null,
+      resultNote: null,
+    })
+  }
+
+  const fail = (err: unknown) => {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return finish({ phase: 'cancelled', detail: null })
+    }
+    finish({ phase: 'error', error: describeError(err), detail: null })
+  }
+
+  /** The engine's copy of this project's audio; uploads only when it has none (AC4). */
+  const ensureMedia = async (): Promise<string> => {
+    const project = usePlayerStore.getState().project!
+    let mediaHash = project.media.mediaHash ?? null
+    if (mediaHash && !(await engine.mediaInfo(mediaHash))) mediaHash = null
+    if (mediaHash) return mediaHash
+    const file = usePlayerStore.getState().videoFile
+    if (!file) {
+      throw new EngineError('NO_FILE', 'Open the video file again so it can be sent to the engine.')
+    }
+    set({ phase: 'uploading', detail: `sending ${file.name}` })
+    const uploaded = await engine.uploadMedia(file, project.id, {
+      signal: abort!.signal,
+      onProgress: (sent, total) => set({ progress: total ? sent / total : 0 }),
+    })
+    await usePlayerStore.getState().setMediaHash(uploaded.mediaHash)
+    return uploaded.mediaHash
+  }
+
+  /** Create the job, follow it, and add its track to the project. */
+  const runJob = async (body: JobCreation, source?: SubtitleTrack) => {
+    set({ phase: 'queued', progress: 0, detail: 'starting' })
+    const job = await engine.createJob(body, crypto.randomUUID())
+    set({ jobId: job.id })
+    const final = ['done', 'failed', 'cancelled'].includes(job.state) ? job : await watch(job.id)
+    if (final.state === 'cancelled') return finish({ phase: 'cancelled', detail: null })
+    if (final.state === 'failed') {
+      throw new EngineError(
+        final.error?.code ?? 'JOB_FAILED',
+        final.error?.message ?? 'The job failed.',
+      )
+    }
+    const result = await engine.result(final.id)
+    const track = result.tracks[0]
+    if (!track) throw new EngineError('JOB_FAILED', 'The engine returned no track.')
+    // A translation always points back at the track it came from (bilingual pairing).
+    const added = source
+      ? { ...track, derivedFrom: { trackId: source.id, sourceLanguage: source.language } }
+      : track
+    await usePlayerStore.getState().addGeneratedTrack(added)
+    finish({
+      phase: 'done',
+      progress: 1,
+      draft: null,
+      detail: null,
+      resultNote: resultNote(added, result, final.cached === true),
+    })
+  }
+
   return {
+    activity: 'caption',
+    sourceTrackId: null,
     phase: 'idle',
     progress: 0,
     detail: null,
@@ -128,84 +226,75 @@ export const useCaptionStore = create<CaptionState>((set, get) => {
     resultNote: null,
 
     start: async (req) => {
-      const player = usePlayerStore.getState()
-      const project = player.project
-      if (!project) return
-      abort = new AbortController()
-      set({
-        phase: 'uploading',
-        progress: 0,
-        detail: null,
-        jobId: null,
-        draft: null,
-        error: null,
-        resultNote: null,
-      })
+      if (!usePlayerStore.getState().project) return
+      begin('caption')
       try {
-        // 1. Audio: reuse the engine's copy when it still has it (AC4: no re-upload).
-        let mediaHash = project.media.mediaHash ?? null
-        if (mediaHash && !(await engine.mediaInfo(mediaHash))) mediaHash = null
-        if (!mediaHash) {
-          const file = usePlayerStore.getState().videoFile
-          if (!file) {
-            throw new EngineError(
-              'NO_FILE',
-              'Open the video file again so it can be sent to the engine.',
-            )
-          }
-          set({ detail: `sending ${file.name}` })
-          const uploaded = await engine.uploadMedia(file, project.id, {
-            signal: abort.signal,
-            onProgress: (sent, total) => set({ progress: total ? sent / total : 0 }),
-          })
-          mediaHash = uploaded.mediaHash
-          await usePlayerStore.getState().setMediaHash(mediaHash)
-        }
-
-        // 2. Job.
-        set({ phase: 'queued', progress: 0, detail: 'starting' })
-        const job = await engine.createJob(
-          {
-            type: 'transcribe',
-            mediaHash,
-            model: req.model,
-            params: { language: req.language, task: req.task, maxCueDurationMs: 7000 },
-          },
-          crypto.randomUUID(),
-        )
-        set({ jobId: job.id })
-        const final = ['done', 'failed', 'cancelled'].includes(job.state)
-          ? job
-          : await watch(job.id)
-
-        if (final.state === 'cancelled') return finish({ phase: 'cancelled', detail: null })
-        if (final.state === 'failed') {
-          throw new EngineError(
-            final.error?.code ?? 'JOB_FAILED',
-            final.error?.message ?? 'The job failed.',
-          )
-        }
-
-        // 3. Result → project.
-        const result = await engine.result(final.id)
-        const track = result.tracks[0]
-        if (!track) throw new EngineError('JOB_FAILED', 'The engine returned no track.')
-        await usePlayerStore.getState().addGeneratedTrack(track)
-        const speed = result.realtimeFactor
-          ? ` · ${(1 / result.realtimeFactor).toFixed(1)}× realtime`
-          : ''
-        finish({
-          phase: 'done',
-          progress: 1,
-          draft: null,
-          detail: null,
-          resultNote: `${track.cues.length} cues · ${track.language}${final.cached ? ' · from cache' : speed}`,
+        const mediaHash = await ensureMedia()
+        await runJob({
+          type: 'transcribe',
+          mediaHash,
+          model: req.model,
+          params: { language: req.language, task: req.task, maxCueDurationMs: 7000 },
         })
       } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          return finish({ phase: 'cancelled', detail: null })
+        fail(err)
+      }
+    },
+
+    translate: async (sourceTrackId, opts) => {
+      const project = usePlayerStore.getState().project
+      const source = project?.tracks.find((t) => t.id === sourceTrackId)
+      if (!project || !source) return
+      begin('translate', sourceTrackId)
+      try {
+        const models = useEngineStore.getState().models
+        const whisperModel = models.find(
+          (m) => m.role === 'asr' && m.installed && m.tasks?.includes('translate'),
+        )
+        // Audio is available when the engine still has it or the file is open.
+        const hasAudio =
+          whisperModel !== undefined &&
+          (usePlayerStore.getState().videoFile !== null ||
+            (project.media.mediaHash !== undefined &&
+              (await engine.mediaInfo(project.media.mediaHash)) !== null))
+        const path = chooseTranslationPath({
+          targetLang: opts.targetLang,
+          hasAudio,
+          wantsGlossaryOrStyle: opts.glossary.length > 0 || opts.style !== 'neutral',
+        })
+        if (path === 'whisper-translate' && whisperModel) {
+          // English from the audio itself (ADR-0018): no LLM needed.
+          const mediaHash = await ensureMedia()
+          await runJob(
+            {
+              type: 'transcribe',
+              mediaHash,
+              model: whisperModel.id,
+              params: { language: source.language, task: 'translate', maxCueDurationMs: 7000 },
+            },
+            source,
+          )
+          return
         }
-        finish({ phase: 'error', error: describeError(err), detail: null })
+        const llm = models.find((m) => m.role === 'translate' && m.installed)
+        if (!llm) {
+          throw new EngineError('MODEL_NOT_INSTALLED', 'Install the translation model first.')
+        }
+        set({ phase: 'queued', detail: 'starting' })
+        await runJob(
+          {
+            type: 'translate',
+            // Word timings aren't needed to translate and would bloat the request.
+            track: { ...source, cues: source.cues.map(({ words: _w, ...c }) => c) },
+            model: llm.id,
+            targetLang: opts.targetLang,
+            glossary: opts.glossary,
+            style: opts.style,
+          },
+          source,
+        )
+      } catch (err) {
+        fail(err)
       }
     },
 
@@ -225,6 +314,8 @@ export const useCaptionStore = create<CaptionState>((set, get) => {
       stopWatching?.()
       stopWatching = null
       set({
+        activity: 'caption',
+        sourceTrackId: null,
         phase: 'idle',
         progress: 0,
         detail: null,

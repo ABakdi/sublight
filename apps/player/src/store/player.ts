@@ -61,6 +61,11 @@ export interface PlayerState {
   setMediaHash: (mediaHash: string) => Promise<void>
   /** Add an engine-produced track to the project and make it active. */
   addGeneratedTrack: (track: SubtitleTrack) => Promise<void>
+  /** Show a translation with its source above it (Spec 05 §7), or turn that off. */
+  setBilingual: (
+    pair: { sourceTrackId: string; translationTrackId: string } | null,
+  ) => Promise<void>
+  setGlossary: (glossary: { source: string; target: string }[]) => Promise<void>
 }
 
 function msg(err: unknown): string {
@@ -284,6 +289,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       await commit((p) => {
         p.tracks = p.tracks.filter((t) => t.id !== trackId)
         if (p.settings.activeTrackId === trackId) p.settings.activeTrackId = undefined
+        const pair = p.settings.bilingual
+        if (pair && (pair.sourceTrackId === trackId || pair.translationTrackId === trackId)) {
+          p.settings.bilingual = null
+        }
       })
     },
 
@@ -331,6 +340,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       await commit((p) => {
         p.tracks.push({ ...track, projectId: p.id, draft: false })
         p.settings.activeTrackId = track.id
+      })
+    },
+
+    setBilingual: async (pair) => {
+      await commit((p) => {
+        p.settings.bilingual = pair
+        if (pair) p.settings.activeTrackId = pair.translationTrackId
+      })
+    },
+
+    setGlossary: async (glossary) => {
+      await commit((p) => {
+        p.settings.glossary = glossary
       })
     },
   }
