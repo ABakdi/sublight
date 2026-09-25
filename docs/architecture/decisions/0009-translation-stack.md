@@ -6,7 +6,7 @@ date: 2026-09-23
 
 # ADR-0009 — Translation: local LLM over paragraph chunks (not per-cue)
 
-**Status:** accepted
+**Status:** accepted — **amended by [ADR-0018](0018-whisper-translate-to-english.md)**: for an **English** target with audio available, Whisper's `translate` task is used instead of the LLM; the LLM below covers every other target and is installed on demand.
 
 ## Context
 
@@ -33,12 +33,12 @@ Translating **cue-by-cue** destroys context ("Hi! … What? …" translated per 
 
 ## Alternatives considered
 
-- **Whisper translate** — per above, rejected.
+- **Whisper translate** — rejected here as the _only_ translator (English-only); later adopted for the English target by [ADR-0018](0018-whisper-translate-to-english.md).
 - **Bigger LLM (7B+) on CPU offload** — too slow for interactive use on T1000; documented as an advanced option for batch-only translation.
 - **Cloud LLM** — privacy violation; rejected.
 
 ## Links
 
 - [Spec 07 §2 — translation pipeline](../../specification/07-ASR-And-Translation.md)
-- [ADR-0016 — model licensing](0016-model-licensing.md)
+- [ADR-0016 — model licensing](0016-model-licensing.md) · [ADR-0018 — Whisper translate for →English](0018-whisper-translate-to-english.md)
 - [Plan M04 — Translation pipeline](../../plan/milestones/04-Translation-Pipeline.md)

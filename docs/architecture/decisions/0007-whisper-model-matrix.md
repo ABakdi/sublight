@@ -28,6 +28,7 @@ Rules:
 
 - **One model resident at a time.** ASR and translation never contend for VRAM ([Spec 06](../../specification/06-Engine-Server.md) model swap).
 - fp16 **off** for ASR on Turing (no tensor cores → fp16 runs on CUDA cores at ~2× fp32; still fine for `small`).
+- **Translate capability** ([ADR-0018](0018-whisper-translate-to-english.md)): only the multilingual `base` / `small` / `medium` / `large-v3` checkpoints support Whisper's `translate` task (any language → English). `*.en`, distil and turbo checkpoints don't; the manifest records `tasks` per model and the engine refuses `translate` on a model without it.
 - `medium`+ only when the job is offline and the user accepts the wait; surfaced in the UI as "slow but most accurate".
 
 ## Consequences
@@ -45,4 +46,4 @@ Rules:
 
 - [Requirements §4 — model matrix](../../architecture/Requirements.md)
 - [Spec 07 — ASR pipeline](../../specification/07-ASR-And-Translation.md) · [Spec 08 — Model manager (in 06)](../../specification/06-Engine-Server.md)
-- [ADR-0009](0009-translation-stack.md)
+- [ADR-0009](0009-translation-stack.md) · [ADR-0018](0018-whisper-translate-to-english.md)
