@@ -12,7 +12,8 @@
     "start": "tsx src/index.ts",
     "build": "pnpm typecheck && esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "token": "tsx src/token.ts"
   },
   "dependencies": {
     "@hono/node-server": "catalog:",
