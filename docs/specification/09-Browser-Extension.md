@@ -79,7 +79,10 @@ Known gaps, for M05: the caption can sit on top of the host player's control bar
 - **Offscreen document** (`entrypoints/offscreen`): tabCapture path, audio played back to the user.
 - **SW** (`src/liveController.ts`): relays `live.audio` / `live.anchor` to the engine, forwards `job.partial` drafts and the final result to the page, keeps `LiveState` in `storage.session` for the popup (starting → listening → refining → done / error).
 - **Popup**: "Caption live" / "Stop live captions" with one status line: source ("this video's audio" / "the tab's audio"), cue count, lag; refining; done; or the error in words (e.g. "The speech model isn't installed…", "Extension has not been invoked for the current page…").
-- Captions sit above player control bars: the overlay margin is 14 % of the video height (min 32 px).
+- Captions sit above player control bars: the overlay margin is 14 % of the video height (min 32 px). The popup's size (S/M/L) and position (bottom/top) toggles live in `storage.local.overlayStyle` and apply to every overlay at once.
+- **Navigation**: a URL change or the video's `emptied` event (new source) ends the session: captions removed, job stopped, result kept for **Download SRT** only (`storage.session.liveTrack:<tabId>`).
+- **Notices**: muted video; tab audio silent for 8 s while playing (muted tab or DRM). **Player page**: refused, since the Player captions its own video.
+- **Options**: live model, spoken language, and "Subtitles in" (spoken language / English via Whisper `translate`).
 - Found in the build: with `monitor` constant-folded to `false` in the content script, Rollup emitted a `for` loop with no body (`for (…) if (opts.monitor) t.stop()`), which broke the bundle; the loop is braced now.
 
 ## 5. Capture wiring

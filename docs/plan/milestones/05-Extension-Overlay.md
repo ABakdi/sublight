@@ -50,14 +50,21 @@ Found in real Brave 153, to handle in this milestone: captions overlap the YouTu
 - Verified: YouTube (Steve Jobs' Stanford speech) in real Brave via the element's audio, first caption after **6.5 s**, drafts ~4 s behind, refinement on stop; a cross-origin video via tabCapture in Brave; the JFK clip end to end in headless Chromium (`E2E_REAL_ASR=1 pnpm e2e:extension`).
 - Found and fixed on the way: drafts were never visible (they arrive after their media time) → shown delayed by the measured lag; runner re-transcribing when no new audio arrived; whisper timing the first word of a segment at the segment start → **onset snapping** (corpus: 93 → 77 ms median); multi-token "[ Applause ]" / ">>" annotations; a Rollup constant-folding bug that emitted an empty `for` loop body.
 
-### Still open in M05
+### Follow-ups done the same day
 
-- [ ] SPA navigation mid-session (YouTube reuses the `<video>` element): end the session and clear old captions on URL change.
-- [ ] DRM / muted-tab notices (Spec 08 §7) when tab audio stays silent.
-- [ ] Save a live track into a Player project (M05.6) and live translation (task `translate` exists in the engine, no UI yet).
-- [ ] Popup style quick-toggles (size / position) (M05.7).
-- [ ] M05.8 yt-dlp toggle (overlaps M05b's engine relay).
-- [ ] M05.9 site matrix: Vimeo, embedded iframe players; no double captioning on the Player page (AC6).
+- [x] SPA navigation / new `src` mid-session: the session ends, the old captions are removed from the page, the popup says "The page moved to another video; the captions so far can be downloaded" (verified on YouTube in Brave).
+- [x] Notices (Spec 08 §7): a muted video → "unmute it"; tab audio silent for 8 s while playing → "unmute the tab, or the video may be protected (DRM)". The DRM case isn't verified on a real DRM site.
+- [x] No second overlay on the Sublight Player page (AC6): the page refuses the session with "use its Caption tab".
+- [x] **Download SRT** of the finished live track from the popup (M05.6 partial; saving into a Player project goes with M05b's hand-off).
+- [x] Live English translation: Options → "Subtitles in: English (translated)" (Whisper `translate`).
+- [x] Popup caption style quick-toggles: size S/M/L, bottom/top, applied live to every overlay (M05.7).
+- [x] Site matrix (M05.9), in Brave: YouTube watch page ✅, **YouTube embedded in an iframe on another site** ✅ (session attached to the iframe's frame, first caption 6.9 s), cross-origin `<video>` via tabCapture ✅, generic same-origin page ✅ (headless e2e). Vimeo: **not verified**, the automation couldn't get its player to play.
+
+### Still open
+
+- [ ] M05.8 yt-dlp toggle: folded into M05b's engine relay.
+- [ ] Vimeo, and a real DRM site for the silence notice, checked by hand.
+- [ ] Hide the site's own captions while ours are on (YouTube CC).
 
 ## Acceptance criteria
 
