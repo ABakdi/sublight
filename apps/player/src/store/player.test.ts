@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SUBTITLE_STYLE } from '@sublight/core'
-import { DB_NAME, loadProject, __resetDbForTests } from '../lib/idb'
+import { DB_NAME, loadProject, openDb, PROJECTS_STORE, __resetDbForTests } from '../lib/idb'
 import { activeTrackOf, usePlayerStore } from './player'
 
 const SRT = `1
@@ -127,5 +127,30 @@ describe('player store (M01.3–M01.5)', () => {
     await usePlayerStore.getState().savePosition(42_500)
     const persisted = await loadProject(usePlayerStore.getState().project!.id)
     expect(persisted?.media.resumeAtMs).toBe(42_500)
+  })
+
+  it('saves the position without bumping updatedAt or cloning tracks', async () => {
+    await usePlayerStore.getState().openWithFile(videoFile())
+    await usePlayerStore.getState().importTracks('captions.en.srt', SRT, 'en')
+    const before = usePlayerStore.getState().project!
+    await usePlayerStore.getState().savePosition(1_000)
+    const after = usePlayerStore.getState().project!
+    expect(after.updatedAt).toBe(before.updatedAt)
+    expect(after.tracks).toBe(before.tracks)
+    const persisted = await loadProject(after.id)
+    expect(persisted?.tracks).toHaveLength(1)
+  })
+
+  it('stores tracks only in the tracks store, not inside the project row', async () => {
+    await usePlayerStore.getState().openWithFile(videoFile())
+    await usePlayerStore.getState().importTracks('captions.en.srt', SRT, 'en')
+    const id = usePlayerStore.getState().project!.id
+    const db = await openDb()
+    const row = await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const req = db.transaction(PROJECTS_STORE).objectStore(PROJECTS_STORE).get(id)
+      req.onsuccess = () => resolve(req.result as Record<string, unknown>)
+      req.onerror = () => reject(req.error)
+    })
+    expect(row).not.toHaveProperty('tracks')
   })
 })

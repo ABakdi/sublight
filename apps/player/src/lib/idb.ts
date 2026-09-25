@@ -72,12 +72,24 @@ function tx<T>(
   })
 }
 
+/** The `projects` row: everything but the tracks, which live in their own store. */
+function projectRow(project: SubtitleProject): Omit<SubtitleProject, 'tracks'> {
+  const { tracks: _tracks, ...row } = project
+  return row
+}
+
+/** Rewrite only the `projects` row (cheap: playback position, titles). */
+export async function saveProjectRow(project: SubtitleProject): Promise<void> {
+  const db = await openDb()
+  await tx(db, PROJECTS_STORE, 'readwrite', (s) => s.put(projectRow(project)))
+}
+
 /** Persist a project as one `projects` row + one row per track. */
 export async function saveProject(project: SubtitleProject): Promise<void> {
   const db = await openDb()
   await new Promise<void>((resolve, reject) => {
     const t = db.transaction([PROJECTS_STORE, TRACKS_STORE], 'readwrite')
-    t.objectStore(PROJECTS_STORE).put({ ...project })
+    t.objectStore(PROJECTS_STORE).put(projectRow(project))
     const tracks = t.objectStore(TRACKS_STORE)
     const index = tracks.index('projectId')
     // Replace this project's old rows, then write the current set.
@@ -99,7 +111,9 @@ export async function loadProject(id: string): Promise<SubtitleProject | null> {
   const tracks = (await tx(db, TRACKS_STORE, 'readonly', (s) =>
     s.index('projectId').getAll(id),
   )) as SubtitleTrack[]
-  return { ...project, tracks: tracks.sort((a, b) => a.createdAt - b.createdAt) }
+  // Rows written before tracks were split out may still carry a stale copy.
+  const { tracks: _stale, ...row } = project
+  return { ...row, tracks: tracks.sort((a, b) => a.createdAt - b.createdAt) }
 }
 
 /** All projects (recents include full tracks — local scale). */

@@ -11,7 +11,7 @@ import {
   type SubtitleStyle,
   type SubtitleTrack,
 } from '@sublight/core'
-import { getSetting, loadProject, saveProject, setSetting } from '../lib/idb'
+import { getSetting, loadProject, saveProject, saveProjectRow, setSetting } from '../lib/idb'
 import {
   mediaHandleKey,
   pickVideoFile,
@@ -282,9 +282,21 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     savePosition: async (ms) => {
-      await commit((p) => {
-        p.media.resumeAtMs = Math.max(0, Math.round(ms))
-      })
+      const project = get().project
+      if (!project) return
+      const next = {
+        ...project,
+    // Runs every few seconds during playback: shallow update (tracks keep their
+    // identity, so the overlay doesn't recompute) and only the project row is
+    // written. updatedAt is left alone so watching doesn't reorder the library.
+        media: { ...project.media, resumeAtMs: Math.max(0, Math.round(ms)) },
+      }
+      set({ project: next })
+      try {
+        await saveProjectRow(next)
+      } catch (err) {
+        set({ error: `Could not save playback position: ${msg(err)}` })
+      }
     },
   }
 })
