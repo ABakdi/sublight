@@ -48,14 +48,14 @@ Actors and one-line responsibilities are tabulated in the [Component diagram](..
 
 ## 2. Roles & responsibilities
 
-| Component | Owns                                                                     | Never does                                                    |
-| --------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| Extension | Video discovery, overlay mount, tab audio capture, user commands         | Runs models, parses subtitles beyond display, holds big state |
-| Player    | Local playback, projects, editing, export, engine client for local files | Runs models, touches page DOM of other sites                  |
-| Overlay   | Rendering cues from a `SubtitleTrack`+style into its Shadow host         | Decides _what_ cue text is (that's engine/editor)             |
-| Core      | Data model, parse/serialize, validation, format rules                    | Networking, rendering, state persistence                      |
-| Protocol  | Typed API/message contracts                                              | —                                                             |
-| Engine    | Jobs, models, GPU schedule, ffmpeg, caches, auth                         | Touch browser storage; run inside the browser                 |
+| Component | Owns                                                                                                             | Never does                                                    |
+| --------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Extension | Video discovery, overlay mount, tab audio capture, user commands                                                 | Runs models, parses subtitles beyond display, holds big state |
+| Player    | Playback of any video (local files + web videos sent by the extension), projects, editing, export, engine client | Runs models, touches page DOM of other sites                  |
+| Overlay   | Rendering cues from a `SubtitleTrack`+style into its Shadow host                                                 | Decides _what_ cue text is (that's engine/editor)             |
+| Core      | Data model, parse/serialize, validation, format rules                                                            | Networking, rendering, state persistence                      |
+| Protocol  | Typed API/message contracts                                                                                      | —                                                             |
+| Engine    | Jobs, models, GPU schedule, ffmpeg, caches, auth                                                                 | Touch browser storage; run inside the browser                 |
 
 ## 3. The runtime topologies
 
@@ -66,7 +66,7 @@ Actors and one-line responsibilities are tabulated in the [Component diagram](..
 3. Engine runs **rolling-window ASR** (~30 s) producing _draft_ cues → WS push → overlay renders.
 4. On stop: **refinement pass** (full audio, chosen model) → final cues; optional translation → second track (Whisper `translate` for English, LLM job for other languages — [07 §2.0](07-ASR-And-Translation.md#20-choosing-a-translation-path-adr-0018)); overlay swaps drafts.
 
-### B — Local-file captioning (offline batch)
+### B — Captioning in the Player (offline batch: local files and relayed web videos)
 
 1. User opens file (FSA) in player; media streamed to engine (`PUT /v1/media`), normalized to 16 kHz mono PCM, cached by hash.
 2. Transcribe job → word-level cues, anchored at T₀ = 0, δ estimated.

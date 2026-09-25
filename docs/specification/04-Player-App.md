@@ -6,7 +6,7 @@ updated: 2026-09-23
 
 # 04 — Player app
 
-_The React web app: local playback, projects, captioning orchestration, editing, export. Runs at `http://localhost:5173` in dev; packaged as an extension page in prod (no server needed)._
+_The React web app where users watch **any video**: files from disk, and any web video the extension hands over ("Open in Sublight Player", §9). Projects, captioning orchestration, editing, export. Runs at `http://localhost:5173` in dev; packaged as an extension page in prod (no server needed)._
 
 ## 1. Responsibilities
 

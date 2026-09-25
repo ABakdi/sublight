@@ -39,6 +39,7 @@ Grouped; detailed contracts live in the [Specification](../specification/README.
 ### F1 — Playback
 
 - F1.1 Play local video files in the Sublight Player (drag & drop / file picker).
+- F1.1b Play **any web video** in the Sublight Player: the extension hands the page's video over in one click ([ADR-0017](./decisions/0017-open-in-player.md)).
 - F1.2 Play online videos in _any_ page; overlay subtitles without breaking the host player.
 - F1.3 Standard controls, seek, pause, resume, speed, fullscreen; keyboard shortcuts.
 - F1.4 Persist playback position and project state across sessions.
@@ -50,7 +51,7 @@ Grouped; detailed contracts live in the [Specification](../specification/README.
 - F2.3 Works on YouTube (including SPA navigation), embedded iframe players, Vimeo, and generic pages.
 - F2.4 Survives pause/seek/speed changes during capture (see [Spec 08](../specification/08-Audio-Capture.md)).
 
-### F3 — Captioning (local files)
+### F3 — Captioning in the Player (local files and relayed web videos)
 
 - F3.1 Transcribe a local video end-to-end without real-time constraints.
 - F3.2 Audio extracted and normalized by the engine (16 kHz mono PCM), not by the browser.

@@ -12,7 +12,7 @@ updated: 2026-09-23
 flowchart TB
   subgraph Clients["CLIENTS (in the browser)"]
     EXT["Browser Extension (MV3, WXT)<br/>chromium/brave — firefox later"]
-    PL["Sublight Player (React web app)<br/>local files · projects · editor"]
+    PL["Sublight Player (React web app)<br/>local files · any web video via extension · projects · editor"]
   end
 
   subgraph SHR["Shared packages (one source of truth)"]

@@ -4,7 +4,9 @@
 
 sublight is a web-based video player and browser extension (Chromium first, Firefox later) that lets you add subtitles to **any video on the internet** — or to **videos you've downloaded locally** — and view them in different languages, accurately translated and tightly synced to the audio.
 
-All AI runs **locally** on your machine with **open-source models** (OpenAI Whisper family for speech-to-text, an open-weight LLM for translation). No cloud, no uploads, full privacy. Audio never leaves your computer.
+The **Sublight Player** is where you watch: open a video file from your disk, or click **Open in Sublight Player** on any website and that video moves into the player with every feature available.
+
+All AI runs **locally** on your machine with **open-source models**: OpenAI Whisper for speech-to-text and for translation into English, plus an optional open-weight LLM for every other target language. No cloud, no uploads, full privacy. Audio never leaves your computer.
 
 ---
 
@@ -16,26 +18,27 @@ sublight generates them for you on the spot:
 
 - **Transcription** — Whisper (open-source, runs locally) converts speech to text with **word-level timestamps**.
 - **Perfect sync** — timestamps are anchored to the actual audio you played, so captions land on the exact spoken word, then refined in a second pass.
-- **Any language** — an open-weight local LLM translates the transcript fluently, keeping meaning (not just words), presented as separate subtitle tracks or as dual-language (source + translation) for language learning.
+- **Any language** — English subtitles come straight from Whisper's built-in translation (no extra model). For other target languages, an optional open-weight local LLM translates the transcript fluently, keeping meaning (not just words). Translations show as separate tracks or as dual-language (source + translation) for language learning.
 
 ## How it works
 
 Three cooperating parts, all running on your machine:
 
-| Part                   | What it does                                                                                                                                                                                         |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Sublight Engine**    | A local companion server (`127.0.0.1`). Receives audio, runs Whisper + the translation model, streams progress back. Installed once, runs in the background.                                         |
-| **Sublight Player**    | A React web app. Plays local video files (no upload — it's your disk) and page videos handed over by the extension, manages transcription projects, renders styled subtitles, exports SRT.           |
-| **Sublight Extension** | A Chromium/Brave extension (Manifest V3). Injects a subtitle overlay into **any** website playing a video (YouTube, Vimeo, embedded players…), captures the tab's audio, and hands it to the engine. |
+| Part                   | What it does                                                                                                                                                                                                    |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sublight Engine**    | A local companion server (`127.0.0.1`). Receives audio, runs Whisper (transcription + translation to English) and, when installed, the translation LLM; streams progress back. Runs in the background.          |
+| **Sublight Player**    | A React web app for watching **any video**: files from your disk (no upload) and any web video sent over by the extension ("Open in Sublight Player"). Manages projects, renders styled subtitles, exports SRT. |
+| **Sublight Extension** | A Chromium/Brave extension (Manifest V3). Injects a subtitle overlay into **any** website playing a video (YouTube, Vimeo, embedded players…), captures the tab's audio, and hands it to the engine.            |
 
 ```
 ┌─────────────┐   HTTP/WS + bearer token   ┌───────────────────┐
 │  Extension  │ ◄─────────────────────────► │                   │
-│   (any site)│                             │   Sublight Engine │──► whisper.cpp (ASR)
-└─────────────┘                             │   (localhost)     │──► llama.cpp (translation)
+│   (any site)│                             │   Sublight Engine │──► whisper.cpp (ASR + →English)
+└─────────────┘                             │   (localhost)     │──► llama.cpp (other languages, optional)
 ┌─────────────┐                             │                   │──► ffmpeg (audio)
 │  Player App │ ◄─────────────────────────► └───────────────────┘
-│ (local files)│      all audio stays on this machine
+│ (files + any│      all audio stays on this machine
+│  web video) │
 └─────────────┘
 ```
 
@@ -46,8 +49,8 @@ All open-source, runs locally, models downloadable on demand.
 - 🔒 **100% local & private** — no audio or transcript ever leaves the machine
 - 🎬 **Online videos** — subtitles on YouTube and any site with a `<video>` element, including embedded iframes
 - 🚀 **Open in Sublight Player** — one click moves any page's video (YouTube included) into the full player: a new tab plays it with every player feature, resumed where you left off ([M05b](docs/plan/milestones/05b-Open-in-Player.md))
-- 💾 **Local files** — play downloaded videos in the Sublight Player and caption them
-- 🌍 **Any language** — accurate, meaning-preserving translation via a local open-weight LLM
+- 💾 **Local files** — play downloaded videos in the same player and caption them
+- 🌍 **Any language** — English via Whisper's built-in translation (no extra download); other languages via an optional local open-weight LLM
 - ⏱ **Precise sync** — word-level timestamps, live capture anchoring, second-pass refinement
 - 🎨 **Full styling** — color, background, size, font, outline, position, alignment — per-user, persisted
 - 📥 **Export SRT** (VTT planned) — take your subtitles anywhere
@@ -59,7 +62,7 @@ All open-source, runs locally, models downloadable on demand.
 - **Extension** — Manifest V3 · WXT framework (Chromium/Brave first, Firefox later)
 - **Engine** — Node.js 22 · TypeScript · Hono · WebSockets
 - **AI runtimes** — [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (ASR) · [llama.cpp](https://github.com/ggerganov/llama.cpp) (translation LLM) · ffmpeg (audio)
-- **Models** — Whisper (MIT), Qwen2.5 (Apache-2.0) — all open source, run locally
+- **Models** — Whisper (MIT) for transcription and →English translation; Qwen2.5 (Apache-2.0) optional for other languages — all open source, run locally
 - **Target hardware** — 32 GB RAM · 4 GB VRAM GPU (Quadro T1000) · i7 9th gen
 
 See [docs/Home](docs/Home.md) for the full documentation vault.
