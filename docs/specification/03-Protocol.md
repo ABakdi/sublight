@@ -50,10 +50,11 @@ Job creation bodies (discriminated by `type`):
 { "type": "transcribe",
   "mediaHash": "sha256:…",       // or "mediaId" from upload
   "model": "whisper-small",
-  "params": { "language": null,   // null = auto-detect
+  "params": { "language": null,   // null = auto-detect (source language)
+              "task": "transcribe",  // or "translate" = any language → English (ADR-0018)
               "maxCueDurationMs": 7000 } }
 
-// translate
+// translate (LLM path — non-English targets, or text-only tracks; Spec 07 §2.0)
 { "type": "translate",
   "track": { …SubtitleTrack },    // cues + words inlined
   "model": "qwen2.5-3b-instruct",

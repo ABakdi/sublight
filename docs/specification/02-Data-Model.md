@@ -36,7 +36,7 @@ interface SubtitleTrack {
   language: string // BCP-47, e.g. "en", "pt-BR"
   title?: string // optional human label, e.g. "English (AI)"
   kind: 'transcript' | 'translation' | 'import'
-  derivedFrom?: { trackId: string; sourceLanguage: string } // for translations
+  derivedFrom?: { trackId?: string; sourceLanguage: string } // for translations; no trackId when translated straight from audio (ADR-0018)
   draft?: boolean // true while live captions are replacing
   cues: SubtitleCue[]
   style?: SubtitleStyle // track-level style (defaults to user global)

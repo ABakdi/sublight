@@ -22,8 +22,8 @@ flowchart TB
   end
 
   ENG["Sublight Engine (Node 22, Hono)<br/>API · auth · job queue · model manager · caches"]
-  WS["whisper.cpp server<br/>ASR + word timestamps"]
-  LL["llama.cpp server<br/>translation LLM"]
+  WS["whisper.cpp server<br/>ASR + word timestamps · translate → English"]
+  LL["llama.cpp server<br/>translation LLM (optional, non-English targets)"]
   FF["ffmpeg<br/>audio normalize (16k mono PCM)"]
   MODELS["~/.sublight/models<br/>pinned open-source models"]
 

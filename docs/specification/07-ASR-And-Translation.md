@@ -66,7 +66,27 @@ videoTime(cue) = audioStreamTime(cue) + T₀ + δ
 - Per-cue minimum word confidence warning (log only).
 - Corpus harness ([M00.8](../plan/milestones/00-Foundations.md)) reports median word-onset offset + coverage; numbers published per release in [checkpoints](../checkpoints/README.md).
 
-## 2. Translation pipeline (per [ADR-0009](../architecture/decisions/0009-translation-stack.md))
+## 2. Translation pipeline (per [ADR-0009](../architecture/decisions/0009-translation-stack.md), amended by [ADR-0018](../architecture/decisions/0018-whisper-translate-to-english.md))
+
+### 2.0 Choosing a translation path (ADR-0018)
+
+There are two translators, picked per request:
+
+| Target             | Audio available? | Glossary / register asked? | Path                                                                      |
+| ------------------ | ---------------- | -------------------------- | ------------------------------------------------------------------------- |
+| English            | yes              | no                         | **Whisper `translate`**: a transcribe job with `params.task: "translate"` |
+| English            | yes              | yes                        | LLM (§2.1–2.6) over the source transcript                                 |
+| English            | no (text track)  | —                          | LLM                                                                       |
+| any other language | —                | —                          | LLM (installed on demand the first time)                                  |
+
+**Whisper `translate` specifics:**
+
+- Runs on the resident ASR model, so no model swap and no second download. Only multilingual checkpoints support it ([ADR-0007](../architecture/decisions/0007-whisper-model-matrix.md)); the engine returns `JOB_INVALID` for others.
+- Word timestamps from a `translate` run are **not** used: the English words don't map to spoken source words. Cues are built from **segment** timestamps (split long segments at punctuation, proportional to character count), then go through the normal §1.3 rules (min duration, merge gap). `cue.words` is omitted on these tracks.
+- The sync equation (§1.4) applies unchanged: segments are timed against the same audio, so T₀ and δ are shared with the source transcript.
+- Resulting track: `kind: "translation"`, `language: "en"`, `derivedFrom: { sourceLanguage }` (no `trackId`: derived from audio). Bilingual source+English = two ASR passes over the same cached audio.
+
+The rest of this section (§2.1–2.6) describes the **LLM path**.
 
 ### 2.1 Preprocessing: cues → paragraphs
 
@@ -112,10 +132,10 @@ Transcripts are **untrusted data** (audio may include instructions). Delimiters 
 ## 3. Language detection
 
 - ASR auto-language (whisper) at job start → stored on the track as `track.language` (BCP-47 mapping table from whisper language codes).
-- Translation target: user picks; validated against the active translator model's language set with a friendly warning if unknown.
+- Translation target: user picks; English routes to Whisper `translate` when audio is available (§2.0), anything else to the LLM, validated against its language set with a friendly warning if unknown.
 
 ## 4. Related
 
 - [Data model §4 — cue rules](02-Data-Model.md#4-cue-construction--normalization) · [Engine §6–7](06-Engine-Server.md) · [Audio capture](08-Audio-Capture.md)
-- ADRs [0008](../architecture/decisions/0008-word-level-timestamps.md) · [0009](../architecture/decisions/0009-translation-stack.md)
+- ADRs [0008](../architecture/decisions/0008-word-level-timestamps.md) · [0009](../architecture/decisions/0009-translation-stack.md) · [0018](../architecture/decisions/0018-whisper-translate-to-english.md)
 - Milestones [M03](../plan/milestones/03-Transcription-Pipeline.md) · [M04](../plan/milestones/04-Translation-Pipeline.md)

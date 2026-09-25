@@ -64,7 +64,7 @@ Actors and one-line responsibilities are tabulated in the [Component diagram](..
 1. Content script finds the playing `<video>`; overlay host mounts.
 2. User starts capture → same-origin `captureStream` or `tabCapture` (audio) → engine WS stream, anchored at **T₀** = video time at start.
 3. Engine runs **rolling-window ASR** (~30 s) producing _draft_ cues → WS push → overlay renders.
-4. On stop: **refinement pass** (full audio, chosen model) → final cues; optional **translation job** → second track; overlay swaps drafts.
+4. On stop: **refinement pass** (full audio, chosen model) → final cues; optional translation → second track (Whisper `translate` for English, LLM job for other languages — [07 §2.0](07-ASR-And-Translation.md#20-choosing-a-translation-path-adr-0018)); overlay swaps drafts.
 
 ### B — Local-file captioning (offline batch)
 
@@ -74,7 +74,7 @@ Actors and one-line responsibilities are tabulated in the [Component diagram](..
 
 ### C — Translate existing transcript
 
-Track → paragraph chunking → LLM → validated 1:1 line mapping → translated track. No audio involved.
+Track → paragraph chunking → LLM → validated 1:1 line mapping → translated track. No audio involved, so this is always the LLM path.
 
 ### D — Page video migrated into the Player ("Open in Sublight Player", [ADR-0017](../architecture/decisions/0017-open-in-player.md))
 
@@ -99,7 +99,7 @@ Threat model detail: [Security baseline plan](../audits/Security-Baseline-Plan.m
 
 1. **All cue timings are integer milliseconds**, non-overlapping, ordered, duration ≥ 200 ms after construction ([Data model](02-Data-Model.md)).
 2. **One overlay per playing video** — never two; the player and extension both enforce via a `data-sublight-host` marker.
-3. **Tracks never lose their source association**: a translated track records `derivedFrom: trackId` + `translationOf.lang`.
+3. **Tracks never lose their source association**: a translated track records `derivedFrom.sourceLanguage`, plus `derivedFrom.trackId` when it was translated from a track (LLM path). Whisper-translated tracks come straight from audio and carry no `trackId` ([ADR-0018](../architecture/decisions/0018-whisper-translate-to-english.md)).
 4. **Draft vs final**: drafts are flagged `draft: true`; refinement replaces them atomically (publish/replace on track id) — the overlay never shows mixed state.
 5. **Engine is optional at runtime, required for intelligence**: playback/records work offline; captioning jobs need the engine. UI states reflect this.
 

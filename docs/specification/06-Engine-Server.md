@@ -25,9 +25,10 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
 
 ## 3. Model manager (per [ADR-0016](../architecture/decisions/0016-model-licensing.md))
 
-- **Manifest** (`models.manifest.json`, pinned): `{ id, role, repo, revision, file, sha256, sizeBytes, vramClass, license, params? }`. Installed set = files in `~/.sublight/models/` validated against manifest.
+- **Manifest** (`models.manifest.json`, pinned): `{ id, role, repo, revision, file, sha256, sizeBytes, vramClass, license, tasks?, params? }` — `tasks` on ASR models lists `"transcribe"` and, for multilingual checkpoints, `"translate"` ([ADR-0018](../architecture/decisions/0018-whisper-translate-to-english.md)). Installed set = files in `~/.sublight/models/` validated against manifest.
 - Install: stream download → verify SHA-256 → move into place (atomic rename) → state update. Refuse on mismatch; never execute downloaded files.
 - Removal: delete artifact + evict dependent cache entries (size freed reported).
+- **Default install set = one ASR model only.** The translation LLM is installed on demand the first time a user picks a non-English target; English targets use Whisper `translate` and need nothing extra.
 - Registry lists manifest models; UI shows `installed/model size/disk used` and a budget line (default 20 GB, warn at 80%).
 
 ## 4. ffmpeg (audio ingestion)
@@ -65,9 +66,11 @@ The "Open in Sublight Player" flow ([ADR-0017](../architecture/decisions/0017-op
 - Spawns `whisper-server` (CUDA build on target; CPU build fallback) on `127.0.0.1:17422` with word-timestamp flags; health-checked (ping) every job; auto-restart with backoff on crash.
 - Call: POST `/transcribe` (16 kHz PCM WAV) → JSON: segments `[ { start, end, text, tokens:[{text, t0, t1}] } ]` → **mapped to cues & words** by the shared rules in [07 §1](07-ASR-And-Translation.md) (engine imports cue-construction from `core`).
 - Language: `--language auto` default; explicit override param supported.
+- Task: `params.task: "translate"` sets whisper's translate flag (any language → English). Cues come from segment timestamps; word timestamps are dropped for these runs ([07 §2.0](07-ASR-And-Translation.md#20-choosing-a-translation-path-adr-0018)). Refused with `JOB_INVALID` when the model's manifest `tasks` lacks `translate`.
 
 ## 7. Llama worker (translation)
 
+- **Optional worker**: only used for non-English targets and text-only tracks ([ADR-0018](../architecture/decisions/0018-whisper-translate-to-english.md)); if no LLM is installed, a translate job fails fast with `MODEL_NOT_INSTALLED` so the client can offer the install.
 - Spawns `llama-server` on `127.0.0.1:17423` (model per translate job's `model`, GGUF Q4_K_M default `qwen2.5-3b-instruct`); OpenAI-compatible chat endpoint.
 - [07 §2](07-ASR-And-Translation.md) for the chunking/prompt/validation protocol the worker drives; a _translator adapter_ interface (`translate(paragraphLines, meta) → lines`) keeps NLLB/CTranslate2 a swappable alternative (same interface, different impl — a future `translate-nllb` worker).
 
@@ -87,4 +90,4 @@ The "Open in Sublight Player" flow ([ADR-0017](../architecture/decisions/0017-op
 ## 10. Related
 
 - [Protocol](03-Protocol.md) · [07 — ASR & translation](07-ASR-And-Translation.md) · [Deployment diagram](../architecture/diagrams/Deployment.md)
-- ADRs [0004](../architecture/decisions/0004-local-engine-outside-extension.md) · [0005](../architecture/decisions/0005-engine-stack.md) · [0006](../architecture/decisions/0006-engine-transport.md) · [0007](../architecture/decisions/0007-whisper-model-matrix.md) · [0016](../architecture/decisions/0016-model-licensing.md)
+- ADRs [0004](../architecture/decisions/0004-local-engine-outside-extension.md) · [0005](../architecture/decisions/0005-engine-stack.md) · [0006](../architecture/decisions/0006-engine-transport.md) · [0007](../architecture/decisions/0007-whisper-model-matrix.md) · [0016](../architecture/decisions/0016-model-licensing.md) · [0018](../architecture/decisions/0018-whisper-translate-to-english.md)
