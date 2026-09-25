@@ -22,7 +22,7 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
 - Swap: unload binary (kill whisper-server/llama-server or `--no-warm`) → load target → warm (e.g. llama `--preload`) → run.
 - VRAM hints from NVML when available (`nvidia-smi` parse fallback) drive decisions: if free < model need → offload layers to CPU (`-ngl` fraction) with a `slow` flag surfaced in job logs; if even that fails → `GPU_OOM` retryable failure, engine retries once with `base` model. CPU-only fallback: engine uses a CPU build of whisper.cpp with no VRAM check.
 - The budget table is [Requirements §4](../architecture/Requirements.md).
-- **Implemented (M02):** one GPU slot shared by all GPU jobs, and `nvidia-smi` VRAM figures in health. Model swapping ASR ↔ LLM and the offload/`GPU_OOM` retry path arrive with the LLM worker (M04). Measured: whisper-small resident uses ~0.85 GB of the T1000's 4 GB.
+- **As built (M04):** one GPU slot shared by all GPU jobs; before a job loads its worker, `GpuResidency` stops the other one (whisper ↔ llama), so exactly one model is resident and swaps happen between jobs. `nvidia-smi` VRAM figures in health, `residentModel` = the loaded model id. Measured on the T1000 (desktop using ~0.7 GB): whisper-small ~0.85 GB; Qwen3-4B fully offloaded with a q8_0 KV cache ~2.9 GB. The llama worker tries full offload first and falls back to llama.cpp's `-ngl auto --fit on` when that can't load (VRAM taken by other apps); a `GPU_OOM` code for mid-job failures isn't needed yet.
 
 ## 3. Model manager (per [ADR-0016](../architecture/decisions/0016-model-licensing.md))
 
@@ -71,9 +71,13 @@ The "Open in Sublight Player" flow ([ADR-0017](../architecture/decisions/0017-op
 
 ## 7. Llama worker (translation)
 
-- **Optional worker**: only used for non-English targets and text-only tracks ([ADR-0018](../architecture/decisions/0018-whisper-translate-to-english.md)); if no LLM is installed, a translate job fails fast with `MODEL_NOT_INSTALLED` so the client can offer the install.
-- Spawns `llama-server` on `127.0.0.1:17423` (model per translate job's `model`, GGUF Q4_K_M default `qwen2.5-3b-instruct`); OpenAI-compatible chat endpoint.
-- [07 §2](07-ASR-And-Translation.md) for the chunking/prompt/validation protocol the worker drives; a _translator adapter_ interface (`translate(paragraphLines, meta) → lines`) keeps NLLB/CTranslate2 a swappable alternative (same interface, different impl — a future `translate-nllb` worker).
+- **Optional worker**: used for non-English targets, text-only tracks, or when the user sets a glossary/register ([ADR-0018](../architecture/decisions/0018-whisper-translate-to-english.md)); without the model a translate job is refused with `MODEL_NOT_INSTALLED` so the client can offer the install.
+- Binary: `pnpm engine:setup-llama` builds `llama-server` from llama.cpp **b11174, verified commit `ed319feb`**, CUDA when available, no network features (`-DLLAMA_CURL=OFF`); `~/.sublight/bin/llama.json`.
+- Model: `qwen3-4b-instruct` (Qwen3-4B-Instruct-2507, Q4_K_M, Apache-2.0, [ADR-0019](../architecture/decisions/0019-translator-qwen3-4b.md)).
+- Spawn: `llama-server` on `127.0.0.1:17423` with `-c 4096 -np 1 --jinja --no-webui`; GPU: `-ngl all --fit off -fa on -ctk q8_0 -ctv q8_0`, falling back to `-ngl auto --fit on -fa on` for the session if that can't load. Measured: **29.7 tok/s** with full offload vs 9.6 tok/s with the automatic fit (which left layers on the CPU).
+- Calls: OpenAI-compatible `POST /v1/chat/completions`, temperature 0.2, top_p 0.9, `max_tokens` ≈ 1.5 × source characters; speed from the response `timings`.
+- Config: `llama: { binary?, port, gpu: "auto"|"off", threads, contextTokens }`.
+- [07 §2](07-ASR-And-Translation.md) for the chunking/prompt/validation protocol the worker drives. Both model servers share one supervisor (`workers/server-process.ts`: spawn, health polling, pid-file orphan reaping, restart on crash).
 
 ## 8. Observability
 

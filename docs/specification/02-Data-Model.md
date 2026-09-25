@@ -19,6 +19,7 @@ interface SubtitleCue {
   text: string // may contain newlines = multiple rendered lines
   words?: SpeechWord[] // present when ASR produced word timestamps
   speaker?: string | null // from [SPEAKER] markers or future diarization
+  lowConfidence?: boolean // translation re-split by duration, needs review (07 §2.3)
   style?: Partial<CueStyle> // per-cue overrides (rare)
 }
 
@@ -65,6 +66,7 @@ interface SubtitleProject {
   settings: {
     activeTrackId?: string
     bilingual?: { sourceTrackId: string; translationTrackId: string } | null
+    glossary?: { source: string; target: string }[] // fixed term translations (07 §2.2)
     style: SubtitleStyle // user-global style (player + extension share schema)
   }
   updatedAt: number
@@ -119,7 +121,8 @@ _Engine and editor share these rules._
 From words → cues (ASR side):
 
 - Group words greedily: target 2–3 lines of ≤ 42 chars each, or ≤ 7 s max cue; hard break at sentence-final punctuation (`.!?…`) and pauses ≥ 300 ms between words.
-- Merge: cues closer than 80 ms apart merge (end of A + 80 ≥ start of B).
+- Merge: cues closer than 80 ms apart merge (end of A + 80 ≥ start of B). Merged text is re-wrapped from the words, never truncated (before M04 a merge could drop words past 3 lines).
+- **Fragments** (≤ 2 words or < 800 ms) fold into a neighbour when the result still fits one cue: across the shorter pause (≤ 1 s), **never across a sentence end**. Read speech otherwise leaves one-word flashes ("Weitere", "Kafka") that also break line-by-line translation. Measured: 182 → 149 cues on 10 min of German, 3 left with ≤ 2 words.
 - Minimum duration 200 ms enforced by stretching end (never move start past start).
 
 From user edits (editor side): splitting a cue keeps `words` split at the word boundary; merging concatenates text with a space and unions words; every edit re-runs `normalizeCues()` then re-validation.

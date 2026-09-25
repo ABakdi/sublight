@@ -57,7 +57,7 @@ Job creation bodies (discriminated by `type`):
 // translate (LLM path — non-English targets, or text-only tracks; Spec 07 §2.0)
 { "type": "translate",
   "track": { …SubtitleTrack },    // cues + words inlined
-  "model": "qwen2.5-3b-instruct",
+  "model": "qwen3-4b-instruct",
   "targetLang": "de",
   "glossary": [ { "source": "VLC", "target": "الفي إل سي" } ],
   "style": "casual" | "neutral" | "formal" }

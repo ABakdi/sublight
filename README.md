@@ -62,7 +62,7 @@ All open-source, runs locally, models downloadable on demand.
 - **Extension** — Manifest V3 · WXT framework (Chromium/Brave first, Firefox later)
 - **Engine** — Node.js 22 · TypeScript · Hono · WebSockets
 - **AI runtimes** — [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (ASR) · [llama.cpp](https://github.com/ggerganov/llama.cpp) (translation LLM) · ffmpeg (audio)
-- **Models** — Whisper (MIT) for transcription and →English translation; Qwen2.5 (Apache-2.0) optional for other languages — all open source, run locally
+- **Models** — Whisper (MIT) for transcription and →English translation; Qwen3-4B-Instruct (Apache-2.0), optional, for other languages — all open source and commercially usable, run locally
 - **Target hardware** — 32 GB RAM · 4 GB VRAM GPU (Quadro T1000) · i7 9th gen
 
 See [docs/Home](docs/Home.md) for the full documentation vault.
@@ -122,7 +122,7 @@ The `docs/` folder is an **Obsidian vault** used as the living specification for
 
 ## Development status
 
-**M00–M03 are done**: open a video in the player, click **Caption**, and the local engine transcribes it with whisper.cpp on the GPU. Word-level timestamps, English translation, drafts while it runs; sync measured at a 93 ms median onset error over 30 min. **Next: M04 (translation) and M05 (extension overlay).** See [docs/plan/Roadmap.md](docs/plan/Roadmap.md).
+**M00–M04 are done**: open a video in the player, click **Caption**, and the local engine transcribes it with whisper.cpp on the GPU (word-level timestamps, drafts while it runs, 93 ms median sync error over 30 min). **Translate** any track into other languages with a local Qwen3-4B model (Apache-2.0), or to English straight from the audio, and show it under the original. **Next: M05, captions on any website through the extension.** See [docs/plan/Roadmap.md](docs/plan/Roadmap.md).
 
 ## License & ethics notes
 

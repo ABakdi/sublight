@@ -40,6 +40,15 @@ curl -X POST -H "Authorization: Bearer $TOKEN" http://127.0.0.1:17421/v1/models/
 pnpm engine:transcribe some-video.mp4 --out some-video.srt   # or --translate for English
 ```
 
+Translation into other languages needs the LLM worker too:
+
+```sh
+pnpm engine:setup-llama        # once: builds llama.cpp b11174 (~20 min with CUDA)
+curl -X POST -H "Authorization: Bearer $TOKEN" http://127.0.0.1:17421/v1/models/qwen3-4b-instruct/install
+```
+
+In the player: Tracks → **Translate…** on a track (the form can also install the model).
+
 The build needs cmake and a C++ compiler; CUDA is used when `nvcc` is on
 `PATH` or in `/opt/cuda` (pass `--cpu` to skip it). Models download from
 pinned Hugging Face revisions and are SHA-256 checked. The engine's real-ASR

@@ -52,7 +52,7 @@ Validated with `core.validateStyle`; invalid values fall back per-field to defau
 
 ## 7. Advanced render modes
 
-- **Bilingual** (`settings.bilingual`): source line(s) dimmed above, translation below, `heightRatio` 0.75/1.25 line heights; both from their own tracks so timings stay independent.
+- **Bilingual** (`settings.bilingual`, built in M04): `SubtitleOverlay` takes `secondaryCues` (+ `secondarySyncOffsetMs`); the source line renders above the translation in `.sl-secondary`: `--sl-secondary-color` (default `#d4d4d8`), `--sl-secondary-opacity` (0.85) and `--sl-secondary-scale` (0.75 × the main size), from `style.bilingual`. Each track is looked up on its own timing, so either line can show alone; bilingual mode lifts the `maxLines` clamp.
 - **Karaoke / word highlight (M09)**: when the active cue has `words`, highlight the word where `t` falls using `--sl-karaoke-color`; micro-offset `lagMs` to taste. Implemented as a per-word span overlay — same `SubtitleCue.text` source; cue timings untouched.
 - **Speaker tags**: cues with `speaker` render `[Name]` prefix styled via `--sl-speaker-color` (text remains the real cue text).
 
