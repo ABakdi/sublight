@@ -9,6 +9,7 @@ export type { OpenInPlayerPayload } from './payload'
 export {
   AUTH_HEADER,
   BEARER_PREFIX,
+  DEV_EXTENSION_ID,
   ENGINE_BASE_URL,
   ENGINE_DEFAULT_PORT,
   GpuJobConcurrency,

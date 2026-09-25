@@ -9,6 +9,13 @@ export const AUTH_HEADER = 'authorization'
 export const BEARER_PREFIX = 'Bearer '
 export const IDEMPOTENCY_KEY_HEADER = 'idempotency-key'
 
+/**
+ * ID of the unpacked dev build: derived from the public `key` pinned in
+ * apps/extension/wxt.config.ts, so every checkout loads with the same ID and
+ * the engine can allowlist `chrome-extension://<id>` (Protocol §3.4).
+ */
+export const DEV_EXTENSION_ID = 'ehgdbfcecgkljnpmednociabmmjemfkf'
+
 export const GpuJobConcurrency = {
   /** 1 ASR + 1 translation share ONE GPU slot (Spec 03 §7). */
   SHARED_GPU_SLOT: 1,
