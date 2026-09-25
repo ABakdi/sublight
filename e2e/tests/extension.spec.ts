@@ -222,6 +222,8 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await expect(popup.getByTestId('live-status')).toHaveAttribute('data-phase', 'done', {
       timeout: 60_000,
     })
+    // The finished track can be saved as SRT from the popup.
+    await expect(popup.getByTestId('live-download')).toContainText('Download SRT (')
     await site.bringToFront()
     await site.evaluate(() => (document.querySelector('video')!.currentTime = 6.5))
     await expect
@@ -234,5 +236,23 @@ test.describe('extension in Chromium (Spec 09)', () => {
         ),
       )
       .toMatch(/country/i)
+  })
+
+  test('caption size and position toggles apply to the overlay (M05.7)', async () => {
+    const site = context.pages()[0] ?? (await context.newPage())
+    await site.goto(`${SITE}/watch`)
+    const popup = await openPopupFor(site)
+    await popup.getByTestId('size-L').click()
+    await popup.getByTestId('anchor-top').click()
+    await popup.getByTestId('demo-toggle').click()
+    await site.bringToFront()
+    const box = () =>
+      site.evaluate(() => {
+        const cue = document
+          .querySelector('[data-sublight-frame] [data-sublight-host]')
+          ?.shadowRoot?.querySelector('.sl-cue') as HTMLElement | null
+        return cue ? getComputedStyle(cue.parentElement!).alignItems : null
+      })
+    await expect.poll(box).toBe('flex-start') // top
   })
 })
