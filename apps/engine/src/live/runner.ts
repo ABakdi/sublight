@@ -27,10 +27,12 @@ export interface LiveOptions {
 }
 
 export const LIVE_DEFAULTS: LiveOptions = {
-  stepMs: 1500,
+  // Passes run back to back as soon as ≥ 0.5 s of new audio arrived: the
+  // pass itself (~1.5-2 s for whisper-small on the T1000) is the real pace.
+  stepMs: 500,
   holdMs: 3000,
   maxWindowMs: 28_000,
-  minNewMs: 1000,
+  minNewMs: 500,
   idleTimeoutMs: 60_000,
 }
 
@@ -152,6 +154,20 @@ export function liveRunner(deps: LiveDeps): JobRunner<LiveJob> {
       if (req.params?.language && !isWhisperLanguage(req.params.language)) {
         throw new JobError('JOB_INVALID', `unsupported language '${req.params.language}'`)
       }
+      const refine = req.params?.refineModel
+      if (refine) {
+        const r = deps.models.entry(refine)
+        if (r.role !== 'asr' || !r.tasks?.includes(task))
+          throw new JobError('JOB_INVALID', `'${refine}' can't refine this task`)
+        if (!deps.models.isInstalled(refine)) {
+          throw new JobError(
+            'MODEL_NOT_INSTALLED',
+            `model '${refine}' is not installed — POST /v1/models/${refine}/install`,
+            false,
+            409,
+          )
+        }
+      }
       if (!deps.models.isInstalled(req.model)) {
         throw new JobError(
           'MODEL_NOT_INSTALLED',
@@ -225,7 +241,13 @@ export function liveRunner(deps: LiveDeps): JobRunner<LiveJob> {
           ctx.progress(0, `live · ${Math.max(0, Math.round(lag / 1000))} s behind`)
         }
 
-        // Refinement pass (Spec 07 §1.5): full context per playing stretch.
+        // Refinement pass (Spec 07 §1.5): full context per playing stretch,
+        // with the (usually larger) refine model when one is set.
+        const refineModel = req.params.refineModel ?? req.model
+        if (refineModel !== req.model) {
+          ctx.progress(0, 'loading refine model')
+          await deps.whisper.ensure(refineModel, deps.models.pathOf(refineModel))
+        }
         const segments = session.playingSegments()
         let refined: SpeechWord[] = []
         for (let i = 0; i < segments.length; i++) {

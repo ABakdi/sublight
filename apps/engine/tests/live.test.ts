@@ -245,3 +245,28 @@ describe('live runner efficiency', () => {
     expect(calls.length).toBeLessThanOrEqual(3)
   })
 })
+
+describe('live refine model', () => {
+  it('drafts with the live model and refines with the refine model', async () => {
+    const hub = new LiveHub(tmp())
+    const { whisper } = fakeWhisper()
+    const loaded: string[] = []
+    ;(whisper as unknown as { ensure: (id: string) => Promise<void> }).ensure = async (
+      id: string,
+    ) => {
+      loaded.push(id)
+    }
+    const run = liveRunner({ models, whisper, gpu, hub, options: { stepMs: 10, minNewMs: 500 } })
+    const session = hub.get('j5')
+    session.anchor({ wallMs: 0, mediaMs: 0, rate: 1, playing: true })
+    session.append(tone(2000), 0)
+    const done = run.run(
+      { ...job, model: 'whisper-base', params: { language: 'en', refineModel: 'whisper-small' } },
+      ctx('j5').c,
+    )
+    await new Promise((r) => setTimeout(r, 60))
+    session.stopping = true
+    await done
+    expect(loaded).toEqual(['whisper-base', 'whisper-small'])
+  })
+})

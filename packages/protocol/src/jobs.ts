@@ -51,7 +51,13 @@ export interface TranslateJob {
 export interface LiveJob {
   type: 'live'
   model: string
-  params: { language: string | null; task?: AsrTask }
+  params: {
+    language: string | null
+    task?: AsrTask
+    /** Model for the refinement pass on stop (default: the live model). A fast
+     * live model + an accurate refine model keeps drafts quick and the result good. */
+    refineModel?: string
+  }
   priority?: JobPriority
 }
 
