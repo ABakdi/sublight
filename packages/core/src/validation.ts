@@ -1,11 +1,10 @@
+import { MIN_CUE_DURATION_MS } from './cues'
 import type { SubtitleCue, SubtitleProject, SubtitleTrack } from './types'
 
 export interface ValidationResult {
   valid: boolean
   errors: string[]
 }
-
-const MIN_CUE_DURATION_MS = 200
 
 /** Spec 02 §2 invariants for a single cue. */
 export function validateCues(cues: SubtitleCue[]): ValidationResult {
