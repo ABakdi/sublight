@@ -13,6 +13,12 @@ export interface HealthResponse {
   engineUptimeMs: number
   gpu: GpuInfo
   activeJobs: number
+  /** Jobs waiting for a slot. */
+  queuedJobs?: number
+  /** Model loaded in the ASR worker, if any. */
+  residentModel?: string | null
+  /** Normalized-audio cache size, bytes. */
+  mediaCacheBytes?: number
   /** Simple counters feeding checkpoints (Spec 06 §8). */
   metrics?: {
     jobsTotal: number
@@ -43,6 +49,14 @@ export interface ModelInfo {
   state: ModelState
   progress: number | null // 0..1 while downloading
   diskUsedBytes?: number
+  /** Last install error, when state is `error`. */
+  error?: string
+}
+
+export interface ModelsResponse {
+  models: ModelInfo[]
+  /** Disk used by installed models, bytes. */
+  diskUsedBytes: number
 }
 
 /** Error envelope (Spec 03 §6). */

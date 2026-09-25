@@ -58,6 +58,20 @@ export type WsEvent =
   | WsEventEngineGpu
   | WsEventRelayProgress
 
+/**
+ * Client → engine WS messages (Spec 03 §4). The first message must be `auth`
+ * or the socket is closed within 1 s. Without `subscribe`, a client receives
+ * every event; with it, only events for the listed jobs (plus engine/model events).
+ */
+export type WsClientMessage =
+  | { type: 'auth'; token: string }
+  | { type: 'subscribe'; jobIds: string[] }
+  | { type: 'unsubscribe'; jobIds: string[] }
+
+/** Engine → client control replies (not part of the event stream). */
+export type WsControlMessage =
+  { type: 'auth.ok'; protocol: number } | { type: 'error'; code: string; message: string }
+
 export const JOB_STATES: readonly JobState[] = [
   'queued',
   'running',
