@@ -49,6 +49,11 @@ interface Frame {
 
 type AnchorLayoutSide = 'top' | 'bottom' | 'left' | 'right'
 
+const shadowRoots = new WeakMap<
+  ShadowRoot,
+  { root: Root; unmountTimer?: ReturnType<typeof setTimeout> }
+>()
+
 const EMPTY_FRAME: Frame = { text: null, cssVars: {}, anchor: 'bottom', marginSide: 'bottom' }
 
 function frameKeysEqual(a: Frame, b: Frame): boolean {
@@ -149,17 +154,29 @@ export function SubtitleOverlay({
     setFrame((prev) => (frameKeysEqual(prev, next) ? prev : next))
   }, [video, currentMs, compute])
 
-  // Create the shadow root + React root once for the host's lifetime.
+  // One React root per shadow root for the host's lifetime. Unmounting is
+  // deferred (a synchronous unmount inside the parent's commit makes React
+  // warn and race), and a re-mount before it runs (StrictMode, fast swaps)
+  // cancels it and reuses the root instead of creating a second one.
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
     const shadowRoot = host.shadowRoot ?? host.attachShadow({ mode: 'open' })
-    const root = createRoot(shadowRoot)
-    rootRef.current = root
-    root.render(createElement(ShadowContent, { frame, draft }))
+    let entry = shadowRoots.get(shadowRoot)
+    if (entry) clearTimeout(entry.unmountTimer)
+    else {
+      entry = { root: createRoot(shadowRoot) }
+      shadowRoots.set(shadowRoot, entry)
+    }
+    const current = entry
+    rootRef.current = current.root
+    current.root.render(createElement(ShadowContent, { frame, draft }))
     return () => {
       rootRef.current = null
-      root.unmount()
+      current.unmountTimer = setTimeout(() => {
+        current.root.unmount()
+        shadowRoots.delete(shadowRoot)
+      }, 0)
     }
   }, [])
 

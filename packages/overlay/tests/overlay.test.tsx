@@ -141,3 +141,26 @@ describe('SubtitleOverlay', () => {
     expect(cue?.classList.contains('sl-margin-top')).toBe(true)
   })
 })
+
+describe('overlay lifecycle', () => {
+  it('survives StrictMode double effects and swaps without React errors', async () => {
+    const { StrictMode } = await import('react')
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const draft = [{ id: 'd', startMs: 0, endMs: 1000, text: 'Draft cue' }]
+    const view = render(
+      createElement(
+        StrictMode,
+        null,
+        createElement(SubtitleOverlay, { cues: draft, currentMs: 500, draft: true }),
+      ),
+    )
+    // Draft replaced by the final track, then the overlay goes away entirely.
+    view.rerender(
+      createElement(StrictMode, null, createElement(SubtitleOverlay, { cues, currentMs: 500 })),
+    )
+    view.unmount()
+    await new Promise((r) => setTimeout(r, 10)) // deferred inner-root unmounts
+    expect(errors).not.toHaveBeenCalled()
+    errors.mockRestore()
+  })
+})
