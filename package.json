@@ -22,6 +22,8 @@
     "dev:player": "pnpm --filter @sublight/player dev",
     "dev:engine": "pnpm --filter @sublight/engine dev",
     "dev:extension": "pnpm --filter @sublight/extension dev",
+    "engine:token": "pnpm --silent --filter @sublight/engine token",
+    "ext:try": "node scripts/try-extension.mjs",
     "prepare": "husky"
   },
   "devDependencies": {
