@@ -11,7 +11,7 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
 ## 1. Process & lifecycle
 
 - Node 22, TypeScript, **Hono** (HTTP) + `ws` (WebSocket), bound to `127.0.0.1:17421`.
-- Config: `~/.sublight/config.json` — `{ token, ports, defaults: { asrModel, translateModel }, autoRetry, cacheLimits }`.
+- Config: `~/.sublight/config.json` — `{ token, port, defaults: { asrModel, translateModel }, autoRetry, allowedOrigins, cacheLimits }`; `pnpm engine:token` prints the token for manual pairing until M06.
 - Start: read config → health-check binaries (whisper/llama/ffmpeg exist + checksums) → serve. Lazy-spawn workers **on first job of that type**.
 - Graceful shutdown: SIGTERM → mark `running` jobs `interrupted` → flush `jobs.jsonl` → kill workers.
 - Autostart via user unit/LaunchAgent at [M06](../plan/milestones/06-Beta-Release.md).

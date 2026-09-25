@@ -19,6 +19,8 @@ few simple conventions keep it coherent.
 | `pnpm dev:player`    | Vite dev server for the player app (`:5173`)                              |
 | `pnpm dev:engine`    | Engine dev server (`:17421`, tsx watch)                                   |
 | `pnpm dev:extension` | WXT dev mode (load `apps/extension/.output/chrome-mv3` in Chromium/Brave) |
+| `pnpm ext:try [url]` | Build the extension and open Brave/Chromium with it loaded (see below)    |
+| `pnpm engine:token`  | Print the engine token to paste into the extension's Options page         |
 | `pnpm lint`          | ESLint (flat config)                                                      |
 | `pnpm lint:links`    | Docs link/anchor checker (must stay green)                                |
 | `pnpm typecheck`     | `tsc --noEmit` across all workspaces                                      |
@@ -26,6 +28,42 @@ few simple conventions keep it coherent.
 | `pnpm e2e`           | Playwright (Chromium; Brave when installed)                               |
 | `pnpm e2e:extension` | Extension e2e (builds the unpacked MV3 and loads it)                      |
 | `pnpm sync:measure`  | Sync-accuracy corpus report                                               |
+
+## Trying the extension in a real browser
+
+The quick way, from the repo root:
+
+```sh
+pnpm dev:engine          # terminal 1 (optional: test captions work without it)
+pnpm ext:try https://www.youtube.com/watch?v=aqz-KE-bpKQ
+```
+
+`ext:try` builds `apps/extension`, then opens Brave (or Chromium) with the
+unpacked build loaded into a dedicated profile under
+`~/.sublight/browser-profiles/`. Your everyday profile is never touched. Flags:
+`--browser brave|chromium|<path>`, `--fresh` (throwaway profile), `--no-build`,
+`--debug-port 9222` (CDP, so scripts can drive the window).
+
+Then:
+
+1. **Pair:** run `pnpm engine:token`, open the extension's **Options**
+   (toolbar icon → _Options & pairing_), paste the token and click Save. The
+   status should turn to _Engine online_.
+2. **Check a video:** on any page with a `<video>`, click the toolbar icon.
+   The popup lists the video and its playhead. **Show test captions** draws
+   a caption every 2.5 s stamped with its own start time, so you can check
+   the overlay's position, sync, fullscreen and SPA navigation on that site.
+
+**Loading it by hand** (e.g. into your own browser profile): open
+`brave://extensions` or `chrome://extensions`, switch on **Developer mode**
+and click **Load unpacked**, then pick `apps/extension/.output/chrome-mv3`.
+Developer mode has to stay on: Chromium 13x+ disables unpacked extensions
+after their first reload otherwise. Google Chrome 137+ ignores
+`--load-extension`, so `ext:try` targets Brave and Chromium.
+
+The build pins a public `key`, so every unpacked install gets the same ID
+(`ehgdbfcecgkljnpmednociabmmjemfkf`), and the engine allowlists that origin
+out of the box.
 
 ## Conventions
 

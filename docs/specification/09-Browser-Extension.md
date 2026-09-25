@@ -32,6 +32,8 @@ content_scripts: [ { matches ["<all_urls>"], js [content], all_frames: true, run
 action: { default_popup: "popup.html" }
 ```
 
+- **Stable dev ID:** the manifest pins a public `key` (`apps/extension/wxt.config.ts`), so every unpacked install is `ehgdbfcecgkljnpmednociabmmjemfkf` (`DEV_EXTENSION_ID` in `packages/protocol`) and the engine allowlists `chrome-extension://<that id>` by default ([Protocol §3](03-Protocol.md#3-auth--hardening)). Store builds drop the key and their ID goes into the engine's `allowedOrigins` config.
+- No `tabs` permission: the popup targets the active tab via `activeTab`, and other tabs' URLs stay hidden.
 - `tabCapture` power justifies the permission prompt; copy explains why (only while the user clicks "Caption").
 - No `<all_urls>` host permission beyond the engine; page scripts run in isolated worlds.
 
@@ -58,6 +60,18 @@ YouTube specifics (spec'd, then verified in [checkpoints](../checkpoints/README.
 - Use `video` element events (`timeupdate`, `play`, `pause`, `seeking`, `ended`) — resilient to YouTube DOM churn; never internal class names.
 - SPA video switch: on `yt-navigate-finish`-equivalent signals we re-detect; old overlay host removed atomically.
 
+### 4.4 What's implemented (pre-M05 slice)
+
+Built so the extension can be installed and tested in a real browser before capture exists (`pnpm ext:try`, [CONTRIBUTING](../../CONTRIBUTING.md#trying-the-extension-in-a-real-browser)):
+
+- **Discovery:** each frame scans `<video>` on media events (`play`, `pause`, `loadedmetadata`, `seeked`, `ratechange`, `ended`, `emptied`), on DOM mutations and on URL changes (2 s check for SPA navigation). The primary video is the one that is playing and visible, else the largest visible one. Frames report `video.state` only when something changed. There's no per-second timer: the popup extrapolates the playhead from `reportedAt` × `playbackRate`, so a playing tab doesn't keep the SW awake.
+- **SW:** keeps per-tab, per-frame state in `storage.session`, cleared on tab close and full navigation; answers `tab.status`, `engine.status` and `demo.toggle`.
+- **Test captions:** `demo.set` mounts the shared overlay over the primary video with synthetic cues (every 2.5 s, stamped with their start time). A fixed-position frame on `<html>` tracks the video's box every animation frame, so the page layout is never touched, and moves into `document.fullscreenElement` in fullscreen. It stands down when a sublight overlay already exists on the page (e.g. the Player).
+- **Pairing:** the Options page stores the token in `storage.local`. `engine.status` distinguishes `no-token`, `unauthorized`, `refused` (Host/Origin), `offline` and `online`.
+- Verified in Brave 153 (direct MP4, YouTube including SPA navigation and fullscreen) and headless Chromium (`pnpm e2e:extension`).
+
+Known gaps, for M05: the caption can sit on top of the host player's control bar while it's visible (YouTube); the content script bundles React + overlay (~235 kB) into every frame and should load the overlay lazily.
+
 ## 5. Capture wiring
 
 The content script drives [Audio capture](08-Audio-Capture.md): probe `captureStream()`, fall back to `tabCapture` (audio-only) requested from the SW; chunks streamed via the SW's WS channel to the engine with `{ mediaTimeStart = T₀ }`.
@@ -78,6 +92,8 @@ content script ◄─runtime.sendMessage─► SW ◄─fetch/WS─► engine
 | `track.partial`                  | SW→content                    | draft cues                                                      |
 | `style.changed`                  | SW→content (from options)     | `SubtitleStyle`                                                 |
 | `job.progress`                   | SW→popup                      | percentage + phase                                              |
+| `tab.status` / `engine.status`   | popup→SW                      | per-frame `VideoState[]` / `EngineStatus` (implemented)         |
+| `demo.toggle` → `demo.set`       | popup→SW→content              | test captions on/off (implemented)                              |
 | `openInPlayer.request`           | popup→SW                      | builds & delivers the payload (§8); returns `{ ok, playerUrl }` |
 | `openInPlayer.probe`             | SW→content                    | asks the owning frame for source classification data (§8.2)     |
 

@@ -85,7 +85,7 @@ _Verified by tests + the [security baseline](../audits/Security-Baseline-Plan.md
 1. Token: 32 random bytes, hex; stored in `config.json`; accepted only via `Authorization` header (never cookies, never query).
 2. Comparison in constant time.
 3. `Host` header must be `127.0.0.1:17421` or `localhost:17421` — **defeats DNS-rebinding**.
-4. CORS: explicit allowlist only — `chrome-extension://<built-id>`, `chrome-extension://<dev-id>`, `http://localhost:5173`, `http://127.0.0.1:5173` (dev player) and the packaged player origin. Never `*`, no reflection.
+4. CORS: explicit allowlist only — `chrome-extension://ehgdbfcecgkljnpmednociabmmjemfkf` (the unpacked dev build, pinned by its manifest key), `http://localhost:5173`, `http://127.0.0.1:5173` (dev player), plus `config.allowedOrigins` for store/packaged IDs and the packaged player origin. Never `*`, no reflection. Host and Origin are checked on **every** route, including the unauthenticated pairing probe.
 5. No `content-type: text/html` responses (XSS-by-CORS confusion guard); error responses are JSON.
 6. Uploads size-capped (default 20 GB, configurable) and streamed — no full-buffering.
 7. WS: auth in first message; unauthenticated connections dropped in < 1 s.

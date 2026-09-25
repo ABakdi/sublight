@@ -31,6 +31,18 @@ updated: 2026-09-23
 - [ ] **M05.8** — yt-dlp toggle (power feature): engine-side fetch + transcribe without watching.
 - [ ] **M05.9** — Site matrix harness: YouTube, Vimeo, embedded iframe players, generic `<video>` pages — automated smoke + manual checklist ([checkpoint contacts](../../checkpoints/Beta-1-Checklist.md)).
 
+## Progress (pulled forward, 2026-09-25)
+
+So the extension can be installed and tested in a real browser before the engine can caption ([Spec 09 §4.4](../../specification/09-Browser-Extension.md#44-whats-implemented-pre-m05-slice)):
+
+- M05.1 (partial): stable dev ID + engine origin allowlist; SW state in `storage.session`; engine status probe. WS bridge still to do.
+- M05.2 (partial): video discovery, primary-video choice, SPA URL watch, per-frame reporting.
+- M05.3 (partial): overlay mounted over page videos (fixed frame tracking the video box, fullscreen-aware) with synthetic test cues.
+- M05.7 (partial): popup (engine, tab video, test captions) and Options (token pairing).
+- `pnpm ext:try` launcher; `pnpm e2e:extension` covers ID, pairing, discovery and overlay placement.
+
+Found in real Brave 153, to handle in this milestone: captions overlap the YouTube control bar while it shows; the content script bundle (~235 kB) should lazy-load the overlay; unpacked installs need Developer mode on (the launcher seeds it).
+
 ## Acceptance criteria
 
 1. On YouTube: click → permission → captions appear live ≤ 8 s behind speech; survive seek/pause/new-video navigation; no visual breakage of the page (no layout shift, host plays normally).
