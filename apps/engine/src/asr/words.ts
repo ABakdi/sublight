@@ -17,6 +17,7 @@ export interface VerboseSegment {
   start?: number
   end?: number
   words?: VerboseToken[]
+  avg_logprob?: number
   no_speech_prob?: number
 }
 
@@ -42,6 +43,14 @@ const NON_SPEECH_RE = /^\s*[[(][^\])]*[\])]\s*$/
 /** A token that is only punctuation: it joins the previous word but carries no speech timing. */
 const PUNCT_ONLY_RE = /^[\p{P}\p{S}\s]+$/u
 
+/**
+ * Whisper's own rule for text invented over silence/music: a segment the
+ * model thinks is probably not speech *and* decoded with low confidence.
+ */
+export function isLikelyHallucination(seg: VerboseSegment): boolean {
+  return (seg.no_speech_prob ?? 0) > 0.6 && (seg.avg_logprob ?? 0) < -1
+}
+
 const toMs = (seconds: number | undefined) => Math.max(0, Math.round((seconds ?? 0) * 1000))
 
 /**
@@ -57,6 +66,7 @@ const toMs = (seconds: number | undefined) => Math.max(0, Math.round((seconds ??
 export function wordsFromVerbose(json: VerboseJson, offsetMs = 0): SpeechWord[] {
   const words: SpeechWord[] = []
   for (const seg of json.segments) {
+    if (isLikelyHallucination(seg)) continue
     let current: { text: string; start: number; end: number; probs: number[] } | null = null
     const flush = () => {
       if (!current) return
@@ -123,6 +133,7 @@ export function wordsFromVerbose(json: VerboseJson, offsetMs = 0): SpeechWord[] 
 /** Segment-level output (used for `translate`, where word times don't map to speech). */
 export function segmentsFromVerbose(json: VerboseJson, offsetMs = 0): Segment[] {
   return json.segments
+    .filter((s) => !isLikelyHallucination(s))
     .map((s) => ({
       startMs: toMs(s.start) + offsetMs,
       endMs: toMs(s.end) + offsetMs,

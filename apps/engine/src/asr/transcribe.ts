@@ -9,7 +9,10 @@ import {
   type SubtitleTrack,
 } from '@sublight/core'
 import type { TranscribeJob } from '@sublight/protocol'
-import { sliceWav, type FfmpegBinaries } from '../media/ffmpeg'
+import { meanVolumeDb, sliceWav, type FfmpegBinaries } from '../media/ffmpeg'
+import { SILENCE_DB } from '../media/store'
+import { estimateDelta } from './delta'
+import { speechOnsetsMs } from './onsets'
 import type { MediaStore } from '../media/store'
 import { JobError, type JobRunner, type RunContext, type RunOutput } from '../jobs/queue'
 import type { ModelManager } from '../models/manager'
@@ -18,8 +21,12 @@ import { cuesFromSegments } from './segments'
 import type { WhisperWorker } from './whisper'
 import { segmentsFromVerbose, wordsFromVerbose, type Segment, type VerboseJson } from './words'
 
-/** Long-form chunking (Spec 07 §1.6): resumable 10-min pieces with overlap. */
-export const CHUNK_MS = 10 * 60 * 1000
+/**
+ * Chunking (Spec 07 §1.6): resumable pieces with overlap. 2 min keeps drafts
+ * progressive (first captions after ~6 s with base, ~18 s with small on the
+ * T1000) for ~15% more total time than 10-min chunks (measured, M03).
+ */
+export const CHUNK_MS = 2 * 60 * 1000
 export const CHUNK_OVERLAP_MS = 1000
 /** Bump when output changes for the same input, so stale cache entries miss. */
 const PIPELINE_VERSION = 3
@@ -180,11 +187,25 @@ export function transcribeRunner(deps: TranscribeDeps): JobRunner<TranscribeJob>
             await sliceWav(deps.ffmpeg, wav, input, chunk.startMs, chunk.sliceMs)
           }
           try {
-            json = await deps.whisper.infer(input, {
-              language,
-              translate: task === 'translate',
-              signal: ctx.signal,
-            })
+            // Silent stretches (music-free intros, long pauses) skip ASR entirely:
+            // whisper tends to invent text over silence (M03.6).
+            json =
+              chunks.length > 1 && (await meanVolumeDb(deps.ffmpeg, input)) < SILENCE_DB
+                ? {
+                    task,
+                    language: language ?? '',
+                    duration: chunk.sliceMs / 1000,
+                    text: '',
+                    segments: [],
+                  }
+                : await deps.whisper.infer(input, {
+                    language,
+                    translate: task === 'translate',
+                    prompt: promptFrom(
+                      task === 'translate' ? segments.map((s) => s.text) : words.map((w) => w.word),
+                    ),
+                    signal: ctx.signal,
+                  })
           } finally {
             if (input !== wav) rmSync(input, { force: true })
           }
@@ -208,7 +229,14 @@ export function transcribeRunner(deps: TranscribeDeps): JobRunner<TranscribeJob>
           : buildCuesFromWords(words, { maxCueDurationMs: maxCue })
       }
 
-      const track = makeTrack(task, language, build(), false)
+      // δ (Spec 07 §1.4a): energy onsets vs word/segment starts after pauses.
+      ctx.progress(1, 'aligning')
+      const timed = task === 'translate' ? segments.map((s) => ({ word: s.text, ...s })) : words
+      const { deltaMs } = estimateDelta(timed, speechOnsetsMs(wav))
+      const track = {
+        ...makeTrack(task, language, build(), false),
+        ...(deltaMs ? { syncOffsetMs: deltaMs } : {}),
+      }
       const wallSeconds = (Date.now() - started) / 1000
       return {
         tracks: [track],
@@ -219,6 +247,13 @@ export function transcribeRunner(deps: TranscribeDeps): JobRunner<TranscribeJob>
       } satisfies RunOutput
     },
   }
+}
+
+/** Last ~200 characters of what came before, as whisper's initial prompt for the next chunk. */
+export function promptFrom(texts: string[]): string | undefined {
+  let out = ''
+  for (let i = texts.length - 1; i >= 0 && out.length < 200; i--) out = `${texts[i]} ${out}`
+  return out.trim() || undefined
 }
 
 function makeTrack(

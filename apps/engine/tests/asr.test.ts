@@ -202,8 +202,8 @@ describe('dangling words at segment ends', () => {
 })
 
 describe('long-form chunking (Spec 07 §1.6)', () => {
-  it('plans 10-min chunks with overlap, last chunk trimmed to the duration', () => {
-    const chunks = planChunks(25 * 60_000)
+  it('plans chunks with overlap, last chunk trimmed to the duration', () => {
+    const chunks = planChunks(25 * 60_000, 600_000)
     expect(chunks.map((c) => [c.startMs, c.endMs])).toEqual([
       [0, 600_000],
       [600_000, 1_200_000],
@@ -213,7 +213,8 @@ describe('long-form chunking (Spec 07 §1.6)', () => {
     expect(chunks[2]!.sliceMs).toBe(300_000)
   })
 
-  it('plans one chunk for short or empty audio', () => {
+  it('defaults to 2-min chunks and plans one chunk for short or empty audio', () => {
+    expect(planChunks(5 * 60_000).map((c) => c.startMs)).toEqual([0, 120_000, 240_000])
     expect(planChunks(4000)).toHaveLength(1)
     expect(planChunks(0)).toHaveLength(1)
   })

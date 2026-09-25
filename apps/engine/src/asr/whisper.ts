@@ -29,6 +29,8 @@ export interface InferenceParams {
   /** null = auto-detect. */
   language: string | null
   translate: boolean
+  /** Text preceding this audio (previous chunk), for continuity of names and style. */
+  prompt?: string
   signal?: AbortSignal
 }
 
@@ -195,6 +197,7 @@ export class WhisperWorker {
     form.set('translate', params.translate ? 'true' : 'false')
     form.set('temperature', '0.0')
     form.set('token_timestamps', 'true')
+    if (params.prompt) form.set('prompt', params.prompt)
     let res: Response
     try {
       res = await fetch(`${this.base}/inference`, {
