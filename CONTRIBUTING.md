@@ -29,6 +29,22 @@ few simple conventions keep it coherent.
 | `pnpm e2e:extension` | Extension e2e (builds the unpacked MV3 and loads it)                      |
 | `pnpm sync:measure`  | Sync-accuracy corpus report                                               |
 
+## Running the engine with speech recognition
+
+```sh
+pnpm engine:setup-whisper      # once: builds whisper.cpp v1.9.4 (~15 min with CUDA)
+pnpm dev:engine                # terminal 1
+TOKEN=$(pnpm -s engine:token)
+curl -X POST -H "Authorization: Bearer $TOKEN" http://127.0.0.1:17421/v1/models/whisper-small/install
+pnpm engine:transcribe some-video.mp4 --out some-video.srt   # or --translate for English
+```
+
+The build needs cmake and a C++ compiler; CUDA is used when `nvcc` is on
+`PATH` or in `/opt/cuda` (pass `--cpu` to skip it). Models download from
+pinned Hugging Face revisions and are SHA-256 checked. The engine's real-ASR
+test (`apps/engine/tests/asr.integration.test.ts`) runs automatically once the
+binary and whisper-small are installed.
+
 ## Trying the extension in a real browser
 
 The quick way, from the repo root:

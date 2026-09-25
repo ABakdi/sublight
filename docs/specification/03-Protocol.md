@@ -26,12 +26,12 @@ _The wire contract between clients (extension, player) and the engine. Typed in 
 
 ### Models
 
-| Endpoint                      | Notes                                                                      |
-| ----------------------------- | -------------------------------------------------------------------------- |
-| `GET /v1/models`              | each: `{ id, role: "asr"                                                   | "translate", name, sizeBytes, vramClass, license, installed, state: "not-installed" | "downloading" | "installed" | "error", progress }` |
-| `POST /v1/models/:id/install` | starts/queues download; progress via WS `model.install.progress`; `{ ok }` |
-| `POST /v1/models/:id/remove`  | removes artifact + evicts cache entries using it                           |
-| `GET /v1/models/:id`          | single model detail                                                        |
+| Endpoint                      | Notes                                                                                                                                                                                              |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/models`              | `{ models: ModelInfo[], diskUsedBytes }`; each `{ id, role, name, sizeBytes, vramClass, license, tasks?, installed, state: not-installed \| downloading \| installed \| error, progress, error? }` |
+| `POST /v1/models/:id/install` | `202 { ok, model }`; download runs in the background, progress via WS `model.install.progress`, end state via `model.state`                                                                        |
+| `POST /v1/models/:id/remove`  | removes the artifact; `{ ok, freedBytes }`                                                                                                                                                         |
+| `GET /v1/models/:id`          | single model detail                                                                                                                                                                                |
 
 ### Jobs (the core)
 
@@ -68,7 +68,8 @@ Job creation bodies (discriminated by `type`):
 | Endpoint                                   | Notes                                                                                                                                                                                       |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `PUT /v1/media/:mediaId`                   | streaming upload (octet-stream, `X-Source-Name`, `X-Source-MediaHash?`); engine normalizes to 16 kHz mono PCM, stores under `sha256`, responds `{ mediaHash, durationMs, normalizedBytes }` |
-| `DELETE /v1/media/:mediaHash`              | free cache                                                                                                                                                                                  |
+| `GET /v1/media/:ref`                       | metadata for a media id or `sha256:` hash: `{ mediaHash, durationMs, normalizedBytes, sourceName, createdAt, lastUsedAt }`                                                                  |
+| `DELETE /v1/media/:mediaHash`              | free cache (and the id aliases pointing at it)                                                                                                                                              |
 | `POST /v1/media/resolve` _(M05b, planned)_ | `{ url, site? }` → engine fetches/probes the URL (fetch rules / yt-dlp) → `{ mediaId, durationMs, title, kind: "relay"                                                                      | "direct-url", directUrl? }`; used by "Open in Sublight Player" |
 | `GET /v1/relay/:mediaId` _(M05b, planned)_ | streaming byte proxy with `Range` support so the player can seek a relayed video; v1 buffers to disk before serving, v2 streams on the fly                                                  |
 
@@ -103,6 +104,8 @@ type WsEvent =
   | { type: 'engine.gpu'; vramFree: number; residentModel: string | null }
 ```
 
+Client → engine messages: `{ type: "auth", token }` first (reply `{ type: "auth.ok", protocol }`, or `{ type: "error" }` + close code 4401), then optionally `{ type: "subscribe" | "unsubscribe", jobIds }`. Without a subscription a client receives every event; with one, only events for those jobs plus model/engine events. More than 20 messages/s closes the socket (4429). The upgrade itself passes the same Host/Origin checks as HTTP.
+
 Clients subscribe per job; the engine fans out. Reconnect rule: on socket loss, clients re-`GET /v1/jobs/:id` (REST is the source of truth; WS is an accelerator).
 
 ## 5. Job lifecycle & states
@@ -115,6 +118,8 @@ queued → running → done
   └─(engine restart)─→ interrupted → (re-queue on wake) → queued
 ```
 
+- **Job summary** (`GET /v1/jobs/:id`, list items, `POST` response `202`): `{ id, type, state, progress, detail?, priority, cached?, error?, createdAt, updatedAt }`. `cached: true` = answered from an identical earlier job (same media + model + params).
+- **Result** (`GET /v1/jobs/:id/result`, `409` until `done`): `{ id, state: "done", tracks, language?, realtimeFactor? }`. The engine sets `track.projectId = ""`; clients assign their project on import.
 - **Idempotency**: `Idempotency-Key: <uuid>` header on `POST /v1/jobs`; replay returns the original job (same id). Combined with media hash, re-runs after client errors never double-process.
 - **Retryable failures**: worker crash, transient GPU OOM (auto-retry with offload hint), ffmpeg timeout. Non-retryable: bad input, model missing, checksum failure.
 - **Persistence**: every state transition appends to `jobs.jsonl`; on restart, `running` jobs are marked `interrupted` and re-queued when a client re-issues with the same idempotency key OR automatically for `retryable: true` (config `autoRetry: true` default).

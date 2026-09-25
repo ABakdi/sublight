@@ -11,9 +11,9 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
 ## 1. Process & lifecycle
 
 - Node 22, TypeScript, **Hono** (HTTP) + `ws` (WebSocket), bound to `127.0.0.1:17421`.
-- Config: `~/.sublight/config.json` — `{ token, port, defaults: { asrModel, translateModel }, autoRetry, allowedOrigins, cacheLimits }`; `pnpm engine:token` prints the token for manual pairing until M06.
-- Start: read config → health-check binaries (whisper/llama/ffmpeg exist + checksums) → serve. Lazy-spawn workers **on first job of that type**.
-- Graceful shutdown: SIGTERM → mark `running` jobs `interrupted` → flush `jobs.jsonl` → kill workers.
+- Config: `~/.sublight/config.json` — `{ token, port, defaults: { asrModel, translateModel }, autoRetry, allowedOrigins, cacheLimits: { mediaBytes, uploadBytes }, whisper: { binary?, port, gpu: "auto"|"off", threads }, ffmpeg: { ffmpeg, ffprobe } }`; missing fields take defaults, a generated token is always persisted, an unreadable file is renamed aside. `pnpm engine:token` prints the token for manual pairing until M06.
+- Start: read config → build services → serve HTTP + WS → recover jobs from the log. Workers spawn lazily **on the first job that needs them** (a missing whisper binary fails that job with `WORKER_UNAVAILABLE`, not the engine).
+- Graceful shutdown: SIGTERM/SIGINT → mark `running` jobs `interrupted` → compact `jobs.jsonl` → stop whisper-server. A hard kill leaves an orphaned whisper-server; its pid file (`~/.sublight/run/whisper-server.pid`) lets the next start reap it, after checking `/proc/<pid>/cmdline` really is whisper-server.
 - Autostart via user unit/LaunchAgent at [M06](../plan/milestones/06-Beta-Release.md).
 
 ## 2. GPU scheduling (the 4 GB budget)
@@ -22,21 +22,22 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
 - Swap: unload binary (kill whisper-server/llama-server or `--no-warm`) → load target → warm (e.g. llama `--preload`) → run.
 - VRAM hints from NVML when available (`nvidia-smi` parse fallback) drive decisions: if free < model need → offload layers to CPU (`-ngl` fraction) with a `slow` flag surfaced in job logs; if even that fails → `GPU_OOM` retryable failure, engine retries once with `base` model. CPU-only fallback: engine uses a CPU build of whisper.cpp with no VRAM check.
 - The budget table is [Requirements §4](../architecture/Requirements.md).
+- **Implemented (M02):** one GPU slot shared by all GPU jobs, and `nvidia-smi` VRAM figures in health. Model swapping ASR ↔ LLM and the offload/`GPU_OOM` retry path arrive with the LLM worker (M04). Measured: whisper-small resident uses ~0.85 GB of the T1000's 4 GB.
 
 ## 3. Model manager (per [ADR-0016](../architecture/decisions/0016-model-licensing.md))
 
-- **Manifest** (`models.manifest.json`, pinned): `{ id, role, repo, revision, file, sha256, sizeBytes, vramClass, license, tasks?, params? }` — `tasks` on ASR models lists `"transcribe"` and, for multilingual checkpoints, `"translate"` ([ADR-0018](../architecture/decisions/0018-whisper-translate-to-english.md)). Installed set = files in `~/.sublight/models/` validated against manifest.
-- Install: stream download → verify SHA-256 → move into place (atomic rename) → state update. Refuse on mismatch; never execute downloaded files.
-- Removal: delete artifact + evict dependent cache entries (size freed reported).
+- **Manifest** (`apps/engine/src/models/manifest.ts`, pinned): `{ id, role, repo, revision, file, sha256, sizeBytes, vramClass, license, tasks? }` — `tasks` on ASR models lists `"transcribe"` and, for multilingual checkpoints, `"translate"` ([ADR-0018](../architecture/decisions/0018-whisper-translate-to-english.md)). Installed set = `models/installed.json` entries whose file is present at the pinned size.
+- Install: stream download to `<file>.part` while hashing → abort past the pinned size → verify size + SHA-256 → atomic rename → registry update. Refuse on mismatch (part file deleted, state `error` with the reason); never execute downloaded files. Progress over WS `model.install.progress` (≈1% steps); concurrent installs of one model join.
+- Removal: delete artifact, report freed bytes. (Evicting cached results made with the model is not needed: cache keys include the model id.)
 - **Default install set = one ASR model only.** The translation LLM is installed on demand the first time a user picks a non-English target; English targets use Whisper `translate` and need nothing extra.
 - Registry lists manifest models; UI shows `installed/model size/disk used` and a budget line (default 20 GB, warn at 80%).
 
 ## 4. ffmpeg (audio ingestion)
 
-- `PUT /v1/media` → temp file → probe (`ffprobe` duration, codec) → normalize: `-ar 16000 -ac 1 -c:a pcm_s16le` (stereo→mono downmix, any codec/container) → store `~/.sublight/media-cache/{sha256}.wav` + sidecar `{durationMs, sourceName}`.
+- `PUT /v1/media/:mediaId` → stream to a temp file under the upload cap → `ffprobe` (no audio stream → `AUDIO_UNSUPPORTED`) → normalize `-vn -ac 1 -ar 16000 -c:a pcm_s16le` (any codec/container, any channel layout) → SHA-256 of the **normalized** WAV → `media-cache/{sha256}.wav` + `{sha256}.json` sidecar `{ durationMs, normalizedBytes, sourceName, createdAt, lastUsedAt }`. The client's `mediaId` is an alias (`ids/`); the same audio in another container dedupes to one entry.
 - Empty/silent audio (`volumedetect` mean < −60 dB) → `AUDIO_EMPTY` early failure (no ASR wasted).
 - Very long inputs: normalize in one pass (16 kHz mono PCM is ~1.9 MB/min → 2 h ≈ 230 MB, fine); ASR chunks at 10-min boundaries internally with overlap handling (see [07 §1](07-ASR-And-Translation.md)).
-- Delete media (`DELETE /v1/media/:hash`), eviction LRU across the cache dir.
+- `GET /v1/media/:ref` (id or hash) returns the sidecar; `DELETE /v1/media/:hash` removes it and its aliases; LRU eviction by `lastUsedAt` down to `cacheLimits.mediaBytes` after each upload (never the upload just made).
 
 ### 4.1 Media resolve & relay (open-in-player)
 
@@ -55,17 +56,17 @@ The "Open in Sublight Player" flow ([ADR-0017](../architecture/decisions/0017-op
 
 ## 5. Job runner
 
-- Queue: FIFO with priority classes (interactive live-caption jobs > batch transcribe > batch translate); `p-queue`-style, in-process.
+- Queue: priority classes (`interactive` > `batch`), FIFO within a class; in-process. One GPU slot (all ASR/translation), up to 4 concurrent non-GPU jobs.
 - GPU slot enforced by [§2](#2-gpu-scheduling).
-- States & persistence: [Protocol §5](03-Protocol.md#5-job-lifecycle--states); `jobs.jsonl` append-only; snapshotting result payloads as files (`jobs/{id}.json`) for crash recovery.
-- **Idempotency**: hash(idempotency-key) → job id map on disk; dedupe by `mediaHash`+`model`+`params` → same result (cache hit).
-- Cancellation: cooperative — ASR chunk boundaries, per-paragraph in translation; subprocess killed only if unresponsive > 30 s.
+- States & persistence: [Protocol §5](03-Protocol.md#5-job-lifecycle--states). `jobs/jobs.jsonl` is append-only (`put` per job, `patch` per transition), replayed and compacted on start; results in `jobs/{id}.result.json`; long jobs checkpoint each ASR chunk in `jobs/{id}.chunks/` so a restart resumes after the last finished chunk.
+- **Idempotency**: `Idempotency-Key` → the original job (replaying the key also re-queues it if it was left `interrupted`). **Cache**: `cacheKey` = pipeline version + media hash + model + task + language + max cue length; a hit creates a `done` job flagged `cached: true` that serves the earlier result.
+- Cancellation: queued → `cancelled` at once; running → abort signal, checked between ASR chunks and passed to the whisper HTTP request. Retryable failures (worker crash/unavailable) run once more before `failed`.
 
 ## 6. Whisper worker (ASR)
 
-- Spawns `whisper-server` (CUDA build on target; CPU build fallback) on `127.0.0.1:17422` with word-timestamp flags; health-checked (ping) every job; auto-restart with backoff on crash.
-- Call: POST `/transcribe` (16 kHz PCM WAV) → JSON: segments `[ { start, end, text, tokens:[{text, t0, t1}] } ]` → **mapped to cues & words** by the shared rules in [07 §1](07-ASR-And-Translation.md) (engine imports cue-construction from `core`).
-- Language: `--language auto` default; explicit override param supported.
+- Binary: `pnpm engine:setup-whisper` builds `whisper-server` from whisper.cpp **v1.9.4, verified commit `927cfce3`**, with CUDA when `nvcc` is present (`-DCMAKE_CUDA_ARCHITECTURES=native`), into `~/.sublight/bin` with `whisper.json` (backend, SHA-256). Spawned on `127.0.0.1:17422` with `-m <model>`; `--no-gpu` for CPU builds or `whisper.gpu: "off"`. Health: poll `GET /health` until 200 (≤ 180 s model load). A different model means a restart; a dead process is respawned on the next job.
+- Call: `POST /inference` multipart (`file`, `response_format=verbose_json`, `language`, `translate`, `temperature=0`) → segments with BPE tokens (`word`, `start`, `end`, `t_dtw`, `probability`) → words → cues by the shared rules in [07 §1](07-ASR-And-Translation.md) (engine imports cue construction from `core`). Word timing uses token `t0`/`t1`, not DTW — see [07 §1.2](07-ASR-And-Translation.md#12-segmentation-whispercpp-server-output).
+- Language: `auto` per request unless the job pins one; after the first chunk the detected language is pinned for the remaining chunks. Whisper's language names map to codes via its own table (100 languages).
 - Task: `params.task: "translate"` sets whisper's translate flag (any language → English). Cues come from segment timestamps; word timestamps are dropped for these runs ([07 §2.0](07-ASR-And-Translation.md#20-choosing-a-translation-path-adr-0018)). Refused with `JOB_INVALID` when the model's manifest `tasks` lacks `translate`.
 
 ## 7. Llama worker (translation)
@@ -76,16 +77,15 @@ The "Open in Sublight Player" flow ([ADR-0017](../architecture/decisions/0017-op
 
 ## 8. Observability
 
-- Logs: JSONL to `~/.sublight/logs/engine.log` (rotate 10 MB × 5); `job.log` events forwarded over WS.
-- `GET /v1/health` exposes GPU memory, resident model, queue depth, cache size.
+- Logs: JSONL to `~/.sublight/logs/engine.log` (rotate 10 MB × 5): startup, job state changes, `job.log` errors, model state; whisper-server's own output in `logs/whisper-server.log`. `job.log` events also go out over WS.
+- `GET /v1/health` exposes GPU name/VRAM (`nvidia-smi`, cached 5 s), resident model id, running/queued jobs, media cache bytes.
 - Metrics (simple counters in health): jobs total/done/failed, avg ASR realtime-factor, avg translation tok/s — the numbers that feed [checkpoints](../checkpoints/README.md).
 
 ## 9. Testing
 
-- Integration suite: spin engine with temp config → protocol asserts (auth rejects, job lifecycle, cancel, resume, caching).
-- Worker fault injection: kill whisper mid-job → retryable failure → restart.
-- GPU budget simulation: stub NVML to force offload/queue behavior.
-- ffmpeg corpus: stereo/5.1/mono, 8 kHz phone audio, 48 kHz music, empty, truncated files.
+- Unit/integration (`apps/engine/tests`): auth + origin matrix, routes over real services, WS auth/filtering, queue (priority, GPU serialization, idempotency, cache, cancel, retry, crash recovery), model install against a local server incl. a corrupted artifact, ffmpeg corpus, token→word mapping and chunk merging.
+- Real ASR (`asr.integration.test.ts`): whisper-small on `tests/fixtures/jfk.wav`, onsets checked against energy onsets; skipped where the binary/model isn't installed (CI). Crash/resume verified by hand: SIGKILL mid-job → restart → orphan reaped, only the missing chunk re-run.
+- ffmpeg corpus: stereo AAC, 5.1 PCM, 8 kHz phone audio, silence, video without audio, oversized uploads (generated with lavfi at test time).
 
 ## 10. Related
 

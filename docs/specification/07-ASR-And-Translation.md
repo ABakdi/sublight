@@ -16,11 +16,20 @@ Any audio → engine ffmpeg → **16 kHz mono PCM WAV**. Whisper's native input;
 
 ### 1.2 Segmentation (whisper.cpp server output)
 
-Segments with token-level timestamps:
+whisper-server v1.9.4 `verbose_json`: segments whose `words` are really **BPE tokens** with times in seconds and a DTW time in centiseconds:
 
 ```jsonc
-{"segments":[{"start":0.0,"end":3.2,"text":"…","tokens":[{"text":" hello","t0":0.05,"t1":0.62}, …]}]}
+{"language":"english","segments":[{"start":0.0,"end":6.83,"text":" And so my…",
+  "words":[{"word":" And","start":0.32,"end":0.40,"t_dtw":52,"probability":0.72}, …]}]}
 ```
+
+Token → word rules (`apps/engine/src/asr/words.ts`):
+
+- A token with a leading space opens a word; others (sub-words, punctuation) extend it. A segment's first token **without** a leading space continues the previous segment's last word (whisper splits words across segments: `erw` | `achte`).
+- Special tokens (`[_BEG_]`, `[_TT_…]`) and non-speech markers (`[BLANK_AUDIO]`, `(music)`) are dropped.
+- **Times: word start = first token `t0`, end = last _speech_ token `t1`.** Punctuation-only tokens don't move the end; whisper often times a trailing comma across the following pause.
+- **DTW (`--dtw`) is not used.** Measured on the JFK sample against energy onsets after pauses: token `t0` hit 0.32 s (ref 0.33) and 8.19 s (ref 8.19). DTW put the same onsets at 0.52 s and 8.48 s: on this build it tracks token _ends_, 200–400 ms late as an onset. Skipping DTW also keeps flash attention on (faster).
+- Words are made monotonic and ≥ 10 ms; confidence = mean token probability.
 
 ### 1.3 Cue construction (shared with `core`)
 
@@ -59,7 +68,9 @@ videoTime(cue) = audioStreamTime(cue) + T₀ + δ
 
 ### 1.6 Long-form chunking
 
-> 10 min audio → overlapping chunks (500 ms overlap, trimmed after merge), sequential (GPU is busy anyway) but resumable (chunk results persisted before next chunk).
+Audio longer than 10 min → 10-min chunks cut from the normalized WAV with **1 s of overlap**, run sequentially (the GPU is busy anyway) and **checkpointed**: each chunk's raw whisper output is saved before the next starts, so a restarted job resumes after the last finished chunk. Merging keeps each word once: a later chunk only contributes words starting after the last kept word ends (−50 ms tolerance) and before its own owned range ends. The language detected on the first chunk is pinned for the rest. Partial tracks (`job.partial`, `draft: true`) are emitted after each chunk.
+
+Measured on the target T1000 with whisper-small: 10 min of German speech in 76 s (≈ 8× realtime); an engine killed after chunk 1 of an 11-min job resumed and finished the remaining minute in 9 s, with a seamless boundary at 10:00.
 
 ### 1.7 Quality gates (measured, not assumed)
 

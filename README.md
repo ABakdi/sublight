@@ -122,7 +122,7 @@ The `docs/` folder is an **Obsidian vault** used as the living specification for
 
 ## Development status
 
-**M00 (Foundations)** and **M01 (Player core)** are done: the player plays local files with styled subtitles, SRT/VTT import, SRT export and sync nudge. **Next: [M02 — Local ASR engine](docs/plan/milestones/02-Local-ASR-Engine.md).** See [docs/plan/Roadmap.md](docs/plan/Roadmap.md) for the full plan.
+**M00–M02 are done**: the player plays local files with styled subtitles, and the local engine transcribes with whisper.cpp on the GPU (word-level timestamps, English translation, pinned model installs, resumable jobs). **Next: [M03 — Transcription pipeline](docs/plan/milestones/03-Transcription-Pipeline.md)**, wiring the player to the engine. See [docs/plan/Roadmap.md](docs/plan/Roadmap.md) for the full plan.
 
 ## License & ethics notes
 
