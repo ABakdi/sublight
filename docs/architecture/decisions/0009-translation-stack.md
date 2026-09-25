@@ -6,7 +6,7 @@ date: 2026-09-23
 
 # ADR-0009 — Translation: local LLM over paragraph chunks (not per-cue)
 
-**Status:** accepted — **amended by [ADR-0018](0018-whisper-translate-to-english.md)**: for an **English** target with audio available, Whisper's `translate` task is used instead of the LLM; the LLM below covers every other target and is installed on demand.
+**Status:** accepted — **model replaced by [ADR-0019](0019-translator-qwen3-4b.md)** (Qwen3-4B-Instruct-2507, Apache-2.0); **amended by [ADR-0018](0018-whisper-translate-to-english.md)**: for an **English** target with audio available, Whisper's `translate` task is used instead of the LLM; the LLM below covers every other target and is installed on demand.
 
 ## Context
 

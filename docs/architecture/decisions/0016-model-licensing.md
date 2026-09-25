@@ -19,9 +19,9 @@ sublight's promise is **open-source models, installed locally**. "Open source" i
   - The engine installs **only from the manifest**; no arbitrary URL fetch from user input (blocks SSRF). Manual overrides are explicitly unsupported.
 - **License allowlist:** ship models whose license permits the intended use (personal use today; re-check for distribution). Current plan:
   - Whisper ggml models, all sizes incl. large-v3-turbo (MIT) ✅ · NLLB-200 (**CC-BY-NC-4.0** — **non-commercial**: installable, but flagged in UI + excluded if sublight ever becomes commercial).
-  - ⚠️ **Qwen2.5-3B-Instruct is _not_ Apache-2.0** (found while pinning the manifest, 2026-09-25): Hugging Face lists it under the **Qwen Research License** ("other"), which restricts commercial use. The 1.5B and 7B Instruct sizes _are_ Apache-2.0. **Open question for M04:** keep 3B (fine for personal use, flagged like NLLB), switch to 1.5B (Apache-2.0, weaker), or 7B (Apache-2.0, Q4 ≈ 4.7 GB: needs partial CPU offload on a 4 GB GPU). The manifest records the true license (`qwen-research`) meanwhile.
+  - Translator: **Qwen3-4B-Instruct-2507 (Apache-2.0)** ✅ ([ADR-0019](0019-translator-qwen3-4b.md)). Qwen2.5-3B-Instruct, the original pick, turned out to be under the **Qwen Research License** (non-commercial), found while pinning the manifest on 2026-09-25, and was replaced before any release.
 - Verify at download time; checksum mismatch → refuse to install (audited in [security baseline](../../audits/Security-Baseline-Plan.md)).
-- Binaries (whisper.cpp, llama.cpp, ffmpeg) also pinned. whisper.cpp publishes no Linux server binary, so `pnpm engine:setup-whisper` builds `whisper-server` from a **pinned tag whose commit SHA is verified before building** (v1.9.4 → `927cfce3…`) and records the resulting binary's SHA-256 in `~/.sublight/bin/whisper.json`.
+- Binaries (whisper.cpp, llama.cpp, ffmpeg) also pinned. Neither project publishes the Linux server binaries we need, so `pnpm engine:setup-whisper` / `engine:setup-llama` build them from a **pinned tag whose commit SHA is verified before building** (whisper.cpp v1.9.4 → `927cfce3…`, llama.cpp b11174 → `ed319feb…`) and record each binary's SHA-256 in `~/.sublight/bin/<name>.json`.
 
 ## Consequences
 

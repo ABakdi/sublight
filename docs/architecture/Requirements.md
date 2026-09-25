@@ -83,15 +83,15 @@ Grouped; detailed contracts live in the [Specification](../specification/README.
 
 VRAM budget is **4 GB, one model resident at a time**. The engine serializes GPU work (swap models between jobs) — see [Spec 06](../specification/06-Engine-Server.md) and [ADR-0007](./decisions/0007-whisper-model-matrix.md).
 
-| Role              | Default                             | VRAM (approx) | Quality                        | When to use                                                                                                        |
-| ----------------- | ----------------------------------- | ------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| ASR               | Whisper `small` (ggml)              | ~2.0–2.5 GB   | Good (WER ~10–15% clean audio) | Default balance                                                                                                    |
-| ASR (fast)        | Whisper `base`                      | ~1 GB         | OK                             | Short clips, quick drafts, weak machine                                                                            |
-| ASR (best)        | **large-v3-turbo** q5 (ggml)        | ~1.5 GB       | Near-large                     | Recommended when quality matters                                                                                   |
-| ASR (max)         | `medium` / `large-v3`, 5-bit (q5)   | ~1.5–2.5 GB   | Best                           | Slow; offline files; both can translate                                                                            |
-| Translation → EN  | Whisper `translate` (the ASR model) | 0 extra       | Serviceable, literal-ish       | Any language → English; no extra download ([ADR-0018](./decisions/0018-whisper-translate-to-english.md))           |
-| Translation       | **Qwen2.5-3B-Instruct** Q4_K_M      | ~2.5 GB       | Fluent, contextual             | Non-English targets; installed on demand (license: open question, [ADR-0016](./decisions/0016-model-licensing.md)) |
-| Translation (alt) | NLLB-200-distilled-600M             | ~1.2 GB       | Literal-ish, 200 languages     | Low-VRAM, or LLM underpowered for rare languages                                                                   |
+| Role              | Default                                        | VRAM (approx)                        | Quality                                    | When to use                                                                                              |
+| ----------------- | ---------------------------------------------- | ------------------------------------ | ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| ASR               | Whisper `small` (ggml)                         | ~2.0–2.5 GB                          | Good (WER ~10–15% clean audio)             | Default balance                                                                                          |
+| ASR (fast)        | Whisper `base`                                 | ~1 GB                                | OK                                         | Short clips, quick drafts, weak machine                                                                  |
+| ASR (best)        | **large-v3-turbo** q5 (ggml)                   | ~1.5 GB                              | Near-large                                 | Recommended when quality matters                                                                         |
+| ASR (max)         | `medium` / `large-v3`, 5-bit (q5)              | ~1.5–2.5 GB                          | Best                                       | Slow; offline files; both can translate                                                                  |
+| Translation → EN  | Whisper `translate` (the ASR model)            | 0 extra                              | Serviceable, literal-ish                   | Any language → English; no extra download ([ADR-0018](./decisions/0018-whisper-translate-to-english.md)) |
+| Translation       | **Qwen3-4B-Instruct-2507** Q4_K_M (Apache-2.0) | ~3 GB (2.5 GB weights + q8 KV cache) | Fluent, contextual; ~29 tok/s on the T1000 | Non-English targets; installed on demand ([ADR-0019](./decisions/0019-translator-qwen3-4b.md))           |
+| Translation (alt) | NLLB-200-distilled-600M                        | ~1.2 GB                              | Literal-ish, 200 languages                 | Not shipped: CC-BY-NC (non-commercial)                                                                   |
 
 **Concurrency rule:** ASR and translation never run simultaneously on GPU; the job queue serializes GPU jobs and swaps models. CPU-only mode (no CUDA build) is a supported degraded mode but slow.
 
