@@ -3,6 +3,8 @@ export * from './http'
 export type * from './jobs'
 export type * from './media'
 export { decodeOpenPayload, encodeOpenPayload } from './payload'
+export { chooseTranslationPath, isEnglish } from './routing'
+export type { TranslationPath, TranslationRequest } from './routing'
 export type { OpenInPlayerPayload } from './payload'
 export {
   AUTH_HEADER,

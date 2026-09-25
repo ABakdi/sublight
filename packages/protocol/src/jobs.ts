@@ -5,9 +5,17 @@ import type { JobState } from './events'
  * Job API (Spec 03 §2). POST /v1/jobs bodies discriminated by `type`.
  */
 
+/**
+ * Whisper task (ADR-0018): `translate` = any spoken language → English text,
+ * timed from segments. Only multilingual checkpoints support it.
+ */
+export type AsrTask = 'transcribe' | 'translate'
+
 export interface TranscribeParams {
-  /** null = auto-detect. */
+  /** Source language; null = auto-detect. */
   language: string | null
+  /** Defaults to `transcribe`. */
+  task?: AsrTask
   maxCueDurationMs: number
 }
 

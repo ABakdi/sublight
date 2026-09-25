@@ -33,6 +33,8 @@ export type ModelState = 'not-installed' | 'downloading' | 'installed' | 'error'
 export interface ModelInfo {
   id: string
   role: 'asr' | 'translate'
+  /** ASR models: supported Whisper tasks (ADR-0018). */
+  tasks?: ('transcribe' | 'translate')[]
   name: string
   sizeBytes: number | null
   vramClass: string | null

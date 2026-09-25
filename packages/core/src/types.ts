@@ -39,8 +39,11 @@ export interface SubtitleTrack {
   /** Optional human label, e.g. "English (AI)". */
   title?: string
   kind: TrackKind
-  /** For translations: source track + its language. */
-  derivedFrom?: { trackId: string; sourceLanguage: string }
+  /**
+   * For translations: source language, plus the source track when translated
+   * from one (LLM). Whisper `translate` works from audio, so no trackId (ADR-0018).
+   */
+  derivedFrom?: { trackId?: string; sourceLanguage: string }
   /** True while live captions are replacing; never both draft and final. */
   draft?: boolean
   cues: SubtitleCue[]
