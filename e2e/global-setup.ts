@@ -1,5 +1,5 @@
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { E2E_ENGINE_URL, E2E_ENGINE_HEALTH_URL, E2E_ENGINE_PORT, E2E_TOKEN } from './constants'
@@ -23,6 +23,18 @@ export default async function globalSetup(): Promise<() => void> {
       2,
     ) + '\n',
   )
+
+  // Real ASR (opt-in, local only): reuse the installed whisper-server build and
+  // models from ~/.sublight so the caption journey runs end to end. Nothing is
+  // installed or removed through these links.
+  if (process.env.E2E_REAL_ASR) {
+    const realHome = process.env.SUBLIGHT_REAL_HOME ?? join(homedir(), '.sublight')
+    for (const dir of ['models', 'bin']) {
+      if (!existsSync(join(realHome, dir)))
+        throw new Error(`E2E_REAL_ASR: ${realHome}/${dir} is missing`)
+      symlinkSync(join(realHome, dir), join(home, dir), 'dir')
+    }
+  }
 
   const engine: ChildProcess = spawn(pnpm, ['--filter', '@sublight/engine', 'start'], {
     cwd: repoRoot,
