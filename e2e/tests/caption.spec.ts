@@ -54,6 +54,29 @@ test.describe('captioning (M03)', () => {
     await expect(page.getByTestId('engine-offline')).toContainText('pnpm dev:engine')
   })
 
+  test('offers the translation model install before translating to French', async ({ page }) => {
+    await page.goto('/')
+    await openVideo(page, SILENT_VIDEO)
+    await pair(page)
+    await page.getByTestId('panel-tracks').click()
+    await page.setInputFiles(
+      'input[data-testid="track-import-input"]',
+      resolve(process.cwd(), 'fixtures', 'captions.en.srt'),
+    )
+    await page.locator('[data-testid^="translate-"]').filter({ hasText: 'Translate…' }).click()
+    await page.getByTestId('translate-target').selectOption('fr')
+    await expect(page.getByTestId('translate-route')).toHaveAttribute('data-path', 'llm')
+    if (process.env.E2E_REAL_ASR) {
+      // The real models are linked in: the translation model is already installed.
+      await expect(page.getByTestId('translate-start')).toBeEnabled()
+    } else {
+      await expect(page.getByTestId('install-llm')).toContainText(
+        'Install translation model (2382 MB)',
+      )
+      await expect(page.getByTestId('translate-start')).toBeDisabled()
+    }
+  })
+
   test.describe('with real speech recognition', () => {
     test.skip(!process.env.E2E_REAL_ASR, 'set E2E_REAL_ASR=1 with whisper-small installed locally')
     test.setTimeout(180_000)
