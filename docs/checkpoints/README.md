@@ -37,9 +37,10 @@ flowchart LR
 
 ## Index
 
-| Checkpoint                    | Release | Status                                                                      | Opened | Summary                                                                                                                               |
-| ----------------------------- | ------- | --------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| [Beta 1](Beta-1-Checklist.md) | Beta 1  | `open` (planned — executed at [M06](../plan/milestones/06-Beta-Release.md)) | —      | First full matrix incl. live captioning, translation, sync numbers. The template is pre-filled; fill the "actual" columns during M06. |
+| Checkpoint                                  | Release | Status                                                                      | Opened     | Summary                                                                                                                               |
+| ------------------------------------------- | ------- | --------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| [Beta 1](Beta-1-Checklist.md)               | Beta 1  | `open` (planned — executed at [M06](../plan/milestones/06-Beta-Release.md)) | —          | First full matrix incl. live captioning, translation, sync numbers. The template is pre-filled; fill the "actual" columns during M06. |
+| [M04 translation QA](M04-Translation-QA.md) | M04     | `open` (owner rating pending)                                               | 2026-09-25 | First meaning review of Qwen3-4B translations (de → en/fr/ar) on literary German.                                                     |
 
 ## Template
 

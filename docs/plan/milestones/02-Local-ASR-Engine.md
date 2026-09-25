@@ -55,7 +55,7 @@ updated: 2026-09-25
 - whisper.cpp **v1.9.4** is built from a verified commit by `pnpm engine:setup-whisper` (CUDA 13.4 + GCC 16 on the target, `sm_75`). There's no Linux release binary to pin instead.
 - **Word timing uses token t0/t1, not DTW**: measured, DTW onsets were 200–400 ms late on this build ([Spec 07 §1.2](../../specification/07-ASR-And-Translation.md#12-segmentation-whispercpp-server-output)). Real audio also exposed words split across segments, a `core` `wrapWords` bug (overflow word alone on a line), and orphan words in translate cues. All fixed with tests.
 - `pnpm engine:transcribe <file> [--translate] [--language xx] [--out f.srt]` is the one-shot mode (M02.8 "--once"): in-process, prints SRT.
-- Found while pinning the manifest: **Qwen2.5-3B-Instruct is not Apache-2.0** ([ADR-0016](../../architecture/decisions/0016-model-licensing.md)). Decision needed before M04.
+- Found while pinning the manifest: **Qwen2.5-3B-Instruct is not Apache-2.0**. Resolved in M04: replaced by Qwen3-4B-Instruct-2507 (Apache-2.0, [ADR-0019](../../architecture/decisions/0019-translator-qwen3-4b.md)).
 - Carried to later milestones: ASR ↔ LLM model swap and VRAM offload / `GPU_OOM` retry (M04, with the LLM worker); cue segmentation quality (breaks at reader pauses can leave very short cues; M03 refinement); a real recorded sync corpus (M03).
 
 ## Dependencies
