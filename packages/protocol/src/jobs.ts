@@ -79,4 +79,11 @@ export interface JobResult {
   language?: string
   /** Wall-clock ASR time / audio duration (lower is faster). */
   realtimeFactor?: number
+  /** Translate jobs (LLM path). */
+  translation?: {
+    paragraphs: number
+    /** Cues re-split by duration because the model's line count didn't match. */
+    lowConfidenceCues: number
+    tokensPerSecond: number | null
+  }
 }
