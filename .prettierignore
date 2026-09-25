@@ -7,3 +7,4 @@ playwright-report/
 test-results/
 docs/.obsidian/
 *.tsbuildinfo
+e2e/sync-corpus/transcripts/*.json

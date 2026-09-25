@@ -21,9 +21,36 @@ hand-timed to ~10 ms precision (click-track count-in, pause-safe recording).
 ## Running
 
 ```sh
-pnpm seed:staging   # generate staging fixtures into transcripts/ (M00; engine ASR replaces this in M03)
-pnpm sync:measure
+pnpm dev:engine     # with whisper-small installed
+pnpm sync:run       # transcribe every clip with audio through the engine
+pnpm sync:measure   # the report
 ```
+
+`sync:run` uploads each clip's audio (a repo path, or a `remote` URL pinned by
+SHA-256 and cached in `~/.sublight/corpus-cache`, optionally trimmed), runs a
+transcribe job and writes `transcripts/<id>.cues.json` (compact JSON, committed
+as the measured snapshot). Options: `--model`, `--only <clipId>`.
+
+### Two kinds of reference
+
+- **Hand-timed words** (`expectedCues[].words`): the real ground truth. The
+  en/fr/de/es/pt/ar clips are still waiting for recordings.
+- **Energy onsets** (`"reference": { "method": "energy-onsets" }`): speech
+  starts after ≥ 300 ms pauses, found by ffmpeg `silencedetect` relative to
+  the clip's mean volume and saved as `transcripts/<id>.reference.json`. It
+  checks only words that follow a pause, with a detector independent of the
+  engine's own δ estimator. `en-jfk` and `de-kafka-30m` (30 min, for drift)
+  use it.
+
+The report prints median |onset error|, bias (signed median), coverage and
+drift (shift of the median error between the first and last fifth of a clip).
+Staging examples (`"example": true`) are shown but never counted.
+
+M03 baseline, whisper-small: en-jfk 7 ms; de-kafka-30m 93 ms, bias −1 ms,
+drift 0.5 ms, 99% of 540 onsets matched.
+
+`pnpm seed:staging` still generates the synthetic staging transcript for the
+`en-001` example.
 
 The report prints, per clip, the median word-onset error (ms) and word
 coverage once `transcripts/<id>.cues.json` exists — before that it prints the
