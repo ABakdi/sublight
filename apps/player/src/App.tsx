@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useEngineStore } from './store/engine'
+import { useEngineStore, type EngineStatus as Status } from './store/engine'
 import { usePlayerStore } from './store/player'
 import { Library } from './components/Library'
 import { PlayerView } from './components/PlayerView'
@@ -37,20 +37,19 @@ export function App() {
   )
 }
 
-function EngineStatus({
-  status,
-  gpuName,
-}: {
-  status: 'checking' | 'online' | 'offline'
-  gpuName: string | null
-}) {
-  const styles: Record<'checking' | 'online' | 'offline', string> = {
+function EngineStatus({ status, gpuName }: { status: Status; gpuName: string | null }) {
+  const styles: Record<Status, string> = {
     checking: 'bg-amber-400/10 text-amber-300 ring-amber-400/30',
     online: 'bg-emerald-400/10 text-emerald-300 ring-emerald-400/30',
     offline: 'bg-red-400/10 text-red-300 ring-red-400/30',
+    unauthorized: 'bg-amber-400/10 text-amber-300 ring-amber-400/30',
   }
   const label =
-    status === 'online' ? `engine online${gpuName ? ` · ${gpuName}` : ''}` : `engine ${status}`
+    status === 'online'
+      ? `engine online${gpuName ? ` · ${gpuName}` : ''}`
+      : status === 'unauthorized'
+        ? 'engine not paired'
+        : `engine ${status}`
   return (
     <div
       className={`rounded-full px-3 py-1 text-xs ring-1 ${styles[status]}`}
