@@ -4,6 +4,8 @@ import { activeTrackOf, usePlayerStore } from '../store/player'
 import { hasFileSystemAccess } from '../lib/fileOpen'
 import { TracksPanel } from './TracksPanel'
 import { StylePanel } from './StylePanel'
+import { CaptionPanel } from './CaptionPanel'
+import { useCaptionStore } from '../store/caption'
 
 function fmtTime(s: number): string {
   if (!Number.isFinite(s) || s < 0) return '0:00'
@@ -35,9 +37,17 @@ export function PlayerView() {
   const [rate, setRate] = useState(1)
   const [muted, setMuted] = useState(false)
   const [captionsVisible, setCaptionsVisible] = useState(true)
-  const [panel, setPanel] = useState<'tracks' | 'style'>('tracks')
+  const [panel, setPanel] = useState<'tracks' | 'caption' | 'style'>('tracks')
+  const draft = useCaptionStore((s) => s.draft)
+  const resetCaption = useCaptionStore((s) => s.reset)
+  const projectId = project?.id
+
+  // A caption run belongs to the project it started in.
+  useEffect(() => () => resetCaption(), [projectId, resetCaption])
 
   const activeTrack = project ? activeTrackOf(project) : null
+  // While captioning, the progressive draft is what's worth watching.
+  const shownTrack = draft ?? activeTrack
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current
@@ -147,6 +157,7 @@ export function PlayerView() {
   if (!project) return null
 
   const offsetMs = activeTrack?.syncOffsetMs ?? 0
+  const shownOffsetMs = shownTrack?.syncOffsetMs ?? 0
 
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-3">
@@ -246,13 +257,13 @@ export function PlayerView() {
                   if (v) void savePosition(v.currentTime * 1000)
                 }}
               />
-              {captionsVisible && activeTrack && activeTrack.cues.length > 0 && (
+              {captionsVisible && shownTrack && shownTrack.cues.length > 0 && (
                 <SubtitleOverlay
                   video={videoRef}
-                  cues={activeTrack.cues}
-                  syncOffsetMs={offsetMs}
+                  cues={shownTrack.cues}
+                  syncOffsetMs={shownOffsetMs}
                   style={project.settings.style}
-                  draft={activeTrack.draft}
+                  draft={shownTrack.draft}
                   className="subtitle-overlay"
                 />
               )}
@@ -298,10 +309,11 @@ export function PlayerView() {
         {/* Side panel */}
         <aside className="flex w-72 shrink-0 flex-col rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
           <div className="mb-3 flex gap-1">
-            {(['tracks', 'style'] as const).map((name) => (
+            {(['tracks', 'caption', 'style'] as const).map((name) => (
               <button
                 key={name}
                 type="button"
+                data-testid={`panel-${name}`}
                 className={`flex-1 rounded-md px-2 py-1 text-xs capitalize transition ${
                   panel === name ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
                 }`}
@@ -312,7 +324,13 @@ export function PlayerView() {
             ))}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
-            {panel === 'tracks' ? <TracksPanel /> : <StylePanel />}
+            {panel === 'tracks' ? (
+              <TracksPanel />
+            ) : panel === 'caption' ? (
+              <CaptionPanel />
+            ) : (
+              <StylePanel />
+            )}
           </div>
         </aside>
       </div>
