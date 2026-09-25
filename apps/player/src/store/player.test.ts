@@ -153,4 +153,29 @@ describe('player store (M01.3–M01.5)', () => {
     })
     expect(row).not.toHaveProperty('tracks')
   })
+
+  it('sorts cues from an out-of-order file on import', async () => {
+    await usePlayerStore.getState().openWithFile(videoFile())
+    const reversed = SRT.split('\n\n').reverse().join('\n\n')
+    await usePlayerStore.getState().importTracks('captions.en.srt', reversed, 'en')
+    const cues = activeTrackOf(usePlayerStore.getState().project!)!.cues
+    expect(cues.map((c) => c.startMs)).toEqual([500, 2_000])
+  })
+
+  it('bakes the sync offset into the exported SRT', async () => {
+    await usePlayerStore.getState().openWithFile(videoFile())
+    await usePlayerStore.getState().importTracks('captions.en.srt', SRT, 'en')
+    await usePlayerStore.getState().nudgeActiveTrack(250)
+    const blobs: Blob[] = []
+    URL.createObjectURL = vi.fn((b: Blob) => {
+      blobs.push(b)
+      return 'blob:export'
+    }) as unknown as typeof URL.createObjectURL
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    await usePlayerStore.getState().exportActiveSrt()
+    click.mockRestore()
+    const text = await blobs[0]!.text()
+    expect(text).toContain('00:00:00,750 --> 00:00:01,750')
+    expect(text).toContain('00:00:02,250 --> 00:00:03,250')
+  })
 })

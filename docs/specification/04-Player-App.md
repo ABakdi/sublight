@@ -57,7 +57,7 @@ Engine-client logic is a framework-light module (`packages/protocol` consumer + 
 
 ## 7. Export
 
-- SRT: active track (or all tracks) → download via Blob URL. Named `{project-title}.{lang}.srt`.
+- SRT: active track (or all tracks) → download via Blob URL. Named `{project-title}.{lang}.srt`. The track's `syncOffsetMs` nudge is **baked into the exported times** so the file stays in sync in other players.
 - `.sublight.json` (M06+): full project export/import.
 - Future: SSA/ASS export; per-word HTML export for study notes.
 

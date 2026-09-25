@@ -3,9 +3,11 @@ import {
   DEFAULT_SUBTITLE_STYLE,
   detectSubtitleFormat,
   newId,
+  normalizeCues,
   parseSrt,
   parseVtt,
   serializeSrt,
+  shiftCues,
   type SubtitleCue,
   type SubtitleProject,
   type SubtitleStyle,
@@ -229,7 +231,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       const format = detectSubtitleFormat(text)
       let cues: SubtitleCue[]
       try {
-        cues = format === 'vtt' ? parseVtt(text) : format === 'srt' ? parseSrt(text) : []
+        const parsed = format === 'vtt' ? parseVtt(text) : format === 'srt' ? parseSrt(text) : []
+        // Files can list cues out of order; the overlay's lookup needs them sorted.
+        cues = normalizeCues(parsed)
       } catch (err) {
         return { added: 0, errors: [`Could not parse file: ${msg(err)}`] }
       }
@@ -272,23 +276,24 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       if (!project) return
       const track = activeTrackOf(project)
       if (!track) return
-      const text = serializeSrt(track.cues)
+      // Bake the nudge in so the file plays in sync outside sublight too.
+      const offset = track.syncOffsetMs ?? 0
+      const text = serializeSrt(offset === 0 ? track.cues : shiftCues(track.cues, offset))
       downloadTextFile(
         text,
         `${slug(project.title)}.${track.language}.srt`,
         'text/plain;charset=utf-8',
       )
-      await commit(() => {})
     },
 
+    // Runs every few seconds during playback: shallow update (tracks keep their
+    // identity, so the overlay doesn't recompute) and only the project row is
+    // written. updatedAt is left alone so watching doesn't reorder the library.
     savePosition: async (ms) => {
       const project = get().project
       if (!project) return
       const next = {
         ...project,
-    // Runs every few seconds during playback: shallow update (tracks keep their
-    // identity, so the overlay doesn't recompute) and only the project row is
-    // written. updatedAt is left alone so watching doesn't reorder the library.
         media: { ...project.media, resumeAtMs: Math.max(0, Math.round(ms)) },
       }
       set({ project: next })
