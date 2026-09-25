@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -25,14 +26,16 @@ const SITE = 'http://video-site.test'
 type ChromeTabs = { tabs: { query(q: object): Promise<{ id?: number; url?: string }[]> } }
 
 const fixtureVideo = readFileSync(resolve(process.cwd(), 'fixtures', 'video-4s.mp4'))
+/** What the stand-in site serves at /clip.mp4 (tests can swap in a speech clip). */
+let served: Buffer = fixtureVideo
 
 /** Byte-range responses: without them the media element can't seek. */
 function fulfillVideo(range: string | undefined, route: Route) {
-  const size = fixtureVideo.length
+  const size = served.length
   const m = /bytes=(\d+)-(\d*)/.exec(range ?? '')
   if (!m) {
     return route.fulfill({
-      body: fixtureVideo,
+      body: served,
       contentType: 'video/mp4',
       headers: { 'accept-ranges': 'bytes' },
     })
@@ -41,7 +44,7 @@ function fulfillVideo(range: string | undefined, route: Route) {
   const end = m[2] ? Number(m[2]) : size - 1
   return route.fulfill({
     status: 206,
-    body: fixtureVideo.subarray(start, end + 1),
+    body: served.subarray(start, end + 1),
     contentType: 'video/mp4',
     headers: { 'accept-ranges': 'bytes', 'content-range': `bytes ${start}-${end}/${size}` },
   })
@@ -57,7 +60,11 @@ test.describe('extension in Chromium (Spec 09)', () => {
     context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'sublight-ext-')), {
       channel: 'chromium',
       headless: true,
-      args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
+      args: [
+        `--disable-extensions-except=${extensionPath}`,
+        `--load-extension=${extensionPath}`,
+        '--autoplay-policy=no-user-gesture-required',
+      ],
     })
     // A stand-in "third-party site" with a <video>, served without a network.
     await context.route(`${SITE}/**`, (route) => {
@@ -73,6 +80,7 @@ test.describe('extension in Chromium (Spec 09)', () => {
 
   test.afterEach(async () => {
     await context.close()
+    served = fixtureVideo
   })
 
   async function openPopupFor(site: Page): Promise<Page> {
@@ -163,5 +171,68 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await expect
       .poll(() => site.evaluate(() => document.querySelectorAll('[data-sublight-frame]').length))
       .toBe(0)
+  })
+
+  async function pair(): Promise<void> {
+    const options = await context.newPage()
+    await options.goto(`${EXT}/options.html`)
+    await options.getByTestId('token-input').fill(E2E_TOKEN)
+    await options.getByTestId('token-save').click()
+    await expect(options.getByTestId('engine-status')).toHaveAttribute('data-state', 'online')
+    await options.close()
+  }
+
+  test('live captions explain a missing speech model (M05)', async () => {
+    test.skip(Boolean(process.env.E2E_REAL_ASR), 'the real models are installed in this run')
+    await pair()
+    const site = context.pages()[0] ?? (await context.newPage())
+    await site.goto(`${SITE}/watch`)
+    const popup = await openPopupFor(site)
+    await expect(popup.getByTestId('engine-status')).toHaveAttribute('data-state', 'online')
+    await popup.getByTestId('live-toggle').click()
+    await expect(popup.getByTestId('live-status')).toHaveAttribute('data-phase', 'error')
+    await expect(popup.getByTestId('live-status')).toContainText('speech model isn’t installed')
+  })
+
+  test('live captions from the element audio, refined on stop (M05, real ASR)', async () => {
+    test.skip(!process.env.E2E_REAL_ASR, 'set E2E_REAL_ASR=1 with whisper-small installed locally')
+    test.setTimeout(120_000)
+    const dir = mkdtempSync(join(tmpdir(), 'sublight-e2e-live-'))
+    const clip = join(dir, 'jfk.mp4')
+    execFileSync('ffmpeg', [
+      ...['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=10'],
+      ...['-i', resolve(process.cwd(), '..', 'apps', 'engine', 'tests', 'fixtures', 'jfk.wav')],
+      ...['-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', clip],
+    ])
+    served = readFileSync(clip)
+    await pair()
+    const site = context.pages()[0] ?? (await context.newPage())
+    await site.goto(`${SITE}/watch`)
+    await site.evaluate(() => document.querySelector('video')!.play())
+    const popup = await openPopupFor(site)
+    await popup.getByTestId('live-toggle').click()
+    await expect(popup.getByTestId('live-status')).toHaveAttribute('data-phase', 'listening')
+    await expect(popup.getByTestId('live-status')).toContainText('this video’s audio')
+    await site.bringToFront()
+    await site.waitForFunction(() => document.querySelector('video')!.ended, null, {
+      timeout: 30_000,
+    })
+    await popup.bringToFront()
+    await popup.getByTestId('live-toggle').click()
+    await expect(popup.getByTestId('live-status')).toHaveAttribute('data-phase', 'done', {
+      timeout: 60_000,
+    })
+    await site.bringToFront()
+    await site.evaluate(() => (document.querySelector('video')!.currentTime = 6.5))
+    await expect
+      .poll(() =>
+        site.evaluate(
+          () =>
+            document
+              .querySelector('[data-sublight-frame] [data-sublight-host]')
+              ?.shadowRoot?.querySelector('.sl-cue')?.textContent ?? '',
+        ),
+      )
+      .toMatch(/country/i)
   })
 })
