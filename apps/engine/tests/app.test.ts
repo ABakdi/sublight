@@ -9,7 +9,9 @@ const config: EngineConfig = {
   defaults: { asrModel: 'whisper-small', translateModel: 'qwen2.5-3b-instruct' },
   autoRetry: true,
   allowedOrigins: [],
-  cacheLimits: { mediaBytes: 20 * 1024 ** 3 },
+  cacheLimits: { mediaBytes: 20 * 1024 ** 3, uploadBytes: 20 * 1024 ** 3 },
+  whisper: { port: 17422, gpu: 'off', threads: 4 },
+  ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
 }
 
 const HOST = { host: '127.0.0.1:17421' } as const

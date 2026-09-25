@@ -20,9 +20,20 @@ export interface EngineConfig {
   /** Extra CORS origins, e.g. `chrome-extension://<store id>` (Protocol §3.4). */
   allowedOrigins: string[]
   cacheLimits: {
-    /** Upload/relay cache cap in bytes (default 20 GB, Protocol §7). */
+    /** Normalized-audio cache budget in bytes; LRU-evicted past it. */
     mediaBytes: number
+    /** Largest accepted upload in bytes (default 20 GB, Protocol §7). */
+    uploadBytes: number
   }
+  whisper: {
+    /** whisper-server binary; default from `pnpm engine:setup-whisper` (~/.sublight/bin). */
+    binary?: string
+    port: number
+    /** 'auto' uses the GPU when the binary was built with CUDA; 'off' forces CPU. */
+    gpu: 'auto' | 'off'
+    threads: number
+  }
+  ffmpeg: { ffmpeg: string; ffprobe: string }
 }
 
 const DEFAULTS: Omit<EngineConfig, 'token'> = {
@@ -33,7 +44,9 @@ const DEFAULTS: Omit<EngineConfig, 'token'> = {
   },
   autoRetry: true,
   allowedOrigins: [],
-  cacheLimits: { mediaBytes: 20 * 1024 ** 3 },
+  cacheLimits: { mediaBytes: 20 * 1024 ** 3, uploadBytes: 20 * 1024 ** 3 },
+  whisper: { port: 17422, gpu: 'auto', threads: 4 },
+  ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
 }
 
 export function sublightHome(): string {
@@ -63,6 +76,8 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
     token: hasToken ? raw!.token! : randomBytes(32).toString('hex'),
     defaults: { ...DEFAULTS.defaults, ...(raw?.defaults ?? {}) },
     cacheLimits: { ...DEFAULTS.cacheLimits, ...(raw?.cacheLimits ?? {}) },
+    whisper: { ...DEFAULTS.whisper, ...(raw?.whisper ?? {}) },
+    ffmpeg: { ...DEFAULTS.ffmpeg, ...(raw?.ffmpeg ?? {}) },
   }
   // A freshly generated token must survive restarts, or every paired client breaks.
   if (!hasToken) writeFileSync(file, JSON.stringify(base, null, 2) + '\n', 'utf8')
@@ -73,6 +88,8 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
     ...overrides,
     defaults: { ...base.defaults, ...(overrides?.defaults ?? {}) },
     cacheLimits: { ...base.cacheLimits, ...(overrides?.cacheLimits ?? {}) },
+    whisper: { ...base.whisper, ...(overrides?.whisper ?? {}) },
+    ffmpeg: { ...base.ffmpeg, ...(overrides?.ffmpeg ?? {}) },
   }
   const port = Number(envPort)
   if (envPort && Number.isInteger(port) && port > 0 && port < 65536) merged.port = port
