@@ -84,7 +84,10 @@ export function corsAllowlist(origins: Set<string>): MiddlewareHandler {
       c.header('Access-Control-Allow-Origin', origin)
       c.header('Vary', 'Origin')
       c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-      c.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key')
+      c.header(
+        'Access-Control-Allow-Headers',
+        'Authorization, Content-Type, Idempotency-Key, X-Source-Name, X-Source-MediaHash',
+      )
       c.header('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges')
     }
     if (c.req.method === 'OPTIONS') return c.body(null, 204)
