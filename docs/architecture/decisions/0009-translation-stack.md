@@ -14,7 +14,7 @@ Requirement F4.2: translations must be **accurate in meaning**, not word-for-wor
 
 1. **Whisper `translate` task (audio→English only)** — built-in, but only English and loses the original; quality is mediocre; rejected.
 2. **NLLB-200** (CTranslate2, ~600 MB) — dedicated translation, 200 languages, fast, low VRAM, but literal, no style/context, and CC-BY-NC license.
-3. **Open-weight LLM via llama.cpp** (Qwen2.5-3B-Instruct Q4_K_M, ~2.5 GB) — fluent, contextual, handles speaker markers and idioms, Apache-2.0. QR: fits in 4 GB if ASR is not resident concurrently.
+3. **Open-weight LLM via llama.cpp** (Qwen2.5-3B-Instruct Q4_K_M, ~2.5 GB) — fluent, contextual, handles speaker markers and idioms. _(Originally recorded as Apache-2.0; the 3B size is actually under the Qwen Research License — see [ADR-0016](0016-model-licensing.md), open question for M04.)_ QR: fits in 4 GB if ASR is not resident concurrently.
 
 Translating **cue-by-cue** destroys context ("Hi! … What? …" translated per 2 s slice reads terribly). The right unit is a **paragraph** — a group of cues between long gaps or sentence boundaries (~50–300 words).
 

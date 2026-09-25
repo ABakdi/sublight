@@ -16,13 +16,16 @@ The target GPU holds **4 GB VRAM** with no tensor cores (Quadro T1000). The Whis
 
 A **model matrix**, selectable per job with sensible defaults:
 
-| Model                   | VRAM (approx)                | Speed on T1000  | Use                                                                             |
-| ----------------------- | ---------------------------- | --------------- | ------------------------------------------------------------------------------- |
-| `base`                  | ~1 GB                        | ~6–10× realtime | Quick drafts, shorts, weak-machines, live fallback                              |
-| **`small`**             | ~2.0–2.5 GB                  | ~2–4× realtime  | **Default** — accuracy/latency sweet spot                                       |
-| `distil-large-v3-turbo` | ~1.5 GB                      | ~4–8× realtime  | **Best quality default** where users opt in; near-large accuracy at small speed |
-| `medium` / `large-v3`   | 4 GB+ → CPU-offloaded layers | slow (0.3–1× R) | Offline batch only; max accuracy for local files                                |
-| CPU-only (no GPU)       | 0 VRAM                       | 0.5–2× realtime | Degraded-but-works mode, e.g. no CUDA build                                     |
+| Model (manifest id)         | Artifact (ggml, pinned)         | VRAM (approx) | Speed on T1000                              | Translate | Use                                            |
+| --------------------------- | ------------------------------- | ------------- | ------------------------------------------- | --------- | ---------------------------------------------- |
+| `whisper-base`              | `ggml-base.bin` (148 MB)        | ~0.5 GB       | fastest                                     | yes       | Quick drafts, weak machines, live fallback     |
+| **`whisper-small`**         | `ggml-small.bin` (488 MB)       | **~0.85 GB**  | **~8× realtime** (measured: 10 min in 76 s) | yes       | **Default**: accuracy/latency sweet spot       |
+| `whisper-medium-q5`         | `ggml-medium-q5_0.bin` (539 MB) | ~1.5 GB       | slower                                      | yes       | More accurate, still fits the GPU              |
+| `whisper-large-v3-turbo-q5` | `ggml-large-v3-turbo-q5_0.bin`  | ~1.5 GB       | near-small speed                            | **no**    | Best speed/quality for transcription           |
+| `whisper-large-v3-q5`       | `ggml-large-v3-q5_0.bin` (1 GB) | ~2.5 GB       | slow                                        | yes       | Max accuracy for offline files                 |
+| CPU-only (no GPU)           | any                             | 0             | 0.5–2× realtime                             | —         | Degraded-but-works mode (`whisper.gpu: "off"`) |
+
+> **Corrected 2026-09-25 (M02):** the first version of this table named `distil-large-v3-turbo`, which doesn't exist. The real options were `distil-large-v3` (English-only output) and `large-v3-turbo`; the manifest ships the turbo checkpoint, 5-bit quantized. Quantized (`q5`) medium/large checkpoints replace the CPU-offload rows: they fit in 4 GB. Speed and VRAM for `small` are measured on the target machine; the others are estimates until a checkpoint measures them.
 
 Rules:
 
@@ -33,7 +36,7 @@ Rules:
 
 ## Consequences
 
-**Good:** honest speed/quality dial; quality-minded users get distil; weak machines still work; v1 ships sensible defaults.
+**Good:** honest speed/quality dial; quality-minded users get turbo or a quantized large model; weak machines still work; v1 ships sensible defaults.
 **Cost:** model manager must handle multiple ASR models + swap; disk budget grows (each ggml file is ~0.5–1.5 GB); UI must explain the tradeoff without overwhelming.
 
 ## Alternatives considered

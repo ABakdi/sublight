@@ -60,7 +60,7 @@ Grouped; detailed contracts live in the [Specification](../specification/README.
 
 - F4.1 **Word-level timestamps** with median onset offset ≤ 250 ms after refinement (target), no drift accumulation over a 2 h video (≤ 500 ms total).
 - F4.2 Meaning-preserving translation: rated fluent for dialog by the project owner, proper nouns/glossary respected. English target: Whisper `translate` with no extra model; other targets: local LLM ([ADR-0018](./decisions/0018-whisper-translate-to-english.md)).
-- F4.3 Speech recognition Word Error Rate ≤ 15% on clear single-speaker audio with default `small` model; better with `distil-large` model.
+- F4.3 Speech recognition Word Error Rate ≤ 15% on clear single-speaker audio with default `small` model; better with the large-v3 (turbo) models.
 
 ### F5 — Subtitle management
 
@@ -83,15 +83,15 @@ Grouped; detailed contracts live in the [Specification](../specification/README.
 
 VRAM budget is **4 GB, one model resident at a time**. The engine serializes GPU work (swap models between jobs) — see [Spec 06](../specification/06-Engine-Server.md) and [ADR-0007](./decisions/0007-whisper-model-matrix.md).
 
-| Role              | Default                              | VRAM (approx)         | Quality                        | When to use                                                                                              |
-| ----------------- | ------------------------------------ | --------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| ASR               | Whisper `small` (ggml)               | ~2.0–2.5 GB           | Good (WER ~10–15% clean audio) | Default balance                                                                                          |
-| ASR (fast)        | Whisper `base`                       | ~1 GB                 | OK                             | Short clips, quick drafts, weak machine                                                                  |
-| ASR (best)        | **distil-large-v3-turbo** (ggml)     | ~1.5 GB               | Near-large                     | Recommended when quality matters                                                                         |
-| ASR (offload)     | `medium` / `large-v3`, CPU-offloaded | 4 GB+ → spills to RAM | Best                           | Slow; use only for offline local files                                                                   |
-| Translation → EN  | Whisper `translate` (the ASR model)  | 0 extra               | Serviceable, literal-ish       | Any language → English; no extra download ([ADR-0018](./decisions/0018-whisper-translate-to-english.md)) |
-| Translation       | **Qwen2.5-3B-Instruct** Q4_K_M       | ~2.5 GB               | Fluent, contextual             | Non-English targets; installed on demand                                                                 |
-| Translation (alt) | NLLB-200-distilled-600M              | ~1.2 GB               | Literal-ish, 200 languages     | Low-VRAM, or LLM underpowered for rare languages                                                         |
+| Role              | Default                             | VRAM (approx) | Quality                        | When to use                                                                                                        |
+| ----------------- | ----------------------------------- | ------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| ASR               | Whisper `small` (ggml)              | ~2.0–2.5 GB   | Good (WER ~10–15% clean audio) | Default balance                                                                                                    |
+| ASR (fast)        | Whisper `base`                      | ~1 GB         | OK                             | Short clips, quick drafts, weak machine                                                                            |
+| ASR (best)        | **large-v3-turbo** q5 (ggml)        | ~1.5 GB       | Near-large                     | Recommended when quality matters                                                                                   |
+| ASR (max)         | `medium` / `large-v3`, 5-bit (q5)   | ~1.5–2.5 GB   | Best                           | Slow; offline files; both can translate                                                                            |
+| Translation → EN  | Whisper `translate` (the ASR model) | 0 extra       | Serviceable, literal-ish       | Any language → English; no extra download ([ADR-0018](./decisions/0018-whisper-translate-to-english.md))           |
+| Translation       | **Qwen2.5-3B-Instruct** Q4_K_M      | ~2.5 GB       | Fluent, contextual             | Non-English targets; installed on demand (license: open question, [ADR-0016](./decisions/0016-model-licensing.md)) |
+| Translation (alt) | NLLB-200-distilled-600M             | ~1.2 GB       | Literal-ish, 200 languages     | Low-VRAM, or LLM underpowered for rare languages                                                                   |
 
 **Concurrency rule:** ASR and translation never run simultaneously on GPU; the job queue serializes GPU jobs and swaps models. CPU-only mode (no CUDA build) is a supported degraded mode but slow.
 
