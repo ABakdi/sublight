@@ -73,6 +73,18 @@ Job creation bodies (discriminated by `type`):
 | `POST /v1/media/resolve` _(M05b, planned)_ | `{ url, site? }` → engine fetches/probes the URL (fetch rules / yt-dlp) → `{ mediaId, durationMs, title, kind: "relay"                                                                      | "direct-url", directUrl? }`; used by "Open in Sublight Player" |
 | `GET /v1/relay/:mediaId` _(M05b, planned)_ | streaming byte proxy with `Range` support so the player can seek a relayed video; v1 buffers to disk before serving, v2 streams on the fly                                                  |
 
+### Live capture (M05)
+
+| Endpoint                                                                               | Notes                                                                                            |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `POST /v1/jobs {type:"live", model, params:{language, task?}, priority:"interactive"}` | starts a live job; it runs until stopped and holds the GPU slot                                  |
+| `POST /v1/live/:jobId/audio?wallMs=…`                                                  | raw 16 kHz mono s16le PCM (≤ 10 s per request) captured starting at `wallMs`; `204`              |
+| `POST /v1/live/:jobId/anchor`                                                          | `{ wallMs, mediaMs, rate, playing }` — playback anchor mapping capture time to media time; `204` |
+| `POST /v1/live/:jobId/stop`                                                            | final pass + refinement; the job then goes `done` with the final track                           |
+| `GET /v1/live/:jobId`                                                                  | `{ jobId, receivedMs, lagMs, committedWords, stopping }`                                         |
+
+Drafts arrive as `job.partial` in media time; audio/anchors for a job that isn't queued/running get `409`.
+
 ### Auth pairing (v1 handshake)
 
 | Endpoint                              | Notes                                                                                                                                                                                                               |

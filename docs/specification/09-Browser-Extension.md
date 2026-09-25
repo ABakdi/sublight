@@ -72,6 +72,16 @@ Built so the extension can be installed and tested in a real browser before capt
 
 Known gaps, for M05: the caption can sit on top of the host player's control bar while it's visible (YouTube); the content script bundles React + overlay (~235 kB) into every frame and should load the overlay lazily.
 
+### 4.5 Live captions (as built, M05)
+
+- **Start**: popup "Caption live" or **Alt+Shift+L** (`commands.toggle-live`) → SW `startLive`: creates the engine `live` job (model/language from Options, default whisper-small / auto), opens the engine WS subscribed to it, and sends `live.begin` to the frame that owns the primary video.
+- **Page** (`src/liveContent.ts`): sends anchors on playback events, taps the element audio (`captureStream`) when possible, asks for `live.fallback` when it stays silent, and renders `live.track` updates in an `OverlayFrame` (drafts delayed by the measured lag, final exact).
+- **Offscreen document** (`entrypoints/offscreen`): tabCapture path, audio played back to the user.
+- **SW** (`src/liveController.ts`): relays `live.audio` / `live.anchor` to the engine, forwards `job.partial` drafts and the final result to the page, keeps `LiveState` in `storage.session` for the popup (starting → listening → refining → done / error).
+- **Popup**: "Caption live" / "Stop live captions" with one status line: source ("this video's audio" / "the tab's audio"), cue count, lag; refining; done; or the error in words (e.g. "The speech model isn't installed…", "Extension has not been invoked for the current page…").
+- Captions sit above player control bars: the overlay margin is 14 % of the video height (min 32 px).
+- Found in the build: with `monitor` constant-folded to `false` in the content script, Rollup emitted a `for` loop with no body (`for (…) if (opts.monitor) t.stop()`), which broke the bundle; the loop is braced now.
+
 ## 5. Capture wiring
 
 The content script drives [Audio capture](08-Audio-Capture.md): probe `captureStream()`, fall back to `tabCapture` (audio-only) requested from the SW; chunks streamed via the SW's WS channel to the engine with `{ mediaTimeStart = T₀ }`.

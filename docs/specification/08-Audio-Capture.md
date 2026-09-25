@@ -38,31 +38,38 @@ interface CapturedAudio {
 - Chunks are ~5 s of 16 kHz mono PCM (opaque contract; nothing else enters the engine).
 - `streamTimeMs` = capture-relative time (starts 0); overlay maps to video via §4.
 
-## 3. Chunked streaming to the engine
+## 3. Streaming to the engine (as built, M05)
 
-- Chunks flow over the WS as binary frames (protocol: `WS_BIN/chunk` + metadata frame with `mediaTimeStart`, sequence).
-- The engine VAD-gates: `isSilent` chunks recorded but not queued to ASR (live mode) — keeps the rolling window speech-full. Silences still advance the timeline for correct cue gaps.
-- Backpressure: client sends at capture rate; WS buffers ~30 s; engine feeds ASR windows; if ASR is slower than realtime (bad GPU day) the client drops frames with a "captioning is falling behind" notice (never unbounded buffering).
+- The capture tap (`apps/extension/src/capture.ts`) turns any `MediaStream` into **~1 s chunks of 16 kHz mono s16le**, stamped with the **wall-clock time the first sample was heard** (callback time − buffer duration − `baseLatency`). Web Audio `ScriptProcessor` (a worklet would need a separately loaded module, awkward from a content script).
+- Chunks go page/offscreen → SW as base64 runtime messages (runtime messages are JSON), then SW → engine as **`POST /v1/live/:jobId/audio?wallMs=…`** with the raw PCM, in order. HTTP instead of the planned WS binary frames: same auth/origin checks, ordering by a promise chain, no framing protocol to maintain; at 32 kB/s on loopback the overhead is irrelevant.
+- The engine appends chunks to a per-job scratch file (`jobs/live/<id>.pcm`), so hours of audio don't sit in memory.
 
-## 4. Timeline semantics (pause / seek / speed)
+## 4. Timeline semantics (as built)
 
-| User action         | Behavior                                                                                                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Pause               | audio goes silent; VAD marks silence; timeline keeps advancing (nothing lost)                                                                                                              |
-| Resume              | continues; no correction needed                                                                                                                                                            |
-| Seek during capture | **capture restarts** at new position: state `re-anchor` — new T₀' reported, old buffered audio truncated (we discard what's after the seek to avoid wrong captions), UI flash "re-syncing" |
-| Speed change        | capture is the _actual audio_, so timestamps stay truthful automatically; live window recomputes chunk boundaries                                                                          |
-| Fullscreen / PiP    | capture unaffected (element/tab continues)                                                                                                                                                 |
+Capture time ≠ media time: the video can pause, seek, buffer or change speed. The content script sends a **playback anchor** `{ wallMs, mediaMs, rate, playing }` at start and on `play`, `playing`, `pause`, `waiting`, `seeked`, `ratechange`, `ended` (`POST /v1/live/:jobId/anchor`). The engine maps every word: find the last anchor before the word's wall time → `mediaMs + (wall − anchor.wallMs) × rate` while playing, frozen while paused.
 
-## 5. Live captioning loop
+| User action       | Behavior                                                                                                                            |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Pause / buffering | anchor `playing: false`; words heard then are dropped (it's silence anyway)                                                         |
+| Resume            | new anchor; mapping continues from the paused position                                                                              |
+| Seek              | new anchor at the new position; later words land there. Re-watched ranges are **replaced** by the newer words (`mergeByMediaRange`) |
+| Speed change      | anchor with the new `rate`; media time advances at that rate                                                                        |
+| Fullscreen / PiP  | capture unaffected                                                                                                                  |
 
-- Rolling window: keep the last ~30 s of _speech_ audio; ASR runs on window start overlap 2 s; words→cues per [07 §1.3](07-ASR-And-Translation.md); draft cues pushed as `job.partial`.
-- Latency budget: capture → window ready ≤ 2 s; ASR (base/small on T1000) ≤ 3 s; total ≤ ~5–8 s behind the spoken word. Measured per release in the [checkpoint](../checkpoints/README.md).
-- Gaps: no speech for > 2 s → engine sends `job.state: idle-waiting` to keep UI honest (it's not stuck).
+## 5. Live captioning loop (as built)
+
+Code: `apps/engine/src/live/`.
+
+- Every **1.5 s**, if ≥ 1 s of new audio arrived since the last pass, the window from the last committed word to now (≤ 28 s) goes through whisper, with the last ~200 characters of committed text as the prompt. Silent windows (< −60 dB) are skipped.
+- Words ending more than **3 s** before the newest audio **commit** (whisper still revises the tail); the rest are drafts. Both go out as one `job.partial` track in **media time** (`draft: true`). A pass over an almost-full window, or after stop, commits everything.
+- **Stop** (`POST /v1/live/:jobId/stop`) → a final pass, then the **refinement pass**: each contiguous playing stretch (split at anchors) is transcribed again with full context, in 2-min chunks. It replaces the live words unless it has fewer than 80 % of them (never regress). Then the job is `done` with the final track.
+- No audio for 60 s ends the session by itself (tab closed, extension reloaded).
+- Display: drafts arrive a few seconds after their words were spoken, when the playhead has moved on; shown at their true time they'd never be seen. The page shows drafts **delayed by the measured lag** (smoothed, ≤ 8 s); the final track is exact.
+- Measured: JFK streamed through the engine with whisper-small → words land on the media timeline within ±150 ms of speech onsets; in Chromium/Brave the first caption appears **6–8 s** after starting (startup + first 1 s chunk + first pass + display delay); drafts run ~4 s behind.
 
 ## 6. Capture lifecycle in the extension
 
-1. Permission: `tabCapture` requires a user gesture → the "Caption this video" click is the gesture; Chrome shows the tab-share pill once (documented in UX copy).
+1. Source order (as built): the content script tries `video.captureStream()` first. No prompt; works on CORS-clean media, **including YouTube** (MSE, non-DRM), verified in Brave. If it throws (cross-origin media), or its audio stays silent for 4 s while the video plays unmuted (tainted/DRM), the SW switches to **tabCapture**: `tabCapture.getMediaStreamId` → an **offscreen document** (`offscreen.html`, reason `USER_MEDIA`) opens the stream and **plays it back** (capturing a tab mutes it for the user). tabCapture needs a real invocation of the extension on that page (toolbar popup, **Alt+Shift+L**), which grants `activeTab`.
 2. Start: record `T₀ = video.currentTime`. Stop: user clicks stop, video ends, or tab captured-stopped event (Chrome ends capture on navigation — handled by the SW → refine flow).
 3. If the page navigates mid-capture: capture ends → engine **finishes the refine pass over what it got**, overlay keeps last cues; the user can restart.
 4. Tab muted → tabCapture yields silence; detect via `isSilent` heuristics and show "unmute tab" guidance.

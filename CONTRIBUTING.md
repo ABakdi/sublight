@@ -79,7 +79,13 @@ Then:
 1. **Pair:** run `pnpm engine:token`, open the extension's **Options**
    (toolbar icon → _Options & pairing_), paste the token and click Save. The
    status should turn to _Engine online_.
-2. **Check a video:** on any page with a `<video>`, click the toolbar icon.
+2. **Live captions:** on a page with a playing video, click the toolbar icon →
+   **Caption live** (or press **Alt+Shift+L**). The engine needs whisper-small
+   installed. Stop from the popup (or the shortcut) to get the refined track.
+   Automated tests can't click the toolbar, so tab capture is exercised by
+   launching the browser with `--allowlisted-extension-id=ehgdbfcecgkljnpmednociabmmjemfkf`;
+   real users never need that flag.
+3. **Check a video:** on any page with a `<video>`, click the toolbar icon.
    The popup lists the video and its playhead. **Show test captions** draws
    a caption every 2.5 s stamped with its own start time, so you can check
    the overlay's position, sync, fullscreen and SPA navigation on that site.

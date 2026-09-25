@@ -30,6 +30,8 @@ Token → word rules (`apps/engine/src/asr/words.ts`):
 - **Times: word start = first token `t0`, end = last _speech_ token `t1`.** Punctuation-only tokens don't move the end; whisper often times a trailing comma across the following pause.
 - **DTW (`--dtw`) is not used.** Measured on the JFK sample against energy onsets after pauses: token `t0` hit 0.32 s (ref 0.33) and 8.19 s (ref 8.19). DTW put the same onsets at 0.52 s and 8.48 s: on this build it tracks token _ends_, 200–400 ms late as an onset. Skipping DTW also keeps flash attention on (faster).
 - Words are made monotonic and ≥ 10 ms; confidence = mean token probability.
+- **Onset snapping** (M05): whisper often times the first word of a segment at the segment start, which is the end of the preceding silence. For words after a pause, the start moves forward to an energy onset inside the word (≤ 500 ms later, never earlier). On the 30-min corpus clip the median |onset error| dropped from 93 to **77 ms**.
+- **Annotations** split across tokens ("[ Applause ]", "(upbeat music)" up to 4 words) and ">>" speaker-change markers are removed.
 
 ### 1.3 Cue construction (shared with `core`)
 

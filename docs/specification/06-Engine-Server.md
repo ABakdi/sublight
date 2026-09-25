@@ -79,6 +79,11 @@ The "Open in Sublight Player" flow ([ADR-0017](../architecture/decisions/0017-op
 - Config: `llama: { binary?, port, gpu: "auto"|"off", threads, contextTokens }`.
 - [07 §2](07-ASR-And-Translation.md) for the chunking/prompt/validation protocol the worker drives. Both model servers share one supervisor (`workers/server-process.ts`: spawn, health polling, pid-file orphan reaping, restart on crash).
 
+## 7b. Live sessions (M05)
+
+- `LiveHub` keeps one `LiveSession` per live job: PCM appended to `jobs/live/<id>.pcm` with a chunk index (sample ↔ wall time) and the playback anchors (wall time → media time). Audio may arrive before the queue starts the job.
+- `liveRunner` (`gpu: true`, usually `interactive`): rolling-window passes, commit/draft split, media-time mapping, stop → refinement per playing stretch with the never-regress guard, 60 s idle timeout. Details in [08 §5](08-Audio-Capture.md#5-live-captioning-loop-as-built).
+
 ## 8. Observability
 
 - Logs: JSONL to `~/.sublight/logs/engine.log` (rotate 10 MB × 5): startup, job state changes, `job.log` errors, model state; whisper-server's own output in `logs/whisper-server.log`. `job.log` events also go out over WS.
