@@ -42,7 +42,42 @@ export interface TranslateJob {
   priority?: JobPriority
 }
 
-export type JobCreation = TranscribeJob | TranslateJob
+/**
+ * Live captioning from captured audio (Spec 08 §5, M05). The job runs until
+ * stopped: the client streams audio to `POST /v1/live/:jobId/audio`, reports
+ * playback changes to `/anchor`, and ends it with `/stop`, which triggers the
+ * refinement pass. Drafts arrive as `job.partial`, already in media time.
+ */
+export interface LiveJob {
+  type: 'live'
+  model: string
+  params: { language: string | null; task?: AsrTask }
+  priority?: JobPriority
+}
+
+/**
+ * Maps capture time to media time (Spec 08 §4): from `wallMs` on, the video
+ * is at `mediaMs` and advances at `rate` while `playing`. Sent on start,
+ * play, pause, seek and rate changes.
+ */
+export interface LiveAnchor {
+  wallMs: number
+  mediaMs: number
+  rate: number
+  playing: boolean
+}
+
+/** Engine-side view of a live session, in `GET /v1/live/:jobId`. */
+export interface LiveStatus {
+  jobId: string
+  receivedMs: number
+  /** How far behind real time the transcription is, ms. */
+  lagMs: number
+  committedWords: number
+  stopping: boolean
+}
+
+export type JobCreation = TranscribeJob | TranslateJob | LiveJob
 
 export interface JobSummary {
   id: string
