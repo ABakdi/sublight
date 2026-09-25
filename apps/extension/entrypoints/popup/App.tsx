@@ -319,6 +319,17 @@ function QuickStyleRow() {
           {a === 'bottom' ? 'Bottom' : 'Top'}
         </button>
       ))}
+      <span style={{ marginLeft: 4 }} />
+      <button
+        data-testid="reveal-words"
+        style={chip((style.reveal ?? 'words') === 'words')}
+        title="Text fills in as each word is spoken"
+        onClick={() =>
+          update({ reveal: (style.reveal ?? 'words') === 'words' ? 'lines' : 'words' })
+        }
+      >
+        Word by word
+      </button>
     </section>
   )
 }

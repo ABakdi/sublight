@@ -1,6 +1,6 @@
 import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import type { SubtitleCue, SubtitleStyle } from '@sublight/core'
+import { revealByWords, type SubtitleCue, type SubtitleStyle } from '@sublight/core'
 import { SubtitleOverlay } from '@sublight/overlay'
 import { browser } from 'wxt/browser'
 
@@ -9,6 +9,8 @@ export const OVERLAY_STYLE_KEY = 'overlayStyle'
 export interface QuickStyle {
   fontSize?: number
   anchor?: 'bottom' | 'top'
+  /** 'words' (default): text fills in as each word is spoken; 'lines': whole cues. */
+  reveal?: 'words' | 'lines'
 }
 
 const frames = new Set<OverlayFrame>()
@@ -85,7 +87,7 @@ export class OverlayFrame {
     }
     this.root.render(
       createElement(SubtitleOverlay, {
-        cues: this.cues,
+        cues: quickStyle.reveal === 'lines' ? this.cues : revealByWords(this.cues),
         video: this.video,
         draft: this.draft,
         syncOffsetMs: this.offsetMs,

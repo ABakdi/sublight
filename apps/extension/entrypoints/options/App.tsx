@@ -6,7 +6,9 @@ import { engineRequest, getToken, probeEngine, setToken } from '../../src/engine
 import {
   DEFAULT_LIVE_MODEL,
   LIVE_LANGUAGE_KEY,
+  DEFAULT_REFINE_MODEL,
   LIVE_MODEL_KEY,
+  LIVE_REFINE_KEY,
   LIVE_TASK_KEY,
 } from '../../src/liveController'
 import type { ModelsResponse } from '@sublight/protocol'
@@ -133,12 +135,14 @@ function LiveSettings({ online }: { online: boolean }) {
   const [model, setModel] = useState(DEFAULT_LIVE_MODEL)
   const [language, setLanguage] = useState('')
   const [task, setTask] = useState('transcribe')
+  const [refine, setRefine] = useState(DEFAULT_REFINE_MODEL)
 
   useEffect(() => {
     void browser.storage.local
-      .get([LIVE_MODEL_KEY, LIVE_LANGUAGE_KEY, LIVE_TASK_KEY])
+      .get([LIVE_MODEL_KEY, LIVE_REFINE_KEY, LIVE_LANGUAGE_KEY, LIVE_TASK_KEY])
       .then((got) => {
         setTask((got[LIVE_TASK_KEY] as string | undefined) || 'transcribe')
+        setRefine((got[LIVE_REFINE_KEY] as string | undefined) || DEFAULT_REFINE_MODEL)
         setModel((got[LIVE_MODEL_KEY] as string | undefined) || DEFAULT_LIVE_MODEL)
         setLanguage((got[LIVE_LANGUAGE_KEY] as string | undefined) ?? '')
       })
@@ -170,7 +174,7 @@ function LiveSettings({ online }: { online: boolean }) {
       </p>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
-          Speech model
+          Live drafts (fast)
           <select
             data-testid="live-model"
             style={field}
@@ -181,6 +185,25 @@ function LiveSettings({ online }: { online: boolean }) {
             }}
           >
             {(models.length ? models : [{ id: model, name: model, installed: true }]).map((m) => (
+              <option key={m.id} value={m.id} disabled={!m.installed}>
+                {m.name}
+                {m.installed ? '' : ' (not installed)'}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
+          Final captions (on stop)
+          <select
+            data-testid="live-refine-model"
+            style={field}
+            value={refine}
+            onChange={(e) => {
+              setRefine(e.target.value)
+              save({ [LIVE_REFINE_KEY]: e.target.value })
+            }}
+          >
+            {(models.length ? models : [{ id: refine, name: refine, installed: true }]).map((m) => (
               <option key={m.id} value={m.id} disabled={!m.installed}>
                 {m.name}
                 {m.installed ? '' : ' (not installed)'}

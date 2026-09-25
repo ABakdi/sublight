@@ -5,6 +5,7 @@ import {
   type JobResult,
   type JobSummary,
   type LiveAnchor,
+  type ModelsResponse,
   type WsEvent,
 } from '@sublight/protocol'
 import { engineRequest, EngineRequestError, getToken } from './engine'
@@ -15,7 +16,20 @@ export const LIVE_MODEL_KEY = 'liveModel'
 export const LIVE_LANGUAGE_KEY = 'liveLanguage'
 /** 'transcribe' (spoken language) or 'translate' (English, ADR-0018). */
 export const LIVE_TASK_KEY = 'liveTask'
-export const DEFAULT_LIVE_MODEL = 'whisper-small'
+/** Fast drafts while listening… */
+export const DEFAULT_LIVE_MODEL = 'whisper-base'
+/** …accurate result on stop. */
+export const LIVE_REFINE_KEY = 'liveRefineModel'
+export const DEFAULT_REFINE_MODEL = 'whisper-small'
+
+/** First installed model among the candidates (engine model list). */
+async function pickInstalled(candidates: (string | undefined)[]): Promise<string | undefined> {
+  const { models } = await engineRequest<ModelsResponse>('/v1/models').catch(() => ({
+    models: [] as ModelsResponse['models'],
+  }))
+  const installed = new Set(models.filter((m) => m.installed && m.role === 'asr').map((m) => m.id))
+  return candidates.find((c) => c && installed.has(c))
+}
 const OFFSCREEN_URL = 'offscreen.html'
 
 const liveKey = (tabId: number) => `live:${tabId}`
@@ -205,7 +219,23 @@ function describe(err: unknown): string {
 /** Start live captions on the tab's primary video (frame from its video reports). */
 export async function startLive(tabId: number, frameId: number): Promise<LiveState> {
   await stopLive(tabId)
-  const prefs = await browser.storage.local.get([LIVE_MODEL_KEY, LIVE_LANGUAGE_KEY, LIVE_TASK_KEY])
+  const prefs = await browser.storage.local.get([
+    LIVE_MODEL_KEY,
+    LIVE_REFINE_KEY,
+    LIVE_LANGUAGE_KEY,
+    LIVE_TASK_KEY,
+  ])
+  const liveModel =
+    (await pickInstalled([
+      prefs[LIVE_MODEL_KEY] as string | undefined,
+      DEFAULT_LIVE_MODEL,
+      DEFAULT_REFINE_MODEL,
+    ])) ?? DEFAULT_LIVE_MODEL
+  const refineModel = await pickInstalled([
+    prefs[LIVE_REFINE_KEY] as string | undefined,
+    DEFAULT_REFINE_MODEL,
+    liveModel,
+  ])
   let job: JobSummary
   try {
     job = await engineRequest<JobSummary>('/v1/jobs', {
@@ -213,10 +243,11 @@ export async function startLive(tabId: number, frameId: number): Promise<LiveSta
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         type: 'live',
-        model: (prefs[LIVE_MODEL_KEY] as string | undefined) || DEFAULT_LIVE_MODEL,
+        model: liveModel,
         params: {
           language: (prefs[LIVE_LANGUAGE_KEY] as string | undefined) || null,
           ...(prefs[LIVE_TASK_KEY] === 'translate' ? { task: 'translate' } : {}),
+          ...(refineModel && refineModel !== liveModel ? { refineModel } : {}),
         },
         priority: 'interactive',
       }),
