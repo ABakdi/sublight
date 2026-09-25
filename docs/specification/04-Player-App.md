@@ -38,15 +38,20 @@ Engine-client logic is a framework-light module (`packages/protocol` consumer + 
 
 ## 4. File handling (per [ADR-0011](../architecture/decisions/0011-local-video-processing.md))
 
-1. `showOpenFilePicker` (FSA) or drag & drop → `File` object; keep a `FileSystemFileHandle` for re-open.
-2. On "Caption this video": player **streams the file** to `PUT /v1/media/:id` (fetch with `duplex: 'half'`, cancellable via job cancel). Engine stores normalized audio by hash.
-3. On success, `media.mediaHash` is saved to the project → **re-captioning is instant** (cache) and re-`transcribe` with another model reuses audio.
+1. `showOpenFilePicker` (FSA) or drag & drop → `File` object, kept in memory (`videoFile`) for upload; a `FileSystemFileHandle` is stored for re-open.
+2. On "Caption this video": the player **streams the file** to `PUT /v1/media/:projectId` with `XMLHttpRequest` (upload progress events; the `File` streams from disk, never buffered), `X-Source-Name` percent-encoded. Cancellable. The engine stores normalized audio by hash.
+3. The returned `mediaHash` is saved to the project. **Re-captioning** first asks `GET /v1/media/:hash`; if the engine still has it, nothing is uploaded again (M03 AC4, verified: 0 uploads). A reloaded project without its file can still be captioned while the engine has the audio; otherwise the panel asks to re-open the file.
 
-## 5. Captioning flow (UI states)
+## 5. Captioning flow (UI states, as built in M03)
 
-1. **Idle** → user sets language/model (defaults from settings) → **Uploading** (progress on bytes) → **Transcribing** (draft cues stream in via `job.partial`, overlay shows them live) → **Refining** (progress %; overlay still shows drafts) → **Done** (final cues replace drafts atomically, `draft:false`) → optional **Translate** (target language; progress; new track appears).
-2. Cancellation at any pre-done state: engine cancels job; partial drafts can be kept (`Keep drafts`) or discarded.
-3. Errors: engine offline → dedicated card with "Start engine" + pairing shortcut; `AUDIO_EMPTY` → explain silence/DRM; unsupported container → engine ffmpeg already handles most — surfaced if it fails.
+Side panel **Caption** tab (`CaptionPanel`, state in `store/caption.ts`):
+
+1. **Gate**: engine offline → card with `pnpm dev:engine` and "Check again"; engine up but unpaired / token rejected → token field (paste `pnpm engine:token`). The header badge reads `engine online · <GPU>`, `engine not paired` or `engine offline`.
+2. **Pickers**: model (ASR models from `GET /v1/models`; uninstalled ones show **Install (size)** with a live download bar from WS `model.install.progress`), spoken language (Detect automatically + common languages), output **spoken language** or **English (translated)** — disabled for models that can't translate ([ADR-0018](../architecture/decisions/0018-whisper-translate-to-english.md)).
+3. **Run**: **Uploading** (bytes %) → **Waiting** (queued) → **Transcribing** (job %, detail such as "transcribing part 2 of 4"). Drafts from `job.partial` render in the overlay immediately (draft styling) while the run continues. **Done** → the final track is added to the project (`projectId` set, `draft: false`) and made active; the panel shows cue count, language and speed or "from cache". WS is an accelerator: job state is also polled over REST every 1.5 s.
+4. **Cancel** at any running phase: aborts the upload or `POST /v1/jobs/:id/cancel`; drafts are discarded (keeping them is an M07 editor concern).
+5. **Errors** in plain language by code: `OFFLINE`, `UNAUTHORIZED`, `AUDIO_EMPTY` (silent), `AUDIO_UNSUPPORTED` (no audio track), `MEDIA_TOO_LARGE`, `MODEL_NOT_INSTALLED`, `WORKER_UNAVAILABLE` (build whisper with `pnpm engine:setup-whisper`), `NO_FILE`.
+6. **Translate to another language** (LLM path) arrives in M04.
 
 ## 6. Editor (M07)
 
@@ -63,8 +68,9 @@ Engine-client logic is a framework-light module (`packages/protocol` consumer + 
 
 ## 8. Engine status integration
 
-- Poll `GET /v1/health` on load + `visibilitychange`; a persistent status bar shows `online/offline`, GPU free VRAM, and running jobs.
-- Token: stored in `localStorage` (user-pasted) — the **same token model** as the extension; `sublight://pair` handshake in M06.
+- `GET /v1/health` on load and `visibilitychange`; the header badge shows online (with GPU name), not paired, or offline.
+- Token: pasted into the Caption panel (or `localStorage['sublight.token']`), the **same token model** as the extension; `sublight://pair` handshake in M06. `sublight.engineUrl` overrides the engine address.
+- One shared WS connection (`EngineSocket`) authenticates with the first message, resubscribes after reconnects (exponential backoff to 10 s) and feeds model-install and job events to the stores.
 
 ## 9. Opening a page's video (open-in-player, [ADR-0017](../architecture/decisions/0017-open-in-player.md))
 

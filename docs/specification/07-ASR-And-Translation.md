@@ -54,7 +54,7 @@ videoTime(cue) = audioStreamTime(cue) + T₀ + δ
 | **T₀**                 | capture start anchor = `video.currentTime` at capture start (0 for local files) | capture layer ([08](08-Audio-Capture.md)) |
 | **δ**                  | fine offset; estimated, then user-tweakable (±50 ms nudges)                     | auto + manual                             |
 
-**(a) δ auto-estimation:** take the first ~10 s with speech (VAD); find speech onsets (energy rise) and match whisper word boundaries; δ = median(`onset − wordStart`). Cheap, robust, runs once per job. Fallback δ = 0 when no reliable onsets.
+**(a) δ auto-estimation** (`apps/engine/src/asr/delta.ts`): speech onsets come from 10 ms frame energy relative to the file's own noise floor (10th percentile + 10 dB, after ≥ 150 ms of quiet); each is paired with a word that starts after a pause (≥ 150 ms gap) within ±150 ms; δ = median(`onset − wordStart`), rounded to 10 ms. **Applied only when the evidence agrees:** ≥ 8 matches with an interquartile range ≤ 150 ms, and |δ| ≤ 400 ms; otherwise δ = 0. Measured on 10 min of German speech, whisper's per-word timing scatters ±100–250 ms around onsets with no stable global offset (the median moved from +100 to +10 ms depending on the pairing window), so a naive median would have shifted a correctly-timed track. A trusted δ is written to `track.syncOffsetMs`, where manual nudges add to it.
 
 **(b) Drift control:** long captures re-anchor every ~2 min of strong speech: compute local δ per window, apply linear interpolation between anchors. This bounds total error < 500 ms on 2 h (target). Local files (T₀ = 0, audio = file audio exactly) need no drift correction.
 
@@ -62,20 +62,30 @@ videoTime(cue) = audioStreamTime(cue) + T₀ + δ
 
 ### 1.5 Refinement pass (post-capture)
 
+> **Local files (topology B, M03):** a single pass with the chosen model. Its drafts are the same run's chunk commits (each draft is a prefix of the final track), so the final track can never be worse than a draft and no second pass is needed. The refinement pass below is for **live capture** (topology A, M05), where drafts come from a faster rolling-window model.
+
 - Re-run ASR over the **full captured audio** with the user's chosen model (drafts used a fast/live model window).
 - Re-anchor at control points (§1.4b); rebuild cues atomically; replace draft track in place (`draft:false`).
 - Guard: if refinement's overall confidence or corpus metrics are worse than the draft's, keep the draft (never regress).
 
 ### 1.6 Long-form chunking
 
-Audio longer than 10 min → 10-min chunks cut from the normalized WAV with **1 s of overlap**, run sequentially (the GPU is busy anyway) and **checkpointed**: each chunk's raw whisper output is saved before the next starts, so a restarted job resumes after the last finished chunk. Merging keeps each word once: a later chunk only contributes words starting after the last kept word ends (−50 ms tolerance) and before its own owned range ends. The language detected on the first chunk is pinned for the rest. Partial tracks (`job.partial`, `draft: true`) are emitted after each chunk.
+Audio longer than one chunk → **2-min chunks** cut from the normalized WAV with **1 s of overlap**, run sequentially (the GPU is busy anyway) and **checkpointed**: each chunk's raw whisper output is saved before the next starts, so a restarted job resumes after the last finished chunk. Each chunk gets the previous ~200 characters as whisper's `prompt` (names and style carry across the cut); chunks whose mean volume is below −60 dB skip ASR (whisper invents text over silence), and segments matching whisper's hallucination rule (`no_speech_prob > 0.6` and `avg_logprob < −1`) are dropped. Merging keeps each word once: a later chunk only contributes words starting after the last kept word ends (−50 ms tolerance) and before its own owned range ends. The language detected on the first chunk is pinned for the rest. After each chunk a partial track (`job.partial`, `draft: true`) goes out.
 
-Measured on the target T1000 with whisper-small: 10 min of German speech in 76 s (≈ 8× realtime); an engine killed after chunk 1 of an 11-min job resumed and finished the remaining minute in 9 s, with a seamless boundary at 10:00.
+Chunk size trade-off, measured on the target T1000 (10 min of German speech, model already loaded):
+
+| Model / chunk          | Total  | First draft |
+| ---------------------- | ------ | ----------- |
+| whisper-small / 10 min | 77.9 s | 75.8 s      |
+| whisper-small / 2 min  | 89.9 s | 17.8 s      |
+| whisper-base / 2 min   | 29.5 s | 6.1 s       |
+
+2-min chunks cost ~15% total time for drafts that start within seconds. An engine killed mid-job resumed and finished only the missing chunk, seamless at the boundary (M02 AC4). A 30-min clip runs in ~260 s with whisper-small (≈ 6.9× realtime).
 
 ### 1.7 Quality gates (measured, not assumed)
 
 - Per-cue minimum word confidence warning (log only).
-- Corpus harness ([M00.8](../plan/milestones/00-Foundations.md)) reports median word-onset offset + coverage; numbers published per release in [checkpoints](../checkpoints/README.md).
+- Corpus harness ([M00.8](../plan/milestones/00-Foundations.md), `pnpm sync:run` + `pnpm sync:measure`) reports median |word-onset error|, bias, coverage and drift per clip; numbers published per release in [checkpoints](../checkpoints/README.md). M03 baseline (whisper-small, energy-onset reference): **JFK 11 s: 7 ms**, **Kafka 30 min (German): 93 ms, bias −1 ms, drift 0.5 ms**, 99% of 540 pause onsets matched.
 
 ## 2. Translation pipeline (per [ADR-0009](../architecture/decisions/0009-translation-stack.md), amended by [ADR-0018](../architecture/decisions/0018-whisper-translate-to-english.md))
 

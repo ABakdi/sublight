@@ -122,7 +122,7 @@ The `docs/` folder is an **Obsidian vault** used as the living specification for
 
 ## Development status
 
-**M00–M02 are done**: the player plays local files with styled subtitles, and the local engine transcribes with whisper.cpp on the GPU (word-level timestamps, English translation, pinned model installs, resumable jobs). **Next: [M03 — Transcription pipeline](docs/plan/milestones/03-Transcription-Pipeline.md)**, wiring the player to the engine. See [docs/plan/Roadmap.md](docs/plan/Roadmap.md) for the full plan.
+**M00–M03 are done**: open a video in the player, click **Caption**, and the local engine transcribes it with whisper.cpp on the GPU. Word-level timestamps, English translation, drafts while it runs; sync measured at a 93 ms median onset error over 30 min. **Next: M04 (translation) and M05 (extension overlay).** See [docs/plan/Roadmap.md](docs/plan/Roadmap.md).
 
 ## License & ethics notes
 

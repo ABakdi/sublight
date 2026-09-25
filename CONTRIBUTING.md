@@ -27,6 +27,7 @@ few simple conventions keep it coherent.
 | `pnpm test`          | Vitest unit tests across all workspaces                                   |
 | `pnpm e2e`           | Playwright (Chromium; Brave when installed)                               |
 | `pnpm e2e:extension` | Extension e2e (builds the unpacked MV3 and loads it)                      |
+| `pnpm sync:run`      | Transcribe the sync corpus through a running engine                       |
 | `pnpm sync:measure`  | Sync-accuracy corpus report                                               |
 
 ## Running the engine with speech recognition
@@ -43,7 +44,11 @@ The build needs cmake and a C++ compiler; CUDA is used when `nvcc` is on
 `PATH` or in `/opt/cuda` (pass `--cpu` to skip it). Models download from
 pinned Hugging Face revisions and are SHA-256 checked. The engine's real-ASR
 test (`apps/engine/tests/asr.integration.test.ts`) runs automatically once the
-binary and whisper-small are installed.
+binary and whisper-small are installed, and `E2E_REAL_ASR=1 pnpm e2e` runs the
+player's full caption journey against them.
+
+In the player: open a video, pick the **Caption** tab, paste the token from
+`pnpm engine:token` once, choose a model and click **Caption this video**.
 
 ## Trying the extension in a real browser
 
