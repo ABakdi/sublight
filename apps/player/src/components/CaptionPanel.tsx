@@ -1,51 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AsrTask, ModelInfo } from '@sublight/protocol'
-import { useCaptionStore, type CaptionPhase } from '../store/caption'
+import { useCaptionStore } from '../store/caption'
+import { isRunning, JobProgress } from './JobProgress'
+import { BTN, FIELD, LANGUAGES, mb, PRIMARY } from './ui'
 import { useEngineStore } from '../store/engine'
 import { usePlayerStore } from '../store/player'
 
-const BTN =
-  'rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 transition hover:border-zinc-500 disabled:opacity-40 disabled:hover:border-zinc-700'
-const PRIMARY =
-  'rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-900 transition hover:bg-white disabled:opacity-40'
-const FIELD =
-  'w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100'
-
-/** Common spoken languages first; whisper detects ~100 when left on Auto. */
-const LANGUAGES: [string, string][] = [
-  ['en', 'English'],
-  ['de', 'German'],
-  ['fr', 'French'],
-  ['es', 'Spanish'],
-  ['it', 'Italian'],
-  ['pt', 'Portuguese'],
-  ['nl', 'Dutch'],
-  ['ru', 'Russian'],
-  ['ar', 'Arabic'],
-  ['tr', 'Turkish'],
-  ['ja', 'Japanese'],
-  ['zh', 'Chinese'],
-  ['ko', 'Korean'],
-  ['hi', 'Hindi'],
-  ['pl', 'Polish'],
-  ['uk', 'Ukrainian'],
-]
-
-const PHASE_LABEL: Record<CaptionPhase, string> = {
-  idle: '',
-  uploading: 'Sending the video to the engine',
-  queued: 'Waiting',
-  transcribing: 'Transcribing',
-  done: 'Done',
-  cancelled: 'Cancelled',
-  error: 'Failed',
-}
-
 const DEFAULT_MODEL = 'whisper-small'
-
-function mb(bytes: number | null): string {
-  return bytes ? `${Math.round(bytes / 1024 / 1024)} MB` : ''
-}
 
 /** Engine unreachable or unpaired: say exactly what to do (Spec 04 §5.3, AC5). */
 function EngineGate() {
@@ -177,7 +138,7 @@ export function CaptionPanel() {
   const refreshModels = useEngineStore((s) => s.refreshModels)
   const hasFile = usePlayerStore((s) => s.videoFile !== null)
   const hasMediaHash = usePlayerStore((s) => Boolean(s.project?.media.mediaHash))
-  const { phase, progress, detail, error, resultNote, start, cancel } = useCaptionStore()
+  const { phase, activity, start } = useCaptionStore()
 
   const models = useMemo(() => allModels.filter((m) => m.role === 'asr'), [allModels])
   const [model, setModel] = useState(DEFAULT_MODEL)
@@ -196,7 +157,7 @@ export function CaptionPanel() {
 
   if (status !== 'online') return <EngineGate />
 
-  const running = phase === 'uploading' || phase === 'queued' || phase === 'transcribing'
+  const running = isRunning(phase)
   const ready = Boolean(selected?.installed) && (hasFile || hasMediaHash) && !running
 
   return (
@@ -257,60 +218,26 @@ export function CaptionPanel() {
       )}
 
       {running ? (
-        <div className="flex flex-col gap-2" data-testid="caption-progress" data-phase={phase}>
-          <div className="flex items-baseline justify-between text-xs">
-            <span className="text-zinc-200">{PHASE_LABEL[phase]}</span>
-            <span className="tabular-nums text-zinc-400">{Math.round(progress * 100)}%</span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded bg-zinc-800">
-            <div
-              className="h-full bg-zinc-300 transition-[width]"
-              style={{ width: `${Math.round(progress * 100)}%` }}
-            />
-          </div>
-          {detail && <p className="text-xs text-zinc-500">{detail}</p>}
+        <JobProgress testId="caption" />
+      ) : (
+        <>
           <button
             type="button"
-            data-testid="caption-cancel"
-            className={BTN}
-            onClick={() => void cancel()}
+            data-testid="caption-start"
+            className={PRIMARY}
+            disabled={!ready}
+            onClick={() =>
+              void start({
+                model,
+                language: language || null,
+                task: canTranslate ? task : 'transcribe',
+              })
+            }
           >
-            Cancel
+            Caption this video
           </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          data-testid="caption-start"
-          className={PRIMARY}
-          disabled={!ready}
-          onClick={() =>
-            void start({
-              model,
-              language: language || null,
-              task: canTranslate ? task : 'transcribe',
-            })
-          }
-        >
-          Caption this video
-        </button>
-      )}
-
-      {phase === 'done' && resultNote && (
-        <p data-testid="caption-done" className="text-xs text-emerald-300">
-          Added a subtitle track · {resultNote}
-        </p>
-      )}
-      {phase === 'cancelled' && <p className="text-xs text-zinc-400">Captioning cancelled.</p>}
-      {phase === 'error' && error && (
-        <p
-          data-testid="caption-error"
-          data-code={error.code}
-          role="alert"
-          className="text-xs leading-relaxed text-red-300"
-        >
-          {error.message}
-        </p>
+          {activity === 'caption' && <JobProgress testId="caption" />}
+        </>
       )}
     </div>
   )

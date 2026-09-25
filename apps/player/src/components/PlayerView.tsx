@@ -48,6 +48,12 @@ export function PlayerView() {
   const activeTrack = project ? activeTrackOf(project) : null
   // While captioning, the progressive draft is what's worth watching.
   const shownTrack = draft ?? activeTrack
+  // Bilingual (Spec 05 §7): the source track dimmed above the translation.
+  const pair = project?.settings.bilingual
+  const secondaryTrack =
+    !draft && pair && pair.translationTrackId === shownTrack?.id
+      ? project?.tracks.find((t) => t.id === pair.sourceTrackId)
+      : undefined
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current
@@ -262,6 +268,8 @@ export function PlayerView() {
                   video={videoRef}
                   cues={shownTrack.cues}
                   syncOffsetMs={shownOffsetMs}
+                  secondaryCues={secondaryTrack?.cues}
+                  secondarySyncOffsetMs={secondaryTrack?.syncOffsetMs ?? 0}
                   style={project.settings.style}
                   draft={shownTrack.draft}
                   className="subtitle-overlay"
