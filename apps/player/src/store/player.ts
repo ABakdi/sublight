@@ -37,6 +37,8 @@ export interface PlayerState {
   view: View
   project: SubtitleProject | null
   videoObjectUrl: string | null
+  /** The opened file itself, needed to upload it for captioning (null after a reload until re-attached). */
+  videoFile: File | null
   error: string | null
   /** Create a project from a local video file. */
   openWithFile: (file: File, handle?: FileSystemFileHandleLike) => Promise<void>
@@ -55,6 +57,10 @@ export interface PlayerState {
   removeTrack: (trackId: string) => Promise<void>
   exportActiveSrt: () => Promise<void>
   savePosition: (ms: number) => Promise<void>
+  /** Remember the engine's normalized-audio hash so re-captioning skips the upload (Spec 04 §4). */
+  setMediaHash: (mediaHash: string) => Promise<void>
+  /** Add an engine-produced track to the project and make it active. */
+  addGeneratedTrack: (track: SubtitleTrack) => Promise<void>
 }
 
 function msg(err: unknown): string {
@@ -129,6 +135,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     view: { name: 'library' },
     project: null,
     videoObjectUrl: null,
+    videoFile: null,
     error: null,
 
     openWithFile: async (file, handle) => {
@@ -143,7 +150,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       }
       if (handle) await setSetting(mediaHandleKey(project.id), handle)
       await saveProject(project)
-      set({ view: { name: 'player' }, project, videoObjectUrl: url, error: null })
+      set({ view: { name: 'player' }, project, videoObjectUrl: url, videoFile: file, error: null })
     },
 
     pickVideo: async () => {
@@ -166,7 +173,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       await commit((p) => {
         p.media.source = file.name
       })
-      set({ videoObjectUrl: url, error: null })
+      set({ videoObjectUrl: url, videoFile: file, error: null })
     },
 
     loadProjectFromLibrary: async (id) => {
@@ -177,15 +184,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
           return
         }
         let url: string | null = null
+        let file: File | null = null
         if (project.media.kind === 'local-file') {
           const handle = await getSetting<FileSystemFileHandleLike>(mediaHandleKey(id))
           if (handle) {
             const media = await reopenLocalMedia(handle)
-            if (media) url = await swapObjectUrl(media.file)
-            else set({ error: 'Reading the video file was denied — choose the file again.' })
+            if (media) {
+              file = media.file
+              url = await swapObjectUrl(media.file)
+            } else set({ error: 'Reading the video file was denied — choose the file again.' })
           }
         }
-        set({ project, videoObjectUrl: url, view: { name: 'player' } })
+        set({ project, videoObjectUrl: url, videoFile: file, view: { name: 'player' } })
       } catch (err) {
         set({ error: `Could not open the project: ${msg(err)}` })
       }
@@ -193,7 +203,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     backToLibrary: async () => {
       await swapObjectUrl(null)
-      set({ view: { name: 'library' }, project: null, videoObjectUrl: null, error: null })
+      set({
+        view: { name: 'library' },
+        project: null,
+        videoObjectUrl: null,
+        videoFile: null,
+        error: null,
+      })
     },
 
     setError: (message) => set({ error: message }),
@@ -302,6 +318,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       } catch (err) {
         set({ error: `Could not save playback position: ${msg(err)}` })
       }
+    },
+
+    setMediaHash: async (mediaHash) => {
+      if (get().project?.media.mediaHash === mediaHash) return
+      await commit((p) => {
+        p.media.mediaHash = mediaHash
+      })
+    },
+
+    addGeneratedTrack: async (track) => {
+      await commit((p) => {
+        p.tracks.push({ ...track, projectId: p.id, draft: false })
+        p.settings.activeTrackId = track.id
+      })
     },
   }
 })
