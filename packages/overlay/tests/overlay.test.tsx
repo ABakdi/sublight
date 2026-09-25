@@ -164,3 +164,37 @@ describe('overlay lifecycle', () => {
     errors.mockRestore()
   })
 })
+
+describe('bilingual mode (Spec 05 §7)', () => {
+  const readCue = (container: HTMLElement) => {
+    const host = container.querySelector('[data-sublight-host]')!
+    const cue = host.shadowRoot!.querySelector('.sl-cue')!
+    return {
+      secondary: cue.querySelector('.sl-secondary')?.textContent ?? null,
+      lines: [...cue.querySelectorAll('.sl-line')].map((l) => l.textContent),
+      bilingual: cue.classList.contains('is-bilingual'),
+    }
+  }
+  const translation = [{ id: 't', startMs: 0, endMs: 1000, text: 'Hello' }]
+  const source = [
+    { id: 's1', startMs: 0, endMs: 1000, text: 'Hallo' },
+    { id: 's2', startMs: 1500, endMs: 2500, text: 'nur\nQuelle' },
+  ]
+
+  it('shows the source line above the translation, each on its own timing', async () => {
+    const view = render(
+      createElement(SubtitleOverlay, { cues: translation, secondaryCues: source, currentMs: 500 }),
+    )
+    await new Promise((r) => setTimeout(r, 0))
+    expect(readCue(view.container)).toEqual({
+      secondary: 'Hallo',
+      lines: ['Hello'],
+      bilingual: true,
+    })
+    view.rerender(
+      createElement(SubtitleOverlay, { cues: translation, secondaryCues: source, currentMs: 2000 }),
+    )
+    await new Promise((r) => setTimeout(r, 0))
+    expect(readCue(view.container)).toEqual({ secondary: 'nur Quelle', lines: [], bilingual: true })
+  })
+})

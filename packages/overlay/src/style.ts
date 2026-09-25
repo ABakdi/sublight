@@ -22,6 +22,9 @@ export function styleToCssVars(style: SubtitleStyle, scale = 1): Record<string, 
     '--sl-line-height': String(style.lineHeight),
     '--sl-opacity': String(style.opacity),
     '--sl-casing': style.casing,
+    '--sl-secondary-color': style.bilingual?.secondaryColor ?? '#d4d4d8',
+    '--sl-secondary-opacity': String(style.bilingual?.secondaryOpacity ?? 0.85),
+    '--sl-secondary-scale': String(style.bilingual?.heightRatio ?? 0.75),
   }
   if (style.karaoke?.active) {
     vars['--sl-karaoke-color'] = style.karaoke.highlightColor
@@ -69,6 +72,14 @@ export const OVERLAY_CSS = `
 .sl-margin-left { margin-left: var(--sl-position-margin, 32px); }
 .sl-margin-right { margin-right: var(--sl-position-margin, 32px); }
 .sl-line { display: block; }
+.sl-cue.is-bilingual { display: block; -webkit-line-clamp: unset; }
+.sl-secondary {
+  display: block;
+  color: var(--sl-secondary-color, #d4d4d8);
+  opacity: var(--sl-secondary-opacity, 0.85);
+  font-size: calc(var(--sl-secondary-scale, 0.75) * 1em);
+  font-weight: normal;
+}
 .sl-draft-badge { margin-right: 0.35em; font-size: 0.8em; }
 .sl-cue.is-empty { visibility: hidden; }
 .sl-cue.is-draft {

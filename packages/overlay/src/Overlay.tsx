@@ -34,6 +34,12 @@ export interface SubtitleOverlayProps {
   syncOffsetMs?: number
   /** Partial style; resolved over the core defaults. */
   style?: Partial<SubtitleStyle>
+  /**
+   * Bilingual mode (Spec 05 §7): the source track, shown dimmed above the
+   * main (translation) track. Timings stay independent.
+   */
+  secondaryCues?: SubtitleCue[]
+  secondarySyncOffsetMs?: number
   /** Draft tracks render with the Spec 05 §6 provisional affordance. */
   draft?: boolean
   /** Extra class on the host element (scoped outside by the shadow root). */
@@ -42,6 +48,8 @@ export interface SubtitleOverlayProps {
 
 interface Frame {
   text: string | null
+  /** Bilingual mode: the source line shown dimmed above (Spec 05 §7). */
+  secondary: string | null
   cssVars: Record<string, string>
   anchor: Anchor
   marginSide: AnchorLayoutSide
@@ -54,10 +62,17 @@ const shadowRoots = new WeakMap<
   { root: Root; unmountTimer?: ReturnType<typeof setTimeout> }
 >()
 
-const EMPTY_FRAME: Frame = { text: null, cssVars: {}, anchor: 'bottom', marginSide: 'bottom' }
+const EMPTY_FRAME: Frame = {
+  text: null,
+  secondary: null,
+  cssVars: {},
+  anchor: 'bottom',
+  marginSide: 'bottom',
+}
 
 function frameKeysEqual(a: Frame, b: Frame): boolean {
-  if (a.text !== b.text || a.anchor !== b.anchor || a.marginSide !== b.marginSide) return false
+  if (a.text !== b.text || a.secondary !== b.secondary) return false
+  if (a.anchor !== b.anchor || a.marginSide !== b.marginSide) return false
   for (const k of Object.keys(a.cssVars)) if (a.cssVars[k] !== b.cssVars[k]) return false
   for (const k of Object.keys(b.cssVars)) if (b.cssVars[k] !== a.cssVars[k]) return false
   return true
@@ -75,6 +90,8 @@ export function SubtitleOverlay({
   currentMs = 0,
   video = null,
   syncOffsetMs = 0,
+  secondaryCues,
+  secondarySyncOffsetMs = 0,
   style,
   draft = false,
   className,
@@ -89,6 +106,15 @@ export function SubtitleOverlay({
     () => (syncOffsetMs === 0 ? cues : shiftCues(cues, syncOffsetMs)),
     [cues, syncOffsetMs],
   )
+  const effectiveSecondary = useMemo(
+    () =>
+      !secondaryCues
+        ? null
+        : secondarySyncOffsetMs === 0
+          ? secondaryCues
+          : shiftCues(secondaryCues, secondarySyncOffsetMs),
+    [secondaryCues, secondarySyncOffsetMs],
+  )
   const scale = scaleFactor(hostHeight)
 
   // Element or ref-object → the live element; non-reactive, read per frame.
@@ -100,16 +126,18 @@ export function SubtitleOverlay({
   const compute = useCallback(
     (t: number): Frame => {
       const active = activeCueAt(effectiveCues, t)
-      if (!active) return EMPTY_FRAME
+      const second = effectiveSecondary ? activeCueAt(effectiveSecondary, t) : null
+      if (!active && !second) return EMPTY_FRAME
       const layout = anchorLayout(effectiveStyle.position.anchor)
       return {
-        text: active.text,
+        text: active?.text ?? null,
+        secondary: second?.text ?? null,
         cssVars: styleToCssVars(effectiveStyle, scale),
         anchor: effectiveStyle.position.anchor,
         marginSide: layout.marginSide,
       }
     },
-    [effectiveCues, effectiveStyle, scale],
+    [effectiveCues, effectiveSecondary, effectiveStyle, scale],
   )
 
   // Measure the play region; re-measure on host resize and window resize
@@ -213,10 +241,12 @@ function ShadowContent({ frame, draft }: { frame: Frame; draft: boolean }) {
     justifyContent: layout.justifyContent,
     alignItems: layout.alignItems,
   } as CSSProperties
+  const shown = frame.text !== null || frame.secondary !== null
   const cueClass = [
     'sl-cue',
     `sl-margin-${frame.marginSide}`,
-    frame.text ? '' : 'is-empty',
+    shown ? '' : 'is-empty',
+    frame.secondary !== null ? 'is-bilingual' : '',
     draft && frame.text ? 'is-draft' : '',
   ]
     .filter(Boolean)
@@ -231,14 +261,22 @@ function ShadowContent({ frame, draft }: { frame: Frame; draft: boolean }) {
       createElement(
         'div',
         { className: cueClass, 'data-anchor': frame.anchor },
-        frame.text === null
+        !shown
           ? ''
           : [
-              draft
+              frame.secondary !== null
+                ? createElement(
+                    'div',
+                    { key: 'secondary', className: 'sl-secondary' },
+                    frame.secondary.replace(/\s*\n\s*/g, ' '),
+                  )
+                : null,
+              draft && frame.text
                 ? createElement('span', { key: 'badge', className: 'sl-draft-badge' }, '⧗')
                 : null,
-              ...frame.text
+              ...(frame.text ?? '')
                 .split('\n')
+                .filter((line) => frame.text !== null && line !== '')
                 .map((line, i) => createElement('div', { key: i, className: 'sl-line' }, line)),
             ],
       ),
