@@ -30,6 +30,16 @@ const STATUS: Record<string, number> = {
   WORKER_UNAVAILABLE: 503,
 }
 
+/** `X-Source-Name` is percent-encoded by clients (header values are Latin-1 only). */
+function sourceName(header: string | undefined): string | null {
+  if (!header) return null
+  try {
+    return decodeURIComponent(header).slice(0, 512)
+  } catch {
+    return header.slice(0, 512)
+  }
+}
+
 /** Map service errors onto the single error envelope (Protocol §6). */
 function toResponse(c: Context, err: unknown) {
   if (err instanceof JobError) return jsonError(c, err.code, err.message, err.status, err.retryable)
@@ -111,7 +121,7 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
         const result = await s.media.ingest(
           c.req.param('mediaId'),
           Readable.fromWeb(body as unknown as NodeWebStream),
-          c.req.header('x-source-name') ?? null,
+          sourceName(c.req.header('x-source-name')),
         )
         return c.json(result)
       } catch (err) {
