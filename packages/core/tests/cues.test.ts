@@ -63,6 +63,23 @@ describe('wrapWords', () => {
     expect(lines.length).toBeLessThanOrEqual(3)
     for (const line of lines) expect(line.length).toBeLessThanOrEqual(42 + 8)
   })
+
+  it('starts the next line with the word that overflows', () => {
+    const text = 'what your country can do for you, ask what you can do for your country.'
+    expect(wrapWords(text.split(' '))).toEqual([
+      'what your country can do for you, ask what',
+      'you can do for your country.',
+    ])
+  })
+
+  it('folds words past the last line into it instead of dropping them', () => {
+    expect(wrapWords(['aaaa', 'bbbb', 'cccc', 'dddd'], 4, 2)).toEqual(['aaaa', 'bbbb cccc dddd'])
+  })
+
+  it('keeps short text on one line and skips empty words', () => {
+    expect(wrapWords(['Hello', '', 'world'])).toEqual(['Hello world'])
+    expect(wrapWords([])).toEqual([])
+  })
 })
 
 describe('normalizeCues', () => {

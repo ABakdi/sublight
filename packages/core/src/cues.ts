@@ -12,7 +12,11 @@ export const MERGE_GAP_MS = 80
 /** Break on inter-word pauses at or above this. */
 export const PAUSE_BREAK_MS = 300
 
-/** Wrap words into up to `maxLines` lines of <= `maxChars` chars each. */
+/**
+ * Greedy wrap into lines of <= `maxChars`: a word that doesn't fit starts the
+ * next line. Past `maxLines`, the remaining words fold into the last line
+ * (overflow is accepted rather than dropping speech).
+ */
 export function wrapWords(
   words: string[],
   maxChars = MAX_LINE_CHARS,
@@ -20,31 +24,15 @@ export function wrapWords(
 ): string[] {
   const lines: string[] = []
   let current = ''
-
-  const pushCurrent = () => {
-    if (current) lines.push(current)
-  }
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i]!
-    const candidate = current ? `${current} ${word}` : word
-    if (candidate.length > maxChars && current) {
-      pushCurrent()
-      lines.push(word)
-      current = ''
-      if (lines.length === maxLines) {
-        // Fold the remainder into the last line (accept overflow after wrap).
-        let rest = word
-        for (let j = i + 1; j < words.length; j++) rest += ` ${words[j]}`
-        lines[lines.length - 1] = rest
-        return lines
-      }
-      continue
+  for (const word of words) {
+    if (!word) continue
+    if (!current) current = word
+    else if (current.length + 1 + word.length <= maxChars || lines.length === maxLines - 1) {
+      current = `${current} ${word}`
+    } else {
+      lines.push(current)
+      current = word
     }
-    if (lines.length >= maxLines) {
-      lines[lines.length - 1] = `${lines[lines.length - 1]} ${word}`
-      continue
-    }
-    current = candidate
   }
   if (current) lines.push(current)
   return lines
