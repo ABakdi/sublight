@@ -11,6 +11,10 @@ export {
   MERGE_GAP_MS,
   MIN_CUE_DURATION_MS,
   PAUSE_BREAK_MS,
+  holdForReading,
+  revealByWords,
+  MIN_DISPLAY_MS,
+  LINGER_MS,
 } from './cues'
 export { newId } from './id'
 export { parseSrt, parseSrtTime, serializeSrt, formatSrtTime } from './srt'

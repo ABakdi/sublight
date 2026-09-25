@@ -6,6 +6,10 @@ import {
   wrapWords,
   MAX_CUE_DURATION_MS,
   MIN_CUE_DURATION_MS,
+  MIN_DISPLAY_MS,
+  LINGER_MS,
+  holdForReading,
+  revealByWords,
 } from '../src/cues'
 import type { SpeechWord } from '../src/types'
 
@@ -44,16 +48,62 @@ describe('cue construction (Spec 02 §4)', () => {
     }
   })
 
-  it('enforces a minimum cue duration of 200 ms', () => {
+  it('keeps a short cue on screen long enough to read (≥ 1 s)', () => {
     const cues = buildCuesFromWords([w('tick', 0, 50)])
-    expect(cues[0]!.endMs - cues[0]!.startMs).toBe(200)
+    expect(cues[0]!.endMs - cues[0]!.startMs).toBe(MIN_DISPLAY_MS)
   })
 
-  it('merges cues closer than 80 ms apart', () => {
-    const words = [w('a', 0, 600), w('b', 660, 1200)]
-    const cues = buildCuesFromWords(words)
+  it('groups words without a pause into one cue that lingers after the last word', () => {
+    const cues = buildCuesFromWords([w('a', 0, 600), w('b', 660, 1200)])
     expect(cues).toHaveLength(1)
-    expect(cues[0]!.endMs).toBe(1200)
+    expect(cues[0]!.endMs).toBe(1200 + LINGER_MS)
+  })
+
+  it('keeps continuous speech within the max cue length (no re-merging split cues)', () => {
+    // 40 words, no pauses, no punctuation: 20 s of speech.
+    const words = Array.from({ length: 40 }, (_, i) => w(`word${i}`, i * 500, i * 500 + 480))
+    const cues = buildCuesFromWords(words)
+    expect(cues.length).toBeGreaterThan(2)
+    for (const c of cues) {
+      const spoken = c.words!.at(-1)!.endMs - c.words![0]!.startMs
+      expect(spoken).toBeLessThanOrEqual(MAX_CUE_DURATION_MS)
+    }
+  })
+})
+
+describe('word-by-word reveal', () => {
+  it('grows the text one word at a time, each step when its word is spoken', () => {
+    const cue = {
+      id: 'c',
+      startMs: 1000,
+      endMs: 3000,
+      text: 'ask not what',
+      words: [w('ask', 1000, 1300), w('not', 1400, 1700), w('what', 2000, 2400)],
+    }
+    const steps = revealByWords([cue])
+    expect(steps.map((s) => [s.startMs, s.endMs, s.text])).toEqual([
+      [1000, 1400, 'ask'],
+      [1400, 2000, 'ask not'],
+      [2000, 3000, 'ask not what'],
+    ])
+  })
+
+  it('passes cues without word timings through', () => {
+    const plain = { id: 'p', startMs: 0, endMs: 1000, text: 'imported line' }
+    expect(revealByWords([plain])).toEqual([plain])
+  })
+})
+
+describe('reading hold', () => {
+  it('extends a cue to its reading time but never over the next cue, closing tiny gaps', () => {
+    const cues = holdForReading([
+      { id: 'a', startMs: 0, endMs: 300, text: 'A fairly long line of subtitle text here' },
+      { id: 'b', startMs: 1500, endMs: 1800, text: 'Next' },
+      { id: 'c', startMs: 1830, endMs: 2500, text: 'Right after' },
+    ])
+    expect(cues[0]!.endMs).toBe(1500) // wanted 2 s of reading, stopped at the next cue
+    expect(cues[1]!.endMs).toBe(1830) // gap < 80 ms closed
+    expect(cues[2]!.endMs).toBe(3000) // last cue: 0.5 s linger (reading time 1 s from 1830 is shorter)
   })
 })
 

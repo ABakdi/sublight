@@ -90,14 +90,38 @@ export function buildCuesFromWords(
   }
   flush()
 
-  // Merge cues closer than MERGE_GAP_MS, then fold fragments into a neighbour.
-  const merged: SubtitleCue[] = []
-  for (const cue of cues) {
-    const prev = merged[merged.length - 1]
-    if (prev && prev.endMs + MERGE_GAP_MS >= cue.startMs) joinInto(prev, cue, maxChars)
-    else merged.push({ ...cue, words: [...(cue.words ?? [])] })
-  }
-  return foldFragments(merged, maxCue, maxChars)
+  // Fold fragments into a neighbour, then keep each cue up long enough to read.
+  // (Cues used to be merged when < 80 ms apart, but continuous speech always
+  // is, so that undid the length split and produced 8-10 s cues.)
+  return holdForReading(foldFragments(cues, maxCue, maxChars))
+}
+
+/** A cue stays up at least this long… */
+export const MIN_DISPLAY_MS = 1000
+/** …and this long per character (≈ 20 characters per second)… */
+export const READ_MS_PER_CHAR = 50
+/** …and lingers this long after its last word, when the next cue allows. */
+export const LINGER_MS = 500
+
+/**
+ * Readability (Spec 02 §4): extend each cue's end so it's on screen long
+ * enough to read — max(1 s, 50 ms × characters), plus 0.5 s after the last
+ * word — but never past the next cue's start. Gaps shorter than
+ * MERGE_GAP_MS close, so captions don't flicker between cues. Word timings
+ * are untouched: word-by-word display still follows the speech exactly.
+ */
+export function holdForReading(cues: SubtitleCue[]): SubtitleCue[] {
+  return cues.map((cue, i) => {
+    const next = cues[i + 1]
+    const chars = cue.text.replace(/\n/g, ' ').length
+    const need = Math.max(MIN_DISPLAY_MS, chars * READ_MS_PER_CHAR)
+    let end = Math.max(cue.endMs + LINGER_MS, cue.startMs + need)
+    if (next) {
+      end = Math.min(end, next.startMs)
+      if (next.startMs - end < MERGE_GAP_MS) end = next.startMs
+    }
+    return { ...cue, endMs: Math.max(cue.endMs, end) }
+  })
 }
 
 /** Append `next` to `into`; the text is re-wrapped from the words, never truncated. */
@@ -225,4 +249,37 @@ export function activeCueAt(cues: SubtitleCue[], currentMs: number): SubtitleCue
     }
   }
   return found && currentMs < found.endMs ? found : null
+}
+
+/**
+ * Word-by-word display: expand each cue into steps whose text grows one word
+ * at a time, each step starting when its word is spoken, the last lasting to
+ * the cue's (reading-hold) end. The overlay needs no special mode: it just
+ * shows the active step. Cues without word timings pass through unchanged.
+ */
+export function revealByWords(cues: SubtitleCue[], maxChars = MAX_LINE_CHARS): SubtitleCue[] {
+  const out: SubtitleCue[] = []
+  for (const cue of cues) {
+    const words = cue.words ?? []
+    if (words.length < 2) {
+      out.push(cue)
+      continue
+    }
+    for (let i = 0; i < words.length; i++) {
+      const start = i === 0 ? cue.startMs : Math.max(cue.startMs, words[i]!.startMs)
+      const end = i === words.length - 1 ? cue.endMs : Math.max(start + 1, words[i + 1]!.startMs)
+      if (end <= start) continue
+      out.push({
+        id: `${cue.id}#${i}`,
+        startMs: start,
+        endMs: end,
+        text: wrapWords(
+          words.slice(0, i + 1).map((w) => w.word),
+          maxChars,
+        ).join('\n'),
+        ...(cue.speaker ? { speaker: cue.speaker } : {}),
+      })
+    }
+  }
+  return out
 }
