@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { SubtitleOverlay } from '@sublight/overlay'
+import { revealByWords } from '@sublight/core'
 import { activeTrackOf, usePlayerStore } from '../store/player'
 import { hasFileSystemAccess } from '../lib/fileOpen'
 import { TracksPanel } from './TracksPanel'
@@ -37,6 +38,24 @@ export function PlayerView() {
   const [rate, setRate] = useState(1)
   const [muted, setMuted] = useState(false)
   const [captionsVisible, setCaptionsVisible] = useState(true)
+  // Word by word (default): each caption fills in as its words are spoken.
+  const [wordByWord, setWordByWord] = useState(() => {
+    try {
+      return localStorage.getItem('sublight.wordByWord') !== 'off'
+    } catch {
+      return true
+    }
+  })
+  const toggleWordByWord = useCallback(() => {
+    setWordByWord((on) => {
+      try {
+        localStorage.setItem('sublight.wordByWord', on ? 'off' : 'on')
+      } catch {
+        // storage blocked: session-only
+      }
+      return !on
+    })
+  }, [])
   const [panel, setPanel] = useState<'tracks' | 'caption' | 'style'>('tracks')
   const draft = useCaptionStore((s) => s.draft)
   const resetCaption = useCaptionStore((s) => s.reset)
@@ -218,6 +237,15 @@ export function PlayerView() {
           </button>
           <button
             type="button"
+            data-testid="toggle-word-by-word"
+            className={`${ICON_BTN} ${wordByWord ? 'border-zinc-400 text-zinc-100' : ''}`}
+            title="Fill in each caption word by word as it is spoken"
+            onClick={toggleWordByWord}
+          >
+            Word by word
+          </button>
+          <button
+            type="button"
             data-testid="toggle-captions"
             className={`${ICON_BTN} ${captionsVisible ? 'border-zinc-400 text-zinc-100' : ''}`}
             disabled={!activeTrack || activeTrack.cues.length === 0}
@@ -266,7 +294,7 @@ export function PlayerView() {
               {captionsVisible && shownTrack && shownTrack.cues.length > 0 && (
                 <SubtitleOverlay
                   video={videoRef}
-                  cues={shownTrack.cues}
+                  cues={wordByWord ? revealByWords(shownTrack.cues) : shownTrack.cues}
                   syncOffsetMs={shownOffsetMs}
                   secondaryCues={secondaryTrack?.cues}
                   secondarySyncOffsetMs={secondaryTrack?.syncOffsetMs ?? 0}
