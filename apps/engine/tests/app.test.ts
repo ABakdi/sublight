@@ -88,4 +88,34 @@ describe('engine auth + health (Protocol §2-§3)', () => {
     const body = (await res.json()) as { error: { code: string } }
     expect(body.error.code).toBe('NOT_FOUND')
   })
+
+  it('refuses the unauthenticated pairing probe from a non-loopback Host', async () => {
+    const res = await app.request('/v1/pair/info', { headers: { host: 'evil.example.com' } })
+    expect(res.status).toBe(403)
+  })
+
+  it('refuses the pairing probe from a foreign Origin', async () => {
+    const res = await app.request('/v1/pair/info', {
+      headers: { ...HOST, origin: 'https://evil.example' },
+    })
+    expect(res.status).toBe(403)
+  })
+})
+
+describe('engine on a non-default port', () => {
+  const app = createApp({ ...config, port: 18421 })
+
+  it('accepts the Host header for the port it listens on', async () => {
+    const res = await app.request('/v1/health', {
+      headers: { host: '127.0.0.1:18421', authorization: `Bearer ${config.token}` },
+    })
+    expect(res.status).toBe(200)
+  })
+
+  it('refuses the default-port Host header', async () => {
+    const res = await app.request('/v1/health', {
+      headers: { host: '127.0.0.1:17421', authorization: `Bearer ${config.token}` },
+    })
+    expect(res.status).toBe(403)
+  })
 })

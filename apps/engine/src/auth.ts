@@ -10,7 +10,10 @@ import { AUTH_HEADER, BEARER_PREFIX } from '@sublight/protocol'
  * - Origin allowlist only (no reflection, never `*`);
  * - every response is JSON (never text/html).
  */
-export const ALLOWED_HOSTS = new Set(['127.0.0.1:17421', 'localhost:17421'])
+/** Loopback `Host` values for the port the engine actually listens on. */
+export function allowedHosts(port: number): Set<string> {
+  return new Set([`127.0.0.1:${port}`, `localhost:${port}`])
+}
 export const ALLOWED_ORIGINS = new Set([
   'http://localhost:5173',
   'http://127.0.0.1:5173',
@@ -36,17 +39,27 @@ function safeEqual(a: string, b: string): boolean {
   return ba.length === bb.length && timingSafeEqual(ba, bb)
 }
 
-export function bearerAuth(expectedToken: string): MiddlewareHandler {
+/**
+ * Host + Origin checks for every route, authenticated or not — the pairing
+ * probe must not be readable through a DNS-rebound page either.
+ */
+export function hostOriginGuard(port: number): MiddlewareHandler {
+  const hosts = allowedHosts(port)
   return async (c, next) => {
     const host = c.req.header('host') ?? ''
-    if (!ALLOWED_HOSTS.has(host)) {
+    if (!hosts.has(host)) {
       return jsonError(c, 'BAD_ORIGIN', 'Host header not allowed (loopback only)', 403)
     }
     const origin = c.req.header('origin')
     if (origin && !ALLOWED_ORIGINS.has(origin)) {
       return jsonError(c, 'BAD_ORIGIN', 'Origin not allowed', 403)
     }
+    await next()
+  }
+}
 
+export function bearerAuth(expectedToken: string): MiddlewareHandler {
+  return async (c, next) => {
     const raw = c.req.header(AUTH_HEADER) ?? ''
     const token = raw.startsWith(BEARER_PREFIX) ? raw.slice(BEARER_PREFIX.length) : ''
     if (!token || !safeEqual(token, expectedToken)) {
