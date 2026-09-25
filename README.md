@@ -122,10 +122,10 @@ The `docs/` folder is an **Obsidian vault** used as the living specification for
 
 ## Development status
 
-The repo is at **Milestone 00 (Foundations)** — currently documentation only. See [docs/plan/Roadmap.md](docs/plan/Roadmap.md) for the full plan.
+**M00 (Foundations)** and **M01 (Player core)** are done: the player plays local files with styled subtitles, SRT/VTT import, SRT export and sync nudge. **Next: [M02 — Local ASR engine](docs/plan/milestones/02-Local-ASR-Engine.md).** See [docs/plan/Roadmap.md](docs/plan/Roadmap.md) for the full plan.
 
 ## License & ethics notes
 
-- sublight's own code: see the repository's license file (TBD at M00).
+- sublight's own code: see [LICENSE](LICENSE).
 - AI models are open source; license compatibility is tracked in [ADR-0016](docs/architecture/decisions/0016-model-licensing.md).
 - Captioning **DRM-protected** streams (Netflix, etc.) is explicitly **out of scope**. Downloading streams via `yt-dlp` (an optional power feature) must respect each platform's terms of service — see [Non-Goals](docs/specification/10-Non-Goals-And-Failure-Modes.md).

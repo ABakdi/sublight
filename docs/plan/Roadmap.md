@@ -1,7 +1,7 @@
 ---
 tags: [plan, roadmap]
 status: active
-updated: 2026-09-23
+updated: 2026-09-25
 ---
 
 # Roadmap
@@ -31,9 +31,9 @@ flowchart LR
 
 | M   | Milestone               | Status        | Target | Exit criteria (summary)                                                                                                                                                                                                       |
 | --- | ----------------------- | ------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 00  | Foundations             | `in-progress` | —      | Monorepo builds & tests in CI; Playwright harness runs Chromium + Brave; sync-accuracy corpus + harness ready; docs live.                                                                                                     |
-| 01  | Player core             | `not-started` | M01    | Play any local file; overlay renders styled cues; SRT import/export round-trips; cues persist across sessions.                                                                                                                |
-| 02  | Local ASR engine        | `not-started` | M02    | Engine serves `/v1`; whisper.cpp transcribes with word timestamps; jobs run/cancel/resume; models install from pinned manifest.                                                                                               |
+| 00  | Foundations             | `done`        | —      | Monorepo builds & tests in CI; Playwright harness runs Chromium + Brave; sync-accuracy corpus + harness ready; docs live.                                                                                                     |
+| 01  | Player core             | `done`        | M01    | Play any local file; overlay renders styled cues; SRT import/export round-trips; cues persist across sessions.                                                                                                                |
+| 02  | Local ASR engine        | `not-started` | M02    | Engine serves `/v1`; whisper.cpp transcribes with word timestamps and translates →English; jobs run/cancel/resume; models install from pinned manifest.                                                                       |
 | 03  | Transcription pipeline  | `not-started` | M03    | Local file → captions end-to-end with anchoring; median word-onset error ≤ 250 ms on the corpus; refinement pass works.                                                                                                       |
 | 04  | Translation pipeline    | `not-started` | M04    | LLM path for non-English targets (English is Whisper, M02): meaning-preserving in ≥ 3 languages; glossary honored; bilingual tracks render; full-film translate job completes.                                                |
 | 05  | Extension overlay       | `not-started` | M05    | Live captions on YouTube + 3 reference sites; tab capture; SPA navigation; styling UI; overlay survives page CSS.                                                                                                             |
