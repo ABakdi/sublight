@@ -121,7 +121,8 @@ _Engine and editor share these rules._
 From words → cues (ASR side):
 
 - Group words greedily: target 2–3 lines of ≤ 42 chars each, or ≤ 7 s max cue; hard break at sentence-final punctuation (`.!?…`) and pauses ≥ 300 ms between words.
-- Merge: cues closer than 80 ms apart merge (end of A + 80 ≥ start of B). Merged text is re-wrapped from the words, never truncated (before M04 a merge could drop words past 3 lines).
+- ~~Merge cues closer than 80 ms~~ (removed 2026-09-26): continuous speech is always < 80 ms apart, so the merge undid the length split and produced 8–10 s cues. Merged fragment text is re-wrapped from the words, never truncated.
+- **Reading hold**: each cue stays up max(1 s, 50 ms × characters) and lingers 0.5 s after its last word, never past the next cue's start; gaps < 80 ms close. Word timings are untouched.
 - **Fragments** (≤ 2 words or < 800 ms) fold into a neighbour when the result still fits one cue: across the shorter pause (≤ 1 s), **never across a sentence end**. Read speech otherwise leaves one-word flashes ("Weitere", "Kafka") that also break line-by-line translation. Measured: 182 → 149 cues on 10 min of German, 3 left with ≤ 2 words.
 - Minimum duration 200 ms enforced by stretching end (never move start past start).
 

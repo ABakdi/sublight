@@ -60,6 +60,15 @@ Found in real Brave 153, to handle in this milestone: captions overlap the YouTu
 - [x] Popup caption style quick-toggles: size S/M/L, bottom/top, applied live to every overlay (M05.7).
 - [x] Site matrix (M05.9), in Brave: YouTube watch page ✅, **YouTube embedded in an iframe on another site** ✅ (session attached to the iframe's frame, first caption 6.9 s), cross-origin `<video>` via tabCapture ✅, generic same-origin page ✅ (headless e2e). Vimeo: **not verified**, the automation couldn't get its player to play.
 
+### Sync fixes after first user testing (2026-09-26)
+
+Reported: captions late, not in sync, flashing on and off too fast. Measured and fixed:
+
+- Drafts arrived every ~3.8 s (a full whisper-small pass each) and were shown up to 8 s late → half-second chunks, passes back to back, whisper-base drafts + whisper-small refinement: **median 1.9 s** from spoken to visible (was 5-8 s).
+- A core bug re-merged cues split for length (the 80 ms merge), making 8-10 s cues that changed in big jumps → removed; cues now hold for reading time instead.
+- **Word by word**: text fills in as each word is spoken (live and final, extension and Player).
+- Final captions after Stop are exact (± 10 ms at speech onsets).
+
 ### Still open
 
 - [ ] M05.8 yt-dlp toggle: folded into M05b's engine relay.

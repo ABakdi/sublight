@@ -60,12 +60,14 @@ Capture time ≠ media time: the video can pause, seek, buffer or change speed. 
 
 Code: `apps/engine/src/live/`.
 
-- Every **1.5 s**, if ≥ 1 s of new audio arrived since the last pass, the window from the last committed word to now (≤ 28 s) goes through whisper, with the last ~200 characters of committed text as the prompt. Silent windows (< −60 dB) are skipped.
+- As soon as the previous pass is done and ≥ 0.5 s of new audio arrived (chunks are 0.5 s), the window from the last committed word to now (≤ 28 s) goes through whisper, with the last ~200 characters of committed text as the prompt. Silent windows (< −60 dB) are skipped.
 - Words ending more than **3 s** before the newest audio **commit** (whisper still revises the tail); the rest are drafts. Both go out as one `job.partial` track in **media time** (`draft: true`). A pass over an almost-full window, or after stop, commits everything.
 - **Stop** (`POST /v1/live/:jobId/stop`) → a final pass, then the **refinement pass**: each contiguous playing stretch (split at anchors) is transcribed again with full context, in 2-min chunks. It replaces the live words unless it has fewer than 80 % of them (never regress). Then the job is `done` with the final track.
 - No audio for 60 s ends the session by itself (tab closed, extension reloaded).
 - Display: drafts arrive a few seconds after their words were spoken, when the playhead has moved on; shown at their true time they'd never be seen. The page shows drafts **delayed by the measured lag** (smoothed, ≤ 8 s); the final track is exact.
-- Measured: JFK streamed through the engine with whisper-small → words land on the media timeline within ±150 ms of speech onsets; in Chromium/Brave the first caption appears **6–8 s** after starting (startup + first 1 s chunk + first pass + display delay); drafts run ~4 s behind.
+- **Draft and refine models**: drafts use a fast model (default whisper-base), the refinement on stop an accurate one (default whisper-small); both configurable in Options. Each whisper pass encodes a full 30 s context (~1.7 s for whisper-small on the T1000), which is what paces live drafts; `audio_ctx` shrinking was measured and rejected (small gain, mistranscriptions).
+- **Measured after the 2026-09-26 fixes** (JFK in Chromium, per word: video time when first visible − time spoken): **median 1.9 s, range 1.2–2.5 s** (was 5–8 s, with drafts every ~3.8 s); final (refined) words exact to within 10 ms of speech onsets at the pauses. Live captions can't be earlier than ~1–2 s: the audio only exists once it plays. Exact-from-the-start captions for recorded videos need the audio ahead of playback (engine fetch, M05b).
+- Earlier measurement: JFK streamed through the engine with whisper-small → words land on the media timeline within ±150 ms of speech onsets; in Chromium/Brave the first caption appears **6–8 s** after starting (startup + first 1 s chunk + first pass + display delay); drafts run ~4 s behind.
 
 ## 6. Capture lifecycle in the extension
 
