@@ -23,6 +23,8 @@
     "dev:engine": "pnpm --filter @sublight/engine dev",
     "dev:extension": "pnpm --filter @sublight/extension dev",
     "engine:token": "pnpm --silent --filter @sublight/engine token",
+    "engine:setup-whisper": "node scripts/setup-whisper.mjs",
+    "engine:transcribe": "pnpm --silent --filter @sublight/engine transcribe",
     "ext:try": "node scripts/try-extension.mjs",
     "prepare": "husky"
   },

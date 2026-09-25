@@ -10,10 +10,11 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "build": "pnpm typecheck && esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "build": "pnpm typecheck && esbuild src/index.ts src/cli.ts --bundle --platform=node --format=esm --outdir=dist --out-extension:.js=.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "token": "tsx src/token.ts"
+    "token": "tsx src/token.ts",
+    "transcribe": "tsx src/cli.ts"
   },
   "dependencies": {
     "@hono/node-server": "catalog:",
