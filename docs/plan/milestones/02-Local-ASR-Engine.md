@@ -26,6 +26,7 @@ updated: 2026-09-23
 - [ ] **M02.5** — Media ingest: streaming `PUT /v1/media/:id`; ffmpeg → 16 kHz mono PCM WAV; `sha256` store; eviction policy.
 - [ ] **M02.6** — whisper.cpp manager: binary pinned+checksummed, spawned on demand, parallel-safe restart, `/transcribe` call with word timestamps; parse into `Segments[]`; map to cues (initial gap/merge rules).
 - [ ] **M02.7** — `POST /v1/jobs {type: transcribe, audio, model, params}` returning cues + words; WS `job.progress` and `job.result`.
+- [ ] **M02.10** — Whisper `translate` task ([ADR-0018](../../architecture/decisions/0018-whisper-translate-to-english.md)): `params.task: "translate"` → English track built from segment timestamps; manifest `tasks` gate (`JOB_INVALID` on models that can't translate).
 - [ ] **M02.8** — CLI ergonomics: `pnpm engine dev`, `start`, `--once` (run one job, exit), log to file; config in `~/.sublight/config.json`.
 - [ ] **M02.9** — Engine tests: auth rejection matrix, queue fairness, crash-restart recovery, ffmpeg edge files (mono/stereo/5.1, short, silent).
 
@@ -37,11 +38,12 @@ updated: 2026-09-23
 4. Kill the engine mid-job, restart → job resumes or re-queues without double-processing (idempotency key honored).
 5. Two concurrent job requests never run ASR+ASR at the same time if the GPU budget says so (serialization works).
 6. Running the same audio+model twice returns cached result (no re-transcribe).
+7. A non-English clip with `task: "translate"` returns an English track (`kind: "translation"`, integer-ms cues, no `words`); the same request on a model without `translate` is refused with `JOB_INVALID`.
 
 ## Dependencies
 
 - [M00 Foundations](00-Foundations.md).
-- ADRs: [0004](../../architecture/decisions/0004-local-engine-outside-extension.md), [0005](../../architecture/decisions/0005-engine-stack.md), [0006](../../architecture/decisions/0006-engine-transport.md), [0007](../../architecture/decisions/0007-whisper-model-matrix.md), [0008](../../architecture/decisions/0008-word-level-timestamps.md), [0013](../../architecture/decisions/0013-engine-api.md), [0016](../../architecture/decisions/0016-model-licensing.md).
+- ADRs: [0004](../../architecture/decisions/0004-local-engine-outside-extension.md), [0005](../../architecture/decisions/0005-engine-stack.md), [0006](../../architecture/decisions/0006-engine-transport.md), [0007](../../architecture/decisions/0007-whisper-model-matrix.md), [0008](../../architecture/decisions/0008-word-level-timestamps.md), [0013](../../architecture/decisions/0013-engine-api.md), [0016](../../architecture/decisions/0016-model-licensing.md), [0018](../../architecture/decisions/0018-whisper-translate-to-english.md).
 
 ## Open questions
 
