@@ -174,7 +174,7 @@ function LiveSettings({ online }: { online: boolean }) {
       </p>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
-          Live drafts (fast)
+          Live drafts
           <select
             data-testid="live-model"
             style={field}

@@ -16,9 +16,12 @@ export const LIVE_MODEL_KEY = 'liveModel'
 export const LIVE_LANGUAGE_KEY = 'liveLanguage'
 /** 'transcribe' (spoken language) or 'translate' (English, ADR-0018). */
 export const LIVE_TASK_KEY = 'liveTask'
-/** Fast drafts while listening… */
-export const DEFAULT_LIVE_MODEL = 'whisper-base'
-/** …accurate result on stop. */
+/**
+ * Drafts while listening. whisper-small: base was faster but garbled too
+ * much to read, and small's pass is ~2 s on the reference GPU.
+ */
+export const DEFAULT_LIVE_MODEL = 'whisper-small'
+/** The result on stop (full context; a larger model if installed and chosen). */
 export const LIVE_REFINE_KEY = 'liveRefineModel'
 export const DEFAULT_REFINE_MODEL = 'whisper-small'
 
@@ -33,8 +36,13 @@ async function pickInstalled(candidates: (string | undefined)[]): Promise<string
 const OFFSCREEN_URL = 'offscreen.html'
 
 const liveKey = (tabId: number) => `live:${tabId}`
-/** The last finished live track per tab, for "Download SRT" in the popup. */
+/** The latest live track per tab (draft while listening, then final), for "Download SRT". */
 export const liveTrackKey = (tabId: number) => `liveTrack:${tabId}`
+export interface SavedLiveTrack {
+  track: SubtitleTrack
+  /** False while listening: the draft so far, before the refinement pass. */
+  final: boolean
+}
 /** Tab audio silent this long while the video plays → probably muted tab or DRM. */
 const TAB_SILENT_NOTICE_MS = 8000
 const NO_SOUND_NOTICE =
@@ -88,6 +96,8 @@ class LiveController {
     if (!('jobId' in e) || e.jobId !== this.jobId) return
     if (e.type === 'job.partial') {
       if (!this.detached) this.toPage({ type: 'live.track', track: e.draft, final: false })
+      const saved: SavedLiveTrack = { track: e.draft, final: false }
+      await browser.storage.session.set({ [liveTrackKey(this.tabId)]: saved })
       await this.save({ cues: e.draft.cues.length })
     } else if (e.type === 'job.progress' && e.detail) {
       await this.save({
@@ -108,7 +118,8 @@ class LiveController {
     const track: SubtitleTrack | undefined = result.tracks[0]
     if (track) {
       if (!this.detached) this.toPage({ type: 'live.track', track, final: true })
-      await browser.storage.session.set({ [liveTrackKey(this.tabId)]: track })
+      const saved: SavedLiveTrack = { track, final: true }
+      await browser.storage.session.set({ [liveTrackKey(this.tabId)]: saved })
     }
     await this.save({
       phase: this.detached ? 'stopped' : 'done',
@@ -219,6 +230,7 @@ function describe(err: unknown): string {
 /** Start live captions on the tab's primary video (frame from its video reports). */
 export async function startLive(tabId: number, frameId: number): Promise<LiveState> {
   await stopLive(tabId)
+  await browser.storage.session.remove(liveTrackKey(tabId))
   const prefs = await browser.storage.local.get([
     LIVE_MODEL_KEY,
     LIVE_REFINE_KEY,

@@ -218,12 +218,15 @@ test.describe('extension in Chromium (Spec 09)', () => {
       timeout: 30_000,
     })
     await popup.bringToFront()
+    // While listening, the draft so far can already be saved.
+    await expect(popup.getByTestId('live-download')).toContainText('Download draft SRT so far')
     await popup.getByTestId('live-toggle').click()
     await expect(popup.getByTestId('live-status')).toHaveAttribute('data-phase', 'done', {
       timeout: 60_000,
     })
     // The finished track can be saved as SRT from the popup.
     await expect(popup.getByTestId('live-download')).toContainText('Download SRT (')
+    await expect(popup.getByTestId('live-download')).toHaveAttribute('data-final', 'true')
     await site.bringToFront()
     await site.evaluate(() => (document.querySelector('video')!.currentTime = 6.5))
     await expect

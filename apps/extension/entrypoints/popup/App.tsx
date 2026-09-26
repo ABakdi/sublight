@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { serializeSrt, type SubtitleTrack } from '@sublight/core'
-import { liveTrackKey } from '../../src/liveController'
+import { serializeSrt } from '@sublight/core'
+import { liveTrackKey, type SavedLiveTrack } from '../../src/liveController'
 import { OVERLAY_STYLE_KEY, type QuickStyle } from '../../src/overlayFrame'
 import { browser } from 'wxt/browser'
 import { EngineBadge } from '../../src/EngineBadge'
@@ -170,9 +170,7 @@ export function PopupApp() {
             {live.notice}
           </div>
         )}
-        {tabId !== null && (live?.phase === 'done' || live?.phase === 'stopped') && (
-          <DownloadSrt tabId={tabId} />
-        )}
+        {tabId !== null && live && live.phase !== 'starting' && <DownloadSrt tabId={tabId} />}
       </section>
 
       <section style={{ display: 'grid', gap: 6 }}>
@@ -242,28 +240,53 @@ function LiveLine({ live }: { live: LiveState | null }) {
   )
 }
 
-/** Save the finished live track as SRT (Spec 09 §7). */
+/**
+ * Save the live track as SRT (Spec 09 §7): the draft so far while listening,
+ * the refined captions once stopped. Named after the page title.
+ */
 function DownloadSrt({ tabId }: { tabId: number }) {
-  const [track, setTrack] = useState<SubtitleTrack | null>(null)
+  const [saved, setSaved] = useState<SavedLiveTrack | null>(null)
   useEffect(() => {
-    void browser.storage.session.get(liveTrackKey(tabId)).then((got) => {
-      setTrack((got[liveTrackKey(tabId)] as SubtitleTrack | undefined) ?? null)
+    const key = liveTrackKey(tabId)
+    void browser.storage.session.get(key).then((got) => {
+      setSaved((got[key] as SavedLiveTrack | undefined) ?? null)
     })
+    const onChanged = (changes: Record<string, { newValue?: unknown }>, area: string) => {
+      if (area === 'session' && key in changes)
+        setSaved((changes[key]!.newValue as SavedLiveTrack | undefined) ?? null)
+    }
+    browser.storage.onChanged.addListener(onChanged)
+    return () => browser.storage.onChanged.removeListener(onChanged)
   }, [tabId])
-  if (!track || track.cues.length === 0) return null
-  const download = () => {
+  if (!saved || saved.track.cues.length === 0) return null
+  const { track, final } = saved
+  const download = async () => {
+    const title = (await browser.tabs.get(tabId).catch(() => null))?.title ?? ''
+    const name =
+      title
+        .replace(/[\\/:*?"<>|]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80) || 'sublight-live'
     const url = URL.createObjectURL(
       new Blob([serializeSrt(track.cues)], { type: 'text/plain;charset=utf-8' }),
     )
     const a = document.createElement('a')
     a.href = url
-    a.download = `sublight-live.${track.language}.srt`
+    a.download = `${name}${final ? '' : '.draft'}.${track.language}.srt`
     a.click()
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
   }
   return (
-    <button data-testid="live-download" style={button} onClick={download}>
-      Download SRT ({track.cues.length} cues)
+    <button
+      data-testid="live-download"
+      data-final={final}
+      style={button}
+      onClick={() => void download()}
+    >
+      {final
+        ? `Download SRT (${track.cues.length} cues)`
+        : `Download draft SRT so far (${track.cues.length} cues)`}
     </button>
   )
 }
