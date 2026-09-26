@@ -100,6 +100,7 @@ Known gaps, for M05: the caption can sit on top of the host player's control bar
 - Collapsed: a 34 px **CC** button (dim until the pointer is over the video). Open: **Captions** On/Off, **Translate to** (Original, English, Arabic, French, Spanish, German, Italian, Portuguese, Dutch, Russian, Turkish, Hindi, Japanese, Korean, Chinese), **Delay** (− / typed ms / +, 100 ms steps, ±30 s, Reset), and a note line ("Translating to French… 40 %", "No speech found in this video", "Live: about 3 s behind").
 - Drag the button or the panel's handle; release snaps to the nearest corner (`nearestCorner`). The corner and open state are in `storage.local.quickControls`. Bottom corners sit above the player's control bar (60 % of the caption margin); on vertical videos top corners drop below the feed's top buttons.
 - `ViewerControls` (`src/viewerControls.ts`) holds the viewer's on/off and delay for the page's lifetime (so a feed scroll keeps them) and the "Translate to" preference (`storage.local.captionTarget`, last language in `lastTranslateTarget`). Live captions get the same controls without translation.
+- **Show both** (with a translation; Alt+Shift+B; `storage.local.showBoth`): the original is the main line (word by word) and the translation sits above it, smaller. Whisper translates in its own chunks, so originals and translations that overlap are grouped (`pairWithOriginal`, core) and a group's translation stays up exactly while its originals do: the lines change together and never leave a gap. English comes with its original from the same `url` job (`bilingual: true`); other languages pair the LLM translation with the transcript it came from.
 - The delay is added to the overlay's offset (`OverlayFrame.setUserDelay`): + shows captions later. A toast confirms each change ("Delay +300 ms", "Captions off").
 
 ### 4.8 Short-form feeds (ADR-0021)
@@ -111,6 +112,10 @@ Known gaps, for M05: the caption can sit on top of the host player's control bar
 ### 4.9 Updates and a stale service worker
 
 After the extension's files change on disk (a new build of the unpacked extension), Chromium and Brave keep running the **old service worker** until the extension is reloaded, while the popup loads the new files. New popup actions then reach an old background that doesn't know them and nothing happens (seen 2026-09-26: "Caption this video" and "Download SRT" silently did nothing). Each build has one id (`__SUBLIGHT_BUILD__`, `src/build.ts`) in every entrypoint. The popup pings the SW and compares ids; on a mismatch it shows **"Reload sublight"** (`runtime.reload()`), and any action the background doesn't answer says so instead of doing nothing. Content scripts in tabs opened before a reload are orphaned, so reload the page too.
+
+### 4.10 Closed tabs and leases
+
+A tab's jobs end with it. Closing the tab (`tabs.onRemoved`), or reloading or leaving the page (the content script's `pagehide` → `page.gone`), cancels its captioning, its translation and its live job (no refinement). In-page URL changes don't count; following a feed handles those. A requested download still finishes. The engine backs this up: the extension starts `url` and `translate` jobs with `lease: true` and renews them every 30 s (`/v1/jobs/:id/keepalive`), so if the browser itself goes away they are cancelled after 90 s. (Seen 2026-09-26: a French translation of a closed tab's video held the GPU for 15 minutes and survived engine restarts; every new captions job queued behind it.) Measured in Brave: tab closed → job cancelled in 4.9 s; page reloaded → 7.3 s.
 
 ## 5. Capture wiring
 

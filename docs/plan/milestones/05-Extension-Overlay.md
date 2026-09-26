@@ -103,6 +103,9 @@ Live capture can't be exact: it only hears audio once it has played (~2–3 s be
 - [x] Feeds: captions follow the next video; the feed item's own URL (TikTok, Instagram, Facebook); vertical sizing (shorter side, 24-char lines, 22 % margin).
 - [x] Opt-in browser login for yt-dlp; automatic live fallback when a video can't be fetched.
 - [x] Verified in Brave: controls and shortcuts on YouTube; Shorts captioned, translated to French, next Short followed; TikTok fetched.
+- [x] Show both (original + translation) with paired timing; bilingual `url` jobs; Alt+Shift+B.
+- [x] Jobs end with their tab: close/reload/leave cancels; engine leases with keep-alive for `url` and `translate` jobs.
+- [ ] English translation quality: whisper-small mistranslates some words; try whisper-medium for `translate`, or the LLM for English when "Show both" is on (1:1 with the original's cues).
 - [ ] Instagram with the login setting on (needs the user's session); translation speed in fast feeds (LLM ↔ Whisper swap on 4 GB).
 
 ### Still open

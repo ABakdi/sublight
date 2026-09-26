@@ -35,13 +35,14 @@ _The wire contract between clients (extension, player) and the engine. Typed in 
 
 ### Jobs (the core)
 
-| Endpoint                   | Notes                                    |
-| -------------------------- | ---------------------------------------- |
-| `POST /v1/jobs`            | body + idempotency-key header (below)    |
-| `GET /v1/jobs/:id`         | state, progress, partial result, error   |
-| `POST /v1/jobs/:id/cancel` | best-effort cancel of queued/running job |
-| `GET /v1/jobs/:id/result`  | full result (cues/tracks)                |
-| `GET /v1/jobs`             | list, filter by `status`                 |
+| Endpoint                      | Notes                                                                                                                                                                                                      |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/jobs`               | body + idempotency-key header (below)                                                                                                                                                                      |
+| `GET /v1/jobs/:id`            | state, progress, partial result, error                                                                                                                                                                     |
+| `POST /v1/jobs/:id/keepalive` | renews a **leased** job (`lease: true` on `url`/`translate`/`transcribe` requests); leased jobs silent for 90 s are cancelled and are never resumed after a restart. `204`, or `404` when no such open job |
+| `POST /v1/jobs/:id/cancel`    | best-effort cancel of queued/running job                                                                                                                                                                   |
+| `GET /v1/jobs/:id/result`     | full result (cues/tracks)                                                                                                                                                                                  |
+| `GET /v1/jobs`                | list, filter by `status`                                                                                                                                                                                   |
 
 Job creation bodies (discriminated by `type`):
 
@@ -91,6 +92,8 @@ Drafts arrive as `job.partial` in media time; audio/anchors for a job that isn't
 | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /v1/jobs {type:"url", pageUrl, mediaUrl?, userAgent?, cookiesFromBrowser?, model, params:{language, task?, fromMs?}, priority?}` | the engine fetches the audio (direct URL, else yt-dlp) and transcribes around `fromMs`; one `url` job at a time (a newer one cancels it); cached per canonical page URL |
 | `POST /v1/url/:jobId/focus`                                                                                                            | `{ mediaMs }`: the viewer seeked; the next piece starts there. `409` unless running                                                                                     |
+
+`params.bilingual` (with `task: "translate"`): each piece is also transcribed; the result is `[English translation, original]`, the translation timed to the original's words, and drafts carry the original as `companion` on `job.partial`.
 
 `cookiesFromBrowser` (opt-in, [ADR-0021](../architecture/decisions/0021-quick-controls-and-short-video-feeds.md)): one of `brave`, `chrome`, `chromium`, `edge`, `firefox`, `opera`, `vivaldi`; yt-dlp reads that browser's cookies for sites that need a login.
 
