@@ -105,14 +105,15 @@ Live capture can't be exact: it only hears audio once it has played (~2–3 s be
 - [x] Verified in Brave: controls and shortcuts on YouTube; Shorts captioned, translated to French, next Short followed; TikTok fetched.
 - [x] Show both (original + translation) with paired timing; bilingual `url` jobs; Alt+Shift+B.
 - [x] Jobs end with their tab: close/reload/leave cancels; engine leases with keep-alive for `url` and `translate` jobs.
-- [ ] English translation quality: whisper-small mistranslates some words; try whisper-medium for `translate`, or the LLM for English when "Show both" is on (1:1 with the original's cues).
+- [x] English translation quality: an Options choice, Fast (Whisper, ahead) or Better (LLM on the transcript: accurate, 1:1 with the original, ~0.8× real time on the T1000).
+- [ ] Faster "Better" English: translate piece by piece around the playhead instead of after the whole transcript (both models don't fit a 4 GB GPU at once, so this needs batching to limit swaps).
 - [ ] Instagram with the login setting on (needs the user's session); translation speed in fast feeds (LLM ↔ Whisper swap on 4 GB).
 
 ### Still open
 
 - [ ] M05.8 yt-dlp toggle: folded into M05b's engine relay.
 - [ ] Vimeo, and a real DRM site for the silence notice, checked by hand.
-- [ ] Hide the site's own captions while ours are on (YouTube CC).
+- [x] Hide the site's own captions while ours are on (text tracks + known player caption layers; restored after).
 
 ## Acceptance criteria
 
