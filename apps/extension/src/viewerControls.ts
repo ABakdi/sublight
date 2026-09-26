@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser'
 import type { OverlayFrame } from './overlayFrame'
+import { HIDE_SITE_CAPTIONS_KEY, SiteCaptions } from './siteCaptions'
 import {
   clampDelay,
   CONTROLS_KEY,
@@ -36,6 +37,8 @@ function formatDelay(ms: number): string {
  */
 export class ViewerControls implements ControlsActions {
   private model: ControlsModel
+  private readonly site: SiteCaptions
+  private hideSite = true
 
   constructor(
     private readonly overlay: OverlayFrame,
@@ -59,6 +62,11 @@ export class ViewerControls implements ControlsActions {
     }
     overlay.setVisible(viewer.visible)
     overlay.setUserDelay(viewer.delayMs)
+    this.site = new SiteCaptions(overlay.target)
+    void browser.storage.local.get(HIDE_SITE_CAPTIONS_KEY).then((got) => {
+      this.hideSite = got[HIDE_SITE_CAPTIONS_KEY] !== false
+      this.syncSite()
+    })
     this.render()
     void browser.storage.local.get([CONTROLS_KEY, TARGET_KEY, BOTH_KEY]).then((got) => {
       const prefs = (got[CONTROLS_KEY] as ControlsPrefs | undefined) ?? {}
@@ -89,6 +97,17 @@ export class ViewerControls implements ControlsActions {
     this.render()
   }
 
+  /** The site's own captions stay hidden only while ours are showing. */
+  private syncSite(): void {
+    if (this.hideSite && this.model.visible) this.site.hide()
+    else this.site.show()
+  }
+
+  /** The captions are going away: give the site its captions back. */
+  dispose(): void {
+    this.site.show()
+  }
+
   get target(): string {
     return this.model.target
   }
@@ -106,6 +125,7 @@ export class ViewerControls implements ControlsActions {
     viewer.visible = !this.model.visible
     this.model = { ...this.model, visible: viewer.visible }
     this.overlay.setVisible(viewer.visible)
+    this.syncSite()
     this.overlay.toast(viewer.visible ? 'Captions on' : 'Captions off')
     this.render()
   }

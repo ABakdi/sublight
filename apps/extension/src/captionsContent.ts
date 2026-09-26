@@ -155,6 +155,7 @@ export class PageCaptions {
   }
 
   end(): void {
+    this.controls.dispose()
     for (const e of this.events) this.video.removeEventListener(e, this.onEvent)
     if (this.pausedByUs) void this.video.play().catch(() => {})
     this.pausedByUs = false

@@ -175,6 +175,7 @@ export class LiveSession {
 
   destroy(): void {
     this.end()
+    this.controls.dispose()
     this.overlay.destroy()
   }
 }
