@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { SubtitleOverlay } from '@sublight/overlay'
-import { revealByWords } from '@sublight/core'
+import { cuesForMode, type CaptionMode } from '@sublight/core'
 import { activeTrackOf, usePlayerStore } from '../store/player'
 import { hasFileSystemAccess } from '../lib/fileOpen'
 import { TracksPanel } from './TracksPanel'
@@ -38,22 +38,24 @@ export function PlayerView() {
   const [rate, setRate] = useState(1)
   const [muted, setMuted] = useState(false)
   const [captionsVisible, setCaptionsVisible] = useState(true)
-  // Word by word (default): each caption fills in as its words are spoken.
-  const [wordByWord, setWordByWord] = useState(() => {
+  // Word by word (default): each caption fills in as its words are spoken;
+  // sentences: one full sentence per caption.
+  const [captionMode, setCaptionMode] = useState<CaptionMode>(() => {
     try {
-      return localStorage.getItem('sublight.wordByWord') !== 'off'
+      return localStorage.getItem('sublight.captionMode') === 'sentences' ? 'sentences' : 'words'
     } catch {
-      return true
+      return 'words'
     }
   })
-  const toggleWordByWord = useCallback(() => {
-    setWordByWord((on) => {
+  const toggleCaptionMode = useCallback(() => {
+    setCaptionMode((mode) => {
+      const next = mode === 'words' ? 'sentences' : 'words'
       try {
-        localStorage.setItem('sublight.wordByWord', on ? 'off' : 'on')
+        localStorage.setItem('sublight.captionMode', next)
       } catch {
         // storage blocked: session-only
       }
-      return !on
+      return next
     })
   }, [])
   const [panel, setPanel] = useState<'tracks' | 'caption' | 'style'>('tracks')
@@ -237,12 +239,13 @@ export function PlayerView() {
           </button>
           <button
             type="button"
-            data-testid="toggle-word-by-word"
-            className={`${ICON_BTN} ${wordByWord ? 'border-zinc-400 text-zinc-100' : ''}`}
-            title="Fill in each caption word by word as it is spoken"
-            onClick={toggleWordByWord}
+            data-testid="toggle-caption-mode"
+            data-mode={captionMode}
+            className={`${ICON_BTN} border-zinc-400 text-zinc-100`}
+            title="Switch between captions that fill in word by word and whole sentences"
+            onClick={toggleCaptionMode}
           >
-            Word by word
+            {captionMode === 'words' ? 'Word by word' : 'Sentences'}
           </button>
           <button
             type="button"
@@ -294,7 +297,7 @@ export function PlayerView() {
               {captionsVisible && shownTrack && shownTrack.cues.length > 0 && (
                 <SubtitleOverlay
                   video={videoRef}
-                  cues={wordByWord ? revealByWords(shownTrack.cues) : shownTrack.cues}
+                  cues={cuesForMode(shownTrack.cues, captionMode)}
                   syncOffsetMs={shownOffsetMs}
                   secondaryCues={secondaryTrack?.cues}
                   secondarySyncOffsetMs={secondaryTrack?.syncOffsetMs ?? 0}
