@@ -65,7 +65,32 @@ async function probeDuration(
     : null
 }
 
+/**
+ * DRM in an HLS playlist: sample encryption (FairPlay `skd://`, Widevine,
+ * PlayReady). Plain AES-128 is fine: ffmpeg decrypts it.
+ */
+export function isDrmPlaylist(playlist: string): boolean {
+  return /#EXT-X-(SESSION-)?KEY:[^\n]*METHOD=SAMPLE-AES|skd:\/\/|urn:uuid:edef8ba9|com\.microsoft\.playready/i.test(
+    playlist,
+  )
+}
+
+/** Refuse DRM-protected HLS up front: nothing can decode its audio. */
+async function assertNotProtected(input: string, headers: Record<string, string>): Promise<void> {
+  if (!/\.m3u8(\?|$)|m3u8/i.test(input)) return
+  const res = await fetch(input, { headers, signal: AbortSignal.timeout(15_000) }).catch(() => null)
+  const text = res?.ok ? await res.text().catch(() => '') : ''
+  if (isDrmPlaylist(text.slice(0, 20_000)))
+    throw new JobError(
+      'MEDIA_PROTECTED',
+      'this video is DRM-protected: its audio can’t be read, so it can’t be captioned',
+      false,
+      422,
+    )
+}
+
 interface YtDlpInfo {
+  protocol?: string
   url?: string
   duration?: number
   title?: string
@@ -152,6 +177,8 @@ export async function resolveRemote(
   const headers = info.http_headers ?? audio?.http_headers ?? {}
   if (!isHttp(input))
     throw new JobError('MEDIA_UNREACHABLE', 'yt-dlp found no audio URL', false, 422)
+  if (info.protocol?.includes('m3u8') || /m3u8/i.test(input))
+    await assertNotProtected(input, headers)
   const durationMs =
     info.duration && info.duration > 0
       ? Math.round(info.duration * 1000)

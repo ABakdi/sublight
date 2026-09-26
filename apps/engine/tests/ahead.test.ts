@@ -284,3 +284,18 @@ describe('bilingual url job', () => {
     expect(partials[0]!.companion?.language).toBe('de')
   })
 })
+
+describe('protected streams', () => {
+  it('spots DRM in an HLS playlist, not plain AES-128', async () => {
+    const { isDrmPlaylist } = await import('../src/media/remote')
+    expect(
+      isDrmPlaylist(
+        '#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://drm",KEYFORMAT="com.apple.streamingkeydelivery"\n',
+      ),
+    ).toBe(true)
+    expect(isDrmPlaylist('#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="https://k.example/key"\n')).toBe(
+      false,
+    )
+    expect(isDrmPlaylist('#EXTM3U\n#EXTINF:6,\nseg0.ts\n')).toBe(false)
+  })
+})

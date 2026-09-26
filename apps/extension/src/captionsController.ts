@@ -204,6 +204,7 @@ class CaptionsController {
       if (e.state === 'done') await this.finish()
       else if (e.state === 'failed') {
         const job = await engineRequest<JobSummary>(`/v1/jobs/${this.jobId}`).catch(() => null)
+        // Protected (DRM) audio is silent to tab capture too: no live fallback.
         await this.fail(
           job?.error?.message ?? 'Captioning failed.',
           job?.error?.code === 'MEDIA_UNREACHABLE',

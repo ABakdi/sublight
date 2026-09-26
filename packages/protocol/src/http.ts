@@ -76,6 +76,7 @@ export const ERROR_CODES = [
   'INTERNAL',
   'MEDIA_UNRESOLVABLE',
   'MEDIA_UNREACHABLE',
+  'MEDIA_PROTECTED',
   'NOT_FOUND',
 ] as const
 
