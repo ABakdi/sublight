@@ -6,9 +6,11 @@ import {
   CAPTION_MODEL_KEY,
   COOKIES_KEY,
   DEFAULT_CAPTION_MODEL,
+  ENGLISH_VIA_KEY,
   TRANSLATE_MODEL,
 } from '../../src/captionsController'
 import { EngineBadge } from '../../src/EngineBadge'
+import { HIDE_SITE_CAPTIONS_KEY } from '../../src/siteCaptions'
 import { engineRequest, getToken, probeEngine, setToken } from '../../src/engine'
 import {
   DEFAULT_LIVE_MODEL,
@@ -307,11 +309,15 @@ const COOKIE_CHOICES: [string, string][] = [
 function FetchSettings() {
   const [cookies, setCookies] = useState('')
   const [autoLive, setAutoLive] = useState(true)
+  const [hideSite, setHideSite] = useState(true)
   useEffect(() => {
-    void browser.storage.local.get([COOKIES_KEY, AUTO_LIVE_KEY]).then((got) => {
-      setCookies((got[COOKIES_KEY] as string | undefined) ?? '')
-      setAutoLive(got[AUTO_LIVE_KEY] !== false)
-    })
+    void browser.storage.local
+      .get([COOKIES_KEY, AUTO_LIVE_KEY, HIDE_SITE_CAPTIONS_KEY])
+      .then((got) => {
+        setCookies((got[COOKIES_KEY] as string | undefined) ?? '')
+        setAutoLive(got[AUTO_LIVE_KEY] !== false)
+        setHideSite(got[HIDE_SITE_CAPTIONS_KEY] !== false)
+      })
   }, [])
   return (
     <section style={sectionStyle}>
@@ -359,6 +365,18 @@ function FetchSettings() {
         />
         When a video can’t be fetched, caption it live instead (about 3 s behind)
       </label>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginTop: 8 }}>
+        <input
+          type="checkbox"
+          data-testid="hide-site-captions"
+          checked={hideSite}
+          onChange={(e) => {
+            setHideSite(e.target.checked)
+            void browser.storage.local.set({ [HIDE_SITE_CAPTIONS_KEY]: e.target.checked })
+          }}
+        />
+        Hide the site’s own captions (YouTube CC and others) while sublight’s are on
+      </label>
     </section>
   )
 }
@@ -367,6 +385,16 @@ function FetchSettings() {
 function TranslationModel({ online }: { online: boolean }) {
   const [info, setInfo] = useState<ModelsResponse['models'][number] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [englishVia, setEnglishVia] = useState<'whisper' | 'llm'>('whisper')
+  useEffect(() => {
+    void browser.storage.local
+      .get(ENGLISH_VIA_KEY)
+      .then((got) => setEnglishVia(got[ENGLISH_VIA_KEY] === 'llm' ? 'llm' : 'whisper'))
+  }, [])
+  const chooseEnglish = (via: 'whisper' | 'llm') => {
+    setEnglishVia(via)
+    void browser.storage.local.set({ [ENGLISH_VIA_KEY]: via })
+  }
   useEffect(() => {
     if (!online) return
     const load = () =>
@@ -413,6 +441,40 @@ function TranslationModel({ online }: { online: boolean }) {
           Install ({gb})
         </button>
       )}
+      <fieldset style={{ border: 'none', padding: 0, margin: '14px 0 0', display: 'grid', gap: 6 }}>
+        <legend style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+          English translation
+        </legend>
+        <label style={{ display: 'flex', gap: 8, fontSize: 13, lineHeight: 1.4 }}>
+          <input
+            type="radio"
+            name="english"
+            data-testid="english-whisper"
+            checked={englishVia === 'whisper'}
+            onChange={() => chooseEnglish('whisper')}
+          />
+          <span>
+            <b>Fast</b>: from the audio with the speech model, ready ahead of playback like the
+            original captions.
+          </span>
+        </label>
+        <label style={{ display: 'flex', gap: 8, fontSize: 13, lineHeight: 1.4 }}>
+          <input
+            type="radio"
+            name="english"
+            data-testid="english-llm"
+            checked={englishVia === 'llm'}
+            onChange={() => chooseEnglish('llm')}
+          />
+          <span>
+            <b>Better</b>: the translation model translates the transcript: more accurate wording
+            and one English line per original line (best with “Show both”). It starts once the whole
+            video is transcribed and is slower than watching on a 4 GB GPU: an 11-minute video took
+            about 1.5 min to transcribe, then 9 min to translate (the original shows meanwhile).
+            Needs the model above.
+          </span>
+        </label>
+      </fieldset>
       {(error ?? info?.error) && (
         <div style={{ fontSize: 12, color: colors.bad, marginTop: 8 }}>{error ?? info?.error}</div>
       )}

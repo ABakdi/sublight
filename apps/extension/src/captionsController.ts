@@ -53,7 +53,21 @@ type Stored = CaptionsState & {
 const KEEPALIVE_MS = 30_000
 
 const languageName = (code: string) => TARGETS.find(([c]) => c === code)?.[1] ?? code
-const whisperTarget = (target: string) => isEnglish(target)
+/**
+ * Options: how to make English. 'whisper' (default) translates the audio,
+ * ahead of playback; 'llm' translates the finished transcript with the
+ * translation model: better wording, one English line per original line.
+ */
+export const ENGLISH_VIA_KEY = 'englishTranslation'
+let englishVia: 'whisper' | 'llm' = 'whisper'
+void browser.storage.local.get(ENGLISH_VIA_KEY).then((got) => {
+  englishVia = got[ENGLISH_VIA_KEY] === 'llm' ? 'llm' : 'whisper'
+})
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes[ENGLISH_VIA_KEY])
+    englishVia = changes[ENGLISH_VIA_KEY].newValue === 'llm' ? 'llm' : 'whisper'
+})
+const whisperTarget = (target: string) => isEnglish(target) && englishVia === 'whisper'
 
 /**
  * One tab's captions made ahead of playback (ADR-0020, Spec 09 §5a): creates
@@ -462,7 +476,9 @@ export async function startCaptions(
     LIVE_TASK_KEY,
     TARGET_KEY,
     COOKIES_KEY,
+    ENGLISH_VIA_KEY,
   ])
+  englishVia = prefs[ENGLISH_VIA_KEY] === 'llm' ? 'llm' : 'whisper'
   const target =
     opts.target ??
     (prefs[TARGET_KEY] as string | undefined) ??
