@@ -10,6 +10,8 @@ import {
   LINGER_MS,
   holdForReading,
   revealByWords,
+  cuesBySentence,
+  cuesForMode,
 } from '../src/cues'
 import type { SpeechWord } from '../src/types'
 
@@ -190,5 +192,60 @@ describe('activeCueAt', () => {
   it('finds the active cue by playback position', () => {
     expect(activeCueAt(cues, 500)?.text).toBeDefined()
     expect(activeCueAt(cues, 2500)?.text).toBeDefined()
+  })
+})
+
+describe('sentence captions', () => {
+  const w = (word: string, startMs: number, endMs: number) => ({ word, startMs, endMs })
+  const jfk = [
+    w('And', 330, 400),
+    w('so', 400, 690),
+    w('my', 690, 940),
+    w('fellow', 940, 1300),
+    w('Americans,', 1690, 2000),
+    w('ask', 3290, 3490),
+    w('not', 4240, 4500),
+    w('what', 4990, 5300),
+    w('your', 5420, 5700),
+    w('country', 5740, 6300),
+    w('can', 6390, 6700),
+    w('do', 6830, 7100),
+    w('for', 7140, 7400),
+    w('you,', 7550, 7900),
+    w('ask', 8170, 8400),
+    w('what', 8430, 8800),
+    w('you', 8910, 9000),
+    w('can', 9000, 9300),
+    w('do', 9340, 9500),
+    w('for', 9500, 9800),
+    w('your', 9820, 10_200),
+    w('country.', 10_230, 10_900),
+  ]
+  it('splits a long sentence at the clause break nearest the middle', () => {
+    const cues = cuesBySentence(jfk)
+    expect(cues.map((c) => c.text.replace(/\n/g, ' '))).toEqual([
+      // 7.6 s: over the 7 s limit, so it splits again at the comma
+      'And so my fellow Americans,',
+      'ask not what your country can do for you,',
+      'ask what you can do for your country.',
+    ])
+    expect(cues[2]!.startMs).toBe(8170)
+    expect(cues.every((c) => c.text.split('\n').length <= 2)).toBe(true)
+  })
+  it('keeps short sentences whole, one per cue', () => {
+    const cues = cuesBySentence([
+      w('Hi.', 0, 300),
+      w('How', 500, 700),
+      w('are', 700, 800),
+      w('you?', 800, 1100),
+    ])
+    expect(cues.map((c) => c.text)).toEqual(['Hi.', 'How are you?'])
+  })
+  it('picks cues per mode; tracks without words pass through', () => {
+    const cues = buildCuesFromWords(jfk)
+    expect(cuesForMode(cues, 'words').length).toBe(jfk.length)
+    expect(cuesForMode(cues, 'sentences').length).toBe(3)
+    const plain = [{ id: 'a', startMs: 0, endMs: 1000, text: 'no words' }]
+    expect(cuesForMode(plain, 'sentences')).toBe(plain)
   })
 })

@@ -15,7 +15,11 @@ export {
   revealByWords,
   MIN_DISPLAY_MS,
   LINGER_MS,
+  cuesBySentence,
+  cuesForMode,
+  SENTENCE_GAP_MS,
 } from './cues'
+export type { CaptionMode } from './cues'
 export { newId } from './id'
 export { parseSrt, parseSrtTime, serializeSrt, formatSrtTime } from './srt'
 export { detectSubtitleFormat, parseVtt, parseVttTimecode } from './vtt'

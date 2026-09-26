@@ -48,6 +48,10 @@ export interface SubtitleTrack {
   derivedFrom?: { trackId?: string; sourceLanguage: string }
   /** True while live captions are replacing; never both draft and final. */
   draft?: boolean
+  /** Drafts made ahead of playback (ADR-0020): media ranges already transcribed. */
+  coverage?: { startMs: number; endMs: number }[]
+  /** Length of the media the track was made from, when known (ADR-0020). */
+  mediaDurationMs?: number
   cues: SubtitleCue[]
   /** Track-level style (defaults to the user global). */
   style?: SubtitleStyle

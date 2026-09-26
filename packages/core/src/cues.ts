@@ -283,3 +283,91 @@ export function revealByWords(cues: SubtitleCue[], maxChars = MAX_LINE_CHARS): S
   }
   return out
 }
+
+/** How captions are cut: growing word by word, or one full sentence at a time. */
+export type CaptionMode = 'words' | 'sentences'
+
+/** A pause this long ends a sentence even without punctuation. */
+export const SENTENCE_GAP_MS = 1500
+/** Where a long sentence would rather be split. */
+const CLAUSE_END_RE = /[,;:–—]$/u
+
+function textLength(words: SpeechWord[]): number {
+  return words.reduce((n, w) => n + w.word.length, 0) + Math.max(0, words.length - 1)
+}
+
+/** Split a sentence until every part fits: at the clause break nearest the middle, else the middle. */
+function splitSentence(words: SpeechWord[], maxChars: number, maxCue: number): SpeechWord[][] {
+  const span = words[words.length - 1]!.endMs - words[0]!.startMs
+  if (words.length < 2 || (textLength(words) <= maxChars && span <= maxCue)) return [words]
+  const half = textLength(words) / 2
+  let best = -1
+  let bestScore = Infinity
+  let chars = 0
+  for (let i = 0; i < words.length - 1; i++) {
+    chars += words[i]!.word.length + 1
+    // Clause breaks win unless much further from the middle.
+    const score = Math.abs(chars - half) - (CLAUSE_END_RE.test(words[i]!.word) ? half / 2 : 0)
+    if (score < bestScore) {
+      bestScore = score
+      best = i
+    }
+  }
+  return [
+    ...splitSentence(words.slice(0, best + 1), maxChars, maxCue),
+    ...splitSentence(words.slice(best + 1), maxChars, maxCue),
+  ]
+}
+
+/**
+ * One cue per sentence (split at punctuation or a pause of 1.5 s), at most two
+ * lines and 7 s; longer sentences split at a clause break near the middle.
+ * Cues keep their words, then get the reading hold.
+ */
+export function cuesBySentence(
+  words: SpeechWord[],
+  opts?: { maxCueDurationMs?: number; maxLineChars?: number },
+): SubtitleCue[] {
+  const maxCue = opts?.maxCueDurationMs ?? MAX_CUE_DURATION_MS
+  const maxLine = opts?.maxLineChars ?? MAX_LINE_CHARS
+  const sentences: SpeechWord[][] = []
+  let current: SpeechWord[] = []
+  for (const w of words) {
+    const prev = current[current.length - 1]
+    if (prev && (SENTENCE_END_RE.test(prev.word) || w.startMs - prev.endMs >= SENTENCE_GAP_MS)) {
+      sentences.push(current)
+      current = []
+    }
+    current.push(w)
+  }
+  if (current.length) sentences.push(current)
+  const cues: SubtitleCue[] = []
+  for (const sentence of sentences) {
+    for (const part of splitSentence(sentence, maxLine * 2, maxCue)) {
+      const first = part[0]!
+      const last = part[part.length - 1]!
+      cues.push({
+        id: newId(),
+        startMs: first.startMs,
+        endMs: Math.max(last.endMs, first.startMs + MIN_CUE_DURATION_MS),
+        text: wrapWords(
+          part.map((w) => w.word),
+          maxLine,
+          2,
+        ).join('\n'),
+        words: part.map((w) => ({ ...w })),
+      })
+    }
+  }
+  return holdForReading(cues)
+}
+
+/**
+ * The cues to show or export for a mode. Needs word timings on every cue
+ * (transcripts); tracks without them (Whisper translate, imported SRT) are
+ * returned as they are.
+ */
+export function cuesForMode(cues: SubtitleCue[], mode: CaptionMode): SubtitleCue[] {
+  if (cues.length === 0 || !cues.every((c) => c.words?.length)) return cues
+  return mode === 'sentences' ? cuesBySentence(cues.flatMap((c) => c.words!)) : revealByWords(cues)
+}
