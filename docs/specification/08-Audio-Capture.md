@@ -85,6 +85,7 @@ Code: `apps/engine/src/live/`.
 
 Code: `apps/engine/src/asr/ahead.ts`, `apps/engine/src/media/remote.ts`, `apps/extension/src/captions*.ts`.
 
+- **Protected streams:** after resolving an HLS stream the engine reads its playlist; sample encryption (FairPlay `skd://`, Widevine, PlayReady) fails at once with `MEDIA_PROTECTED` ("this video is DRM-protected…"). yt-dlp can report `has_drm: false` for such formats (Vimeo, 2026-09-26). There's no live fallback for these: tab capture of DRM audio is silent. Plain AES-128 HLS is decrypted by ffmpeg and works.
 - **Resolve** (`resolveRemote`): the `<video>`'s `http(s)` src if ffprobe reads it (Referer = page, the browser's User-Agent); else `yt-dlp -J -f bestaudio/best --js-runtimes node:<engine's node>` on the page or embed URL (live streams refused). Unreachable → `MEDIA_UNREACHABLE` (422) with yt-dlp's reason; the popup offers live captions.
 - **Pieces** (`nextRange`): the first piece is 30 s from the playhead, then 2-minute pieces forward, then the part before the playhead; no slivers under 10 s. After a seek (`POST /v1/url/:id/focus`), the next piece is 30 s from the new position.
 - **Per piece:** `ffmpeg -ss … -t …` over Range requests (1 s of context either side) → 16 kHz mono → leading silence cut → whisper (prompt = the preceding piece's words) → onset snapping → words owned by the piece; touching pieces drop words already heard. If ffmpeg returns much less audio than asked (a site without Range support, a dropped connection), the job fails rather than passing it off as silence.

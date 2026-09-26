@@ -99,7 +99,7 @@ Drafts arrive as `job.partial` in media time; audio/anchors for a job that isn't
 
 `cookiesFromBrowser` (opt-in, [ADR-0021](../architecture/decisions/0021-quick-controls-and-short-video-feeds.md)): one of `brave`, `chrome`, `chromium`, `edge`, `firefox`, `opera`, `vivaldi`; yt-dlp reads that browser's cookies for sites that need a login.
 
-Drafts (`job.partial`) carry `coverage` (captioned media ranges) and `mediaDurationMs`. `MEDIA_UNREACHABLE` (`422`) when the audio can't be fetched: no direct URL and no yt-dlp, yt-dlp's error, a live stream, or a site that returns only part of the stream.
+Drafts (`job.partial`) carry `coverage` (captioned media ranges) and `mediaDurationMs`. `MEDIA_PROTECTED` (`422`) when the stream is DRM-encrypted; `MEDIA_UNREACHABLE` (`422`) when the audio can't be fetched: no direct URL and no yt-dlp, yt-dlp's error, a live stream, or a site that returns only part of the stream.
 
 ### Auth pairing (v1 handshake)
 

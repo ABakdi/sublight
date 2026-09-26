@@ -113,7 +113,7 @@ Live capture can't be exact: it only hears audio once it has played (~2–3 s be
 ### Still open
 
 - [ ] M05.8 yt-dlp toggle: folded into M05b's engine relay.
-- [ ] Vimeo, and a real DRM site for the silence notice, checked by hand.
+- [x] Vimeo checked (2026-09-26): yt-dlp resolves it, but the audio is FairPlay-encrypted HLS; now refused up front as `MEDIA_PROTECTED` with a clear message instead of a decode error.
 - [x] Hide the site's own captions while ours are on (text tracks + known player caption layers; restored after).
 
 ## Acceptance criteria
