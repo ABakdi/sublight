@@ -8,6 +8,7 @@ import {
   startCaptions,
   stopCaptions,
 } from '../src/captionsController'
+import { BUILD_ID } from '../src/build'
 import { probeEngine } from '../src/engine'
 import { liveStatus, onLiveMessage, startLive, stopLive } from '../src/liveController'
 import { isMessage, type Message, type TabStatus, type VideoState } from '../src/messages'
@@ -31,7 +32,7 @@ async function tabStatus(tabId: number): Promise<TabStatus> {
 async function handle(message: Message, sender: { tab?: { id?: number }; frameId?: number }) {
   switch (message.type) {
     case 'ping':
-      return { ok: true, version: browser.runtime.getManifest().version }
+      return { ok: true, version: browser.runtime.getManifest().version, build: BUILD_ID }
     case 'video.state': {
       const tabId = sender.tab?.id
       if (tabId === undefined) return { ok: false }

@@ -9,9 +9,15 @@ import { defineConfig } from 'wxt'
 const DEV_PUBLIC_KEY =
   'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsUabSRr2SUtLUHi1IyNPgUZPStvAunHXiet+J2LgRpzlkkHCILFRmAxdO2OpmjTXIhi1TCUEi/yTKwX8usd4Oo6+sR71aSGsbfjY7m52BtmjiWGttBGPQQUHtz7zhBZBK7k0NXMRfQyev0+Zl9N6uuI0OjR8o1yS2AlYuwT9DIEKHdC1NwRHy4XjCKmFOavbcRx2IGKHhtN+EgL6bo1Sb7nvbpCaxoqKWL8i97eYE89oZiJ53AGHCM9OTmqy4TF+UvSG3jT+hNKY5d6auNgZza5JJ8tiXDbydGEQmLLwV9ldKRlCbbBO9kJdB3w/IcTmnohnK2PmeDP5wlzo+sMklwIDAQAB'
 
+/** Computed once: WXT builds each entrypoint separately, and they must share it. */
+const BUILD_ID = String(Date.now())
+
 /** Extension config (Spec 09 §1-§2). MV3, Chromium-first (ADR-0003). */
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
+  // One id per build, so the popup can tell when the running service worker is
+  // an older build (Chromium keeps it until the extension is reloaded).
+  vite: () => ({ define: { __SUBLIGHT_BUILD__: JSON.stringify(BUILD_ID) } }),
   manifest: {
     name: 'sublight',
     description: 'Local AI subtitles for any video',

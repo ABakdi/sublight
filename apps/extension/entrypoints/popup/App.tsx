@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { serializeSrt, type CaptionMode } from '@sublight/core'
 import { browser } from 'wxt/browser'
+import { BUILD_ID } from '../../src/build'
 import { HOLD_KEY } from '../../src/captionsContent'
 import { EngineBadge } from '../../src/EngineBadge'
 import { liveTrackKey, type SavedLiveTrack } from '../../src/liveController'
@@ -40,6 +41,8 @@ function playheadMs(frame: VideoState, now: number): number {
 }
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+const NO_ANSWER =
+  'The extension’s background didn’t answer. Press “Reload sublight” above, or restart the browser.'
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 /**
@@ -56,6 +59,8 @@ export function PopupApp() {
   const [error, setError] = useState<string | null>(null)
   const [live, setLive] = useState<LiveState | null>(null)
   const [captions, setCaptions] = useState<CaptionsState | null>(null)
+  /** The running service worker is an older build than this popup (not reloaded after an update). */
+  const [stale, setStale] = useState(false)
 
   const refreshEngine = useCallback(() => {
     setEngine(null)
@@ -74,6 +79,10 @@ export function PopupApp() {
         )
     })
     refreshEngine()
+    void browser.runtime.sendMessage({ type: 'ping' }).then(
+      (r: unknown) => setStale((r as { build?: string } | undefined)?.build !== BUILD_ID),
+      () => setStale(true),
+    )
   }, [refreshEngine])
 
   useEffect(() => {
@@ -109,7 +118,12 @@ export function PopupApp() {
   const toggleCaptions = () =>
     run(async () => {
       if (tabId === null) return
-      setCaptions(await send({ type: captionsActive ? 'captions.stop' : 'captions.start', tabId }))
+      const state = await send({ type: captionsActive ? 'captions.stop' : 'captions.start', tabId })
+      if (state === undefined) {
+        setStale(true)
+        throw new Error(NO_ANSWER)
+      }
+      setCaptions(state)
     })
 
   const liveActive = live?.phase === 'starting' || live?.phase === 'listening'
@@ -149,6 +163,26 @@ export function PopupApp() {
         </button>
       </header>
 
+      {stale && (
+        <section
+          data-testid="stale-banner"
+          style={{ ...card, borderColor: colors.warn, background: '#fffaeb' }}
+        >
+          <div style={{ fontSize: 12, lineHeight: 1.45 }}>
+            sublight was updated, but the browser is still running the old version in the
+            background, so new buttons won’t work until it reloads.
+          </div>
+          <button
+            data-testid="reload-extension"
+            style={primaryButton}
+            onClick={() => browser.runtime.reload()}
+          >
+            Reload sublight
+          </button>
+          <div style={{ fontSize: 11, color: colors.muted }}>Then reload the video’s page too.</div>
+        </section>
+      )}
+
       <VideoCard
         reported={reported}
         frame={frame}
@@ -162,6 +196,13 @@ export function PopupApp() {
         frame={frame}
         now={now}
         canCaption={canCaption}
+        disabledReason={
+          engine?.state !== 'online'
+            ? 'Needs the engine: see the badge at the top.'
+            : !frame
+              ? 'No video found on this page (reload it if sublight was just installed).'
+              : null
+        }
         onToggle={() => void toggleCaptions()}
         onUseLive={() => void toggleLive()}
       />
@@ -379,10 +420,11 @@ function CaptionsCard(props: {
   frame: VideoState | null
   now: number
   canCaption: boolean
+  disabledReason: string | null
   onToggle: () => void
   onUseLive: () => void
 }) {
-  const { captions, frame, now, canCaption, onToggle, onUseLive } = props
+  const { captions, frame, now, canCaption, disabledReason, onToggle, onUseLive } = props
   const [hold, setHold] = useState(true)
   useEffect(() => {
     void browser.storage.local.get(HOLD_KEY).then((got) => setHold(got[HOLD_KEY] !== false))
@@ -395,7 +437,9 @@ function CaptionsCard(props: {
   const percent = Math.round((captions?.progress ?? 0) * 100)
 
   let status: ReactNode =
-    'Transcribes ahead of the playhead, so every caption shows at its exact moment.'
+    !canCaption && disabledReason
+      ? disabledReason
+      : 'Transcribes ahead of the playhead, so every caption shows at its exact moment.'
   if (phase === 'starting') status = `${cap(captions?.detail ?? 'starting')}…`
   else if (phase === 'captioning')
     status = here
@@ -590,7 +634,9 @@ function DownloadCard(props: {
   const download = async () => {
     onError(null)
     try {
-      onState(await send({ type: 'captions.download', tabId, mode }))
+      const state = await send({ type: 'captions.download', tabId, mode })
+      if (state === undefined) throw new Error(NO_ANSWER)
+      onState(state)
     } catch (e) {
       onError(errorText(e))
     }
