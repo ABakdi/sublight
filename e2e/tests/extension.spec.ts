@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { createServer, type Server } from 'node:http'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -96,6 +97,8 @@ test.describe('extension in Chromium (Spec 09)', () => {
         )!.id,
     )
     await popup.goto(`${EXT}/popup.html?tab=${tabId}`)
+    // Live and test captions live under "More".
+    await popup.locator('summary', { hasText: 'More' }).click()
     return popup
   }
 
@@ -239,6 +242,100 @@ test.describe('extension in Chromium (Spec 09)', () => {
         ),
       )
       .toMatch(/country/i)
+  })
+
+  test('Caption this video explains a missing speech model (ADR-0020)', async () => {
+    test.skip(!!process.env.E2E_REAL_ASR, 'the real-ASR engine has the model installed')
+    await pair()
+    const site = context.pages()[0] ?? (await context.newPage())
+    await site.goto(`${SITE}/watch`)
+    const popup = await openPopupFor(site)
+    await expect(popup.getByTestId('engine-status')).toHaveAttribute('data-state', 'online')
+    await popup.getByTestId('captions-toggle').click()
+    await expect(popup.getByTestId('captions-error')).toContainText('speech model isn’t installed')
+  })
+
+  test('captions ahead of playback from a direct media URL, and the SRT (ADR-0020, real ASR)', async () => {
+    test.skip(!process.env.E2E_REAL_ASR, 'set E2E_REAL_ASR=1 with whisper-small installed locally')
+    test.setTimeout(120_000)
+    const dir = mkdtempSync(join(tmpdir(), 'sublight-e2e-ahead-'))
+    const clip = join(dir, 'jfk.mp4')
+    execFileSync('ffmpeg', [
+      ...['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=10'],
+      ...['-i', resolve(process.cwd(), '..', 'apps', 'engine', 'tests', 'fixtures', 'jfk.wav')],
+      ...['-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', clip],
+    ])
+    served = readFileSync(clip)
+    // A real HTTP server the engine can fetch from (Playwright routes are browser-only).
+    // Loopback page + loopback media: Chrome blocks public pages from loading local media.
+    const server: Server = createServer((req, res) => {
+      if (req.url?.startsWith('/clip.mp4')) {
+        const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '')
+        const start = m ? Number(m[1]) : 0
+        const end = m?.[2] ? Number(m[2]) : served.length - 1
+        res.writeHead(m ? 206 : 200, {
+          'content-type': 'video/mp4',
+          'accept-ranges': 'bytes',
+          'content-length': end - start + 1,
+          ...(m ? { 'content-range': `bytes ${start}-${end}/${served.length}` } : {}),
+        })
+        res.end(served.subarray(start, end + 1))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'text/html' })
+      res.end(
+        '<!doctype html><title>JFK</title><video src="/clip.mp4" style="width:640px;height:360px"></video>',
+      )
+    })
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+    const port = (server.address() as { port: number }).port
+    try {
+      await pair()
+      const site = context.pages()[0] ?? (await context.newPage())
+      await site.goto(`http://127.0.0.1:${port}/watch`)
+      await site.evaluate(() => document.querySelector('video')!.play())
+      const popup = await openPopupFor(site)
+      await expect(popup.getByTestId('engine-status')).toHaveAttribute('data-state', 'online')
+      await popup.getByTestId('captions-toggle').click()
+      await expect(popup.getByTestId('captions-status')).toHaveAttribute('data-phase', 'done', {
+        timeout: 60_000,
+      })
+      // Exact timing: at 6.5 s the sentence around "country" is on screen.
+      await site.bringToFront()
+      await site.evaluate(() => {
+        const v = document.querySelector('video')!
+        v.pause()
+        v.currentTime = 6.5
+      })
+      await expect
+        .poll(() =>
+          site.evaluate(
+            () =>
+              document
+                .querySelector('[data-sublight-frame] [data-sublight-host]')
+                ?.shadowRoot?.querySelector('.sl-cue')?.textContent ?? '',
+          ),
+        )
+        .toMatch(/country/i)
+      // The whole video as SRT, by sentence.
+      await popup.bringToFront()
+      await popup.getByTestId('download-mode-sentences').click()
+      await popup.getByTestId('download-srt').click()
+      type Dl = { state: string; filename: string }
+      const chromeDl = () =>
+        popup.evaluate(() =>
+          (
+            globalThis as unknown as { chrome: { downloads: { search(q: object): Promise<Dl[]> } } }
+          ).chrome.downloads.search({}),
+        )
+      await expect
+        .poll(async () => (await chromeDl()).some((d) => d.state === 'complete'))
+        .toBe(true)
+      const file = (await chromeDl()).find((d) => d.state === 'complete')!.filename
+      expect(readFileSync(file, 'utf8')).toMatch(/ask not what your country/i)
+    } finally {
+      server.close()
+    }
   })
 
   test('caption size and position toggles apply to the overlay (M05.7)', async () => {
