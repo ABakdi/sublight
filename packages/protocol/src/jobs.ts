@@ -62,6 +62,32 @@ export interface LiveJob {
 }
 
 /**
+ * Caption a page's video ahead of playback (ADR-0020, Spec 08 §6): the engine
+ * finds the video's audio itself (the page's direct media URL, else yt-dlp on
+ * the page URL) and transcribes it in pieces, starting at the playhead, so
+ * captions exist before their moment comes. Drafts (`job.partial`) carry
+ * `coverage`; `POST /v1/url/:jobId/focus` moves the next piece to a new
+ * playhead after a seek. One such job at a time (a newer one cancels it).
+ */
+export interface UrlJob {
+  type: 'url'
+  /** The page (or embed frame) showing the video. */
+  pageUrl: string
+  /** The <video>'s own src when it is an http(s) file or playlist. */
+  mediaUrl?: string
+  /** The browser's User-Agent, sent when fetching `mediaUrl`. */
+  userAgent?: string
+  model: string
+  params: {
+    language: string | null
+    task?: AsrTask
+    /** Where playback is: transcription starts here, then continues around it. */
+    fromMs?: number
+  }
+  priority?: JobPriority
+}
+
+/**
  * Maps capture time to media time (Spec 08 §4): from `wallMs` on, the video
  * is at `mediaMs` and advances at `rate` while `playing`. Sent on start,
  * play, pause, seek and rate changes.
@@ -83,7 +109,7 @@ export interface LiveStatus {
   stopping: boolean
 }
 
-export type JobCreation = TranscribeJob | TranslateJob | LiveJob
+export type JobCreation = TranscribeJob | TranslateJob | LiveJob | UrlJob
 
 export interface JobSummary {
   id: string
