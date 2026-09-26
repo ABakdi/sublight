@@ -39,12 +39,13 @@ export interface JobRunner<T extends JobCreation = JobCreation> {
   cacheKey(request: T): string | null
   run(request: T, ctx: RunContext): Promise<RunOutput>
   /**
-   * One at a time (live capture): a new job of this type replaces older ones.
-   * Queued ones are cancelled; each running one gets `supersede(jobId)` to
-   * wrap up quickly. Such jobs can't survive an engine restart either (their
-   * input was streamed), so they are cancelled instead of resumed.
+   * One at a time (live capture, captioning a page): a new job of this type
+   * replaces older ones. Queued ones are cancelled; a running one gets
+   * `supersede(jobId)` to wrap up quickly, or is cancelled without it. Such
+   * jobs are cancelled rather than resumed after an engine restart (their
+   * input was streamed, or belongs to a page that is gone).
    */
-  exclusive?: { supersede(jobId: string): void }
+  exclusive?: { supersede?(jobId: string): void }
 }
 
 export interface QueueOptions {
@@ -131,7 +132,10 @@ export class JobQueue {
         if (old.state === 'queued' || old.state === 'interrupted') {
           this.store.patch(old.id, { state: 'cancelled', detail: 'replaced by a newer job' })
           this.emitState(old)
-        } else if (old.state === 'running') runner.exclusive.supersede(old.id)
+        } else if (old.state === 'running') {
+          if (runner.exclusive.supersede) runner.exclusive.supersede(old.id)
+          else this.cancel(old.id)
+        }
       }
     }
     const cacheKey = runner.cacheKey(request) ?? undefined

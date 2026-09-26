@@ -218,7 +218,7 @@ describe('live runner', () => {
     session.append(tone(2000), Date.now())
     const out = run.run(job, ctx('j7').c)
     await new Promise((r) => setTimeout(r, 100))
-    run.exclusive!.supersede('j7')
+    run.exclusive!.supersede!('j7')
     const result = await out
     expect(result.tracks[0]!.cues.length).toBeGreaterThan(0)
     expect(fw.calls).toHaveLength(2) // one live pass, the final pass; no refinement

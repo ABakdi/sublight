@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { aheadRunner, type AheadRunner } from './asr/ahead'
 import { WhisperWorker } from './asr/whisper'
 import { transcribeRunner } from './asr/transcribe'
 import { LlamaWorker } from './llm/llama'
@@ -11,6 +12,7 @@ import type { EngineConfig } from './config'
 import { EventBus } from './events'
 import { JobQueue } from './jobs/queue'
 import { JobStore } from './jobs/store'
+import { findYtDlp } from './media/remote'
 import { MediaStore } from './media/store'
 import { ModelManager } from './models/manager'
 import type { EnginePaths } from './paths'
@@ -24,6 +26,8 @@ export interface EngineServices {
   llama: LlamaWorker
   gpu: GpuResidency
   live: LiveHub
+  /** `url` jobs: captions made ahead of playback (ADR-0020). */
+  ahead: AheadRunner
   paths: EnginePaths
 }
 
@@ -85,5 +89,13 @@ export function createServices(config: EngineConfig, paths: EnginePaths): Engine
   jobs.register(translateRunner({ models, llama, gpu }))
   const live = new LiveHub(join(paths.jobs, 'live'))
   jobs.register(liveRunner({ models, whisper, gpu, hub: live }))
-  return { bus, models, media, jobs, whisper, llama, gpu, live, paths }
+  const ahead = aheadRunner({
+    models,
+    whisper,
+    gpu,
+    ffmpeg: config.ffmpeg,
+    ytDlp: findYtDlp(paths.bin),
+  })
+  jobs.register(ahead)
+  return { bus, models, media, jobs, whisper, llama, gpu, live, ahead, paths }
 }

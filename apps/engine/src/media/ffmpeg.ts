@@ -7,13 +7,14 @@ export interface FfmpegBinaries {
 
 export const SYSTEM_FFMPEG: FfmpegBinaries = { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' }
 
-interface RunResult {
+export interface RunResult {
   code: number | null
   stdout: string
   stderr: string
 }
 
-function run(cmd: string, args: string[], timeoutMs: number): Promise<RunResult> {
+/** Run a process to completion, killing it after `timeoutMs`. */
+export function run(cmd: string, args: string[], timeoutMs: number): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let stdout = ''

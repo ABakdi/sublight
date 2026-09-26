@@ -1,3 +1,4 @@
+import { aheadRunner } from '../src/asr/ahead'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -67,7 +68,8 @@ function services(runner?: JobRunner): EngineServices {
   })
   const gpu = new GpuResidency({ asr: whisper, llm: llama })
   const live = new LiveHub(join(paths.jobs, 'live'))
-  return { bus, models, media, jobs, whisper, llama, gpu, live, paths }
+  const ahead = aheadRunner({ models, whisper, ffmpeg: SYSTEM_FFMPEG, ytDlp: null })
+  return { bus, models, media, jobs, whisper, llama, gpu, live, ahead, paths }
 }
 
 /** Stand-in for whisper: instant, deterministic output. */

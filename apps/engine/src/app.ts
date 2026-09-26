@@ -226,6 +226,18 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
       s.live.get(c.req.param('id')).stopping = true
       return c.json(s.jobs.get(c.req.param('id')), 202)
     })
+    // --- captions ahead of playback (ADR-0020) ---
+    app.post('/v1/url/:id/focus', async (c) => {
+      const job = s.jobs.get(c.req.param('id'))
+      if (!job || job.type !== 'url') return jsonError(c, 'JOB_NOT_FOUND', 'unknown url job', 404)
+      const body = await c.req.json<{ mediaMs?: unknown }>().catch(() => null)
+      const ms = body?.mediaMs
+      if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0)
+        return jsonError(c, 'JOB_INVALID', 'mediaMs must be a number ≥ 0', 400)
+      if (!s.ahead.focus(job.id, ms))
+        return jsonError(c, 'JOB_INVALID', `url job is ${job.state}`, 409)
+      return c.json({ ok: true })
+    })
     app.get('/v1/live/:id', (c) => {
       const job = s.jobs.get(c.req.param('id'))
       if (!job || job.type !== 'live' || !s.live.has(job.id)) {
