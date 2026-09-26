@@ -26,7 +26,9 @@ export const LIVE_REFINE_KEY = 'liveRefineModel'
 export const DEFAULT_REFINE_MODEL = 'whisper-small'
 
 /** First installed model among the candidates (engine model list). */
-async function pickInstalled(candidates: (string | undefined)[]): Promise<string | undefined> {
+export async function pickInstalled(
+  candidates: (string | undefined)[],
+): Promise<string | undefined> {
   const { models } = await engineRequest<ModelsResponse>('/v1/models').catch(() => ({
     models: [] as ModelsResponse['models'],
   }))
@@ -218,7 +220,7 @@ async function startTabCapture(c: LiveController): Promise<void> {
   await c.useSource('tab')
 }
 
-function describe(err: unknown): string {
+export function describe(err: unknown): string {
   if (err instanceof EngineRequestError) {
     if (err.code === 'MODEL_NOT_INSTALLED')
       return 'The speech model isn’t installed. Install it from the Sublight Player (Caption tab) or the engine API.'

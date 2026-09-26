@@ -1,4 +1,4 @@
-import type { SubtitleTrack } from '@sublight/core'
+import type { CaptionMode, SubtitleTrack } from '@sublight/core'
 import type { LiveAnchor } from '@sublight/protocol'
 
 /**
@@ -10,6 +10,8 @@ import type { LiveAnchor } from '@sublight/protocol'
 export interface VideoState {
   frame: 'top' | 'iframe'
   url: string
+  /** document.title of the frame (the top frame's names the video on most sites). */
+  title: string
   videoCount: number
   /** The primary video: playing + visible beats paused; larger beats smaller. */
   primary: {
@@ -20,6 +22,8 @@ export interface VideoState {
     playbackRate: number
     width: number
     height: number
+    /** The element's own media URL when it is http(s) (not blob:/MSE). */
+    src: string | null
   } | null
   demoCaptions: boolean
   /** Epoch ms of this snapshot; with playbackRate it extrapolates the playhead. */
@@ -55,8 +59,42 @@ export interface LiveState {
   cues: number
 }
 
+/**
+ * One tab's captions made ahead of playback (ADR-0020), kept by the SW in
+ * storage.session. The engine fetches the audio itself and transcribes
+ * ahead of the playhead; `coverage` is what's already captioned.
+ */
+export interface CaptionsState {
+  tabId: number
+  jobId: string
+  phase: 'starting' | 'captioning' | 'done' | 'error' | 'stopped'
+  detail?: string
+  error?: string
+  /** The engine can't reach this video's audio: live captions are the way. */
+  suggestLive?: boolean
+  /** 0..1 of the whole video. */
+  progress: number
+  coverage: { startMs: number; endMs: number }[]
+  title?: string
+  /** A download waits for the whole video, in this mode. */
+  pendingDownload?: CaptionMode
+}
+
 export type Message =
   | { type: 'video.state'; state: VideoState }
+  // popup → SW: captions ahead of playback (ADR-0020)
+  | { type: 'captions.start'; tabId: number }
+  | { type: 'captions.stop'; tabId: number }
+  | { type: 'captions.status'; tabId: number }
+  /** Save the whole video's captions as SRT (transcribing the rest first if needed). */
+  | { type: 'captions.download'; tabId: number; mode: CaptionMode }
+  // SW → content
+  | { type: 'captions.begin'; jobId: string }
+  | { type: 'captions.track'; track: SubtitleTrack; final: boolean }
+  | { type: 'captions.end' }
+  // content → SW
+  | { type: 'captions.seek'; jobId: string; mediaMs: number }
+  | { type: 'captions.navigated'; jobId: string }
   // popup → SW
   | { type: 'live.start'; tabId: number }
   | { type: 'live.stop'; tabId: number }

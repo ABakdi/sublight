@@ -1,9 +1,10 @@
 import { defineContentScript } from 'wxt/utils/define-content-script'
 import { browser } from 'wxt/browser'
+import { PageCaptions } from '../src/captionsContent'
 import { DemoOverlay } from '../src/demoOverlay'
 import { LiveSession } from '../src/liveContent'
 import { isMessage, type Message } from '../src/messages'
-import { pickPrimary, snapshot } from '../src/videos'
+import { pickPrimary, snapshot, videoKey } from '../src/videos'
 
 const MEDIA_EVENTS = ['play', 'pause', 'loadedmetadata', 'seeked', 'ratechange', 'ended', 'emptied']
 const RESCAN_MS = 2000
@@ -87,10 +88,23 @@ export default defineContentScript({
         .catch(() => {})
     }
 
+    let captions: PageCaptions | null = null
+    const endCaptionsForNavigation = () => {
+      if (!captions) return
+      const jobId = captions.jobId
+      captions.destroy()
+      captions = null
+      void browser.runtime
+        .sendMessage({ type: 'captions.navigated', jobId } satisfies Message)
+        .catch(() => {})
+    }
+
     setInterval(() => {
-      if (location.href !== lastUrl) {
+      // A real move to another video, not YouTube dropping `&t=` from the URL.
+      if (videoKey(location.href) !== videoKey(lastUrl)) {
         lastUrl = location.href
         endLiveForNavigation()
+        endCaptionsForNavigation()
         schedule(true)
       } else schedule()
     }, RESCAN_MS)
@@ -102,6 +116,34 @@ export default defineContentScript({
           demoOn = message.on
           report(true)
           sendResponse({ ok: true, mounted: overlay !== null })
+          return undefined
+        case 'captions.begin': {
+          const primary = pickPrimary(videos) ?? videos[0] ?? null
+          if (!primary) {
+            sendResponse({ ok: false, reason: 'no-video' })
+            return undefined
+          }
+          if (document.querySelector('[data-sublight-host]:not([data-sublight-frame] *)')) {
+            sendResponse({ ok: false, reason: 'player' })
+            return undefined
+          }
+          captions?.destroy()
+          live?.destroy()
+          live = null
+          demoOn = false
+          syncOverlay(null)
+          captions = new PageCaptions(primary, message.jobId)
+          sendResponse({ ok: true })
+          return undefined
+        }
+        case 'captions.track':
+          captions?.showTrack(message.track, message.final)
+          sendResponse({ ok: true })
+          return undefined
+        case 'captions.end':
+          captions?.destroy()
+          captions = null
+          sendResponse({ ok: true })
           return undefined
         case 'live.begin': {
           // Only the frame that owns the primary video takes the session.
@@ -116,6 +158,8 @@ export default defineContentScript({
             return undefined
           }
           live?.destroy()
+          captions?.destroy()
+          captions = null
           demoOn = false
           syncOverlay(null) // live captions replace test captions
           live = new LiveSession(primary, message.jobId, endLiveForNavigation)

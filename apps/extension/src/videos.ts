@@ -1,5 +1,18 @@
 import type { VideoState } from './messages'
 
+/** The same video whatever start-time or tracking parameters its URL gains or loses. */
+export function videoKey(href: string): string {
+  try {
+    const u = new URL(href)
+    u.hash = ''
+    for (const p of ['t', 'start', 'time_continue', 'si', 'feature', 'pp', 'ab_channel'])
+      u.searchParams.delete(p)
+    return u.toString()
+  } catch {
+    return href
+  }
+}
+
 /** Visible area of a video in the viewport, px². 0 when hidden or off-screen. */
 export function visibleArea(video: HTMLVideoElement): number {
   const r = video.getBoundingClientRect()
@@ -39,6 +52,7 @@ export function snapshot(
   return {
     frame: window.self === window.top ? 'top' : 'iframe',
     url: location.href,
+    title: document.title,
     videoCount: videos.length,
     primary: primary
       ? {
@@ -50,6 +64,7 @@ export function snapshot(
           playbackRate: primary.playbackRate,
           width: Math.round(primary.getBoundingClientRect().width),
           height: Math.round(primary.getBoundingClientRect().height),
+          src: /^https?:/i.test(primary.currentSrc) ? primary.currentSrc : null,
         }
       : null,
     demoCaptions,

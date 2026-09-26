@@ -1,6 +1,6 @@
-import { createElement } from 'react'
+import { createElement, Fragment } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { revealByWords, type SubtitleCue, type SubtitleStyle } from '@sublight/core'
+import { cuesForMode, type CaptionMode, type SubtitleCue, type SubtitleStyle } from '@sublight/core'
 import { SubtitleOverlay } from '@sublight/overlay'
 import { browser } from 'wxt/browser'
 
@@ -9,8 +9,14 @@ export const OVERLAY_STYLE_KEY = 'overlayStyle'
 export interface QuickStyle {
   fontSize?: number
   anchor?: 'bottom' | 'top'
-  /** 'words' (default): text fills in as each word is spoken; 'lines': whole cues. */
+  /** 'words' (default): text fills in as each word is spoken; 'sentences': whole sentences. */
+  mode?: CaptionMode
+  /** Older setting ('lines' = whole cues), read as `mode`. */
   reveal?: 'words' | 'lines'
+}
+
+export function modeOf(style: QuickStyle): CaptionMode {
+  return style.mode ?? (style.reveal === 'lines' ? 'sentences' : 'words')
 }
 
 const frames = new Set<OverlayFrame>()
@@ -87,12 +93,21 @@ export class OverlayFrame {
     this.render()
   }
 
-  /** Word steps are rebuilt only when the cues change, not on every offset move. */
-  private revealed: { from: SubtitleCue[]; steps: SubtitleCue[] } | null = null
-  private wordSteps(): SubtitleCue[] {
-    if (this.revealed?.from !== this.cues)
-      this.revealed = { from: this.cues, steps: revealByWords(this.cues) }
-    return this.revealed.steps
+  private status: string | null = null
+  /** A short note over the video ("Captioning this part…"), null hides it. */
+  setStatus(text: string | null): void {
+    if (text === this.status) return
+    this.status = text
+    this.render()
+  }
+
+  /** Cues for the display mode, rebuilt only when cues or mode change (not on offset moves). */
+  private shaped: { from: SubtitleCue[]; mode: CaptionMode; cues: SubtitleCue[] } | null = null
+  private shapedCues(): SubtitleCue[] {
+    const mode = modeOf(quickStyle)
+    if (this.shaped?.from !== this.cues || this.shaped.mode !== mode)
+      this.shaped = { from: this.cues, mode, cues: cuesForMode(this.cues, mode) }
+    return this.shaped.cues
   }
 
   private render(): void {
@@ -101,13 +116,35 @@ export class OverlayFrame {
       position: { anchor: quickStyle.anchor ?? 'bottom', marginPx: this.margin },
     }
     this.root.render(
-      createElement(SubtitleOverlay, {
-        cues: quickStyle.reveal === 'lines' ? this.cues : this.wordSteps(),
-        video: this.video,
-        draft: this.draft,
-        syncOffsetMs: this.offsetMs,
-        style,
-      }),
+      createElement(
+        Fragment,
+        null,
+        createElement(SubtitleOverlay, {
+          cues: this.shapedCues(),
+          video: this.video,
+          draft: this.draft,
+          syncOffsetMs: this.offsetMs,
+          style,
+        }),
+        this.status &&
+          createElement(
+            'div',
+            {
+              'data-sublight-status': '',
+              style: {
+                position: 'absolute',
+                top: 12,
+                left: 12,
+                padding: '5px 10px',
+                borderRadius: 999,
+                background: 'rgba(0,0,0,0.72)',
+                color: '#fff',
+                font: '600 13px system-ui, sans-serif',
+              },
+            },
+            this.status,
+          ),
+      ),
     )
   }
 

@@ -1,5 +1,13 @@
 import { defineBackground } from 'wxt/utils/define-background'
 import { browser } from 'wxt/browser'
+import {
+  captionsStatus,
+  downloadCaptions,
+  onCaptionsMessage,
+  ownerFrame,
+  startCaptions,
+  stopCaptions,
+} from '../src/captionsController'
 import { probeEngine } from '../src/engine'
 import { liveStatus, onLiveMessage, startLive, stopLive } from '../src/liveController'
 import { isMessage, type Message, type TabStatus, type VideoState } from '../src/messages'
@@ -36,6 +44,32 @@ async function handle(message: Message, sender: { tab?: { id?: number }; frameId
       return tabStatus(message.tabId)
     case 'engine.status':
       return probeEngine()
+    case 'captions.start': {
+      const owner = ownerFrame(await readFrames(message.tabId))
+      if (!owner)
+        return {
+          tabId: message.tabId,
+          jobId: '',
+          phase: 'error',
+          error: 'No video on this page.',
+          progress: 0,
+          coverage: [],
+        }
+      return startCaptions(message.tabId, owner)
+    }
+    case 'captions.stop':
+      return stopCaptions(message.tabId)
+    case 'captions.status':
+      return captionsStatus(message.tabId)
+    case 'captions.download':
+      return downloadCaptions(
+        message.tabId,
+        message.mode,
+        ownerFrame(await readFrames(message.tabId)),
+      )
+    case 'captions.seek':
+    case 'captions.navigated':
+      return onCaptionsMessage(message, sender)
     case 'live.start': {
       const frames = await readFrames(message.tabId)
       // The frame that owns the primary video (a playing one if any).
@@ -90,7 +124,16 @@ export default defineBackground(() => {
 
   // Alt+Shift+L: toggle live captions on the active tab (Spec 09 §7).
   browser.commands.onCommand.addListener((command, tab) => {
-    if (command !== 'toggle-live' || tab?.id === undefined) return
+    if (tab?.id === undefined) return
+    if (command === 'toggle-captions') {
+      const tabId = tab.id
+      void captionsStatus(tabId).then((state) => {
+        const active = state?.phase === 'starting' || state?.phase === 'captioning'
+        return handle({ type: active ? 'captions.stop' : 'captions.start', tabId }, {})
+      })
+      return
+    }
+    if (command !== 'toggle-live') return
     const tabId = tab.id
     void liveStatus(tabId).then((state) => {
       const active = state?.phase === 'starting' || state?.phase === 'listening'
