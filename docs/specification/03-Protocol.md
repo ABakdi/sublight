@@ -87,10 +87,12 @@ Drafts arrive as `job.partial` in media time; audio/anchors for a job that isn't
 
 ### Captions ahead of playback (ADR-0020)
 
-| Endpoint                                                                                                          | Notes                                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /v1/jobs {type:"url", pageUrl, mediaUrl?, userAgent?, model, params:{language, task?, fromMs?}, priority?}` | the engine fetches the audio (direct URL, else yt-dlp) and transcribes around `fromMs`; one `url` job at a time (a newer one cancels it); cached per canonical page URL |
-| `POST /v1/url/:jobId/focus`                                                                                       | `{ mediaMs }`: the viewer seeked; the next piece starts there. `409` unless running                                                                                     |
+| Endpoint                                                                                                                               | Notes                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/jobs {type:"url", pageUrl, mediaUrl?, userAgent?, cookiesFromBrowser?, model, params:{language, task?, fromMs?}, priority?}` | the engine fetches the audio (direct URL, else yt-dlp) and transcribes around `fromMs`; one `url` job at a time (a newer one cancels it); cached per canonical page URL |
+| `POST /v1/url/:jobId/focus`                                                                                                            | `{ mediaMs }`: the viewer seeked; the next piece starts there. `409` unless running                                                                                     |
+
+`cookiesFromBrowser` (opt-in, [ADR-0021](../architecture/decisions/0021-quick-controls-and-short-video-feeds.md)): one of `brave`, `chrome`, `chromium`, `edge`, `firefox`, `opera`, `vivaldi`; yt-dlp reads that browser's cookies for sites that need a login.
 
 Drafts (`job.partial`) carry `coverage` (captioned media ranges) and `mediaDurationMs`. `MEDIA_UNREACHABLE` (`422`) when the audio can't be fetched: no direct URL and no yt-dlp, yt-dlp's error, a live stream, or a site that returns only part of the stream.
 

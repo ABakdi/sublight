@@ -95,6 +95,16 @@ Live capture can't be exact: it only hears audio once it has played (~2–3 s be
 - [x] e2e: "Caption this video" missing-model error; direct-URL captions + sentence SRT (real ASR). Not yet run in CI: they need port 17421 free.
 - [ ] Login-walled sites (yt-dlp cookies), per-site yt-dlp failures in the real-browser matrix, Firefox.
 
+### Fourth round (2026-09-26): quick controls and short-form feeds ([ADR-0021](../../architecture/decisions/0021-quick-controls-and-short-video-feeds.md))
+
+- [x] Quick controls on the video: CC button → captions on/off, Translate to, Delay (±100 ms or typed); drag to any corner (snaps, remembered); own shadow root, events contained.
+- [x] Shortcuts: Alt+Shift+V / , / . / 0 / T / K on the page; Alt+Shift+C and Alt+Shift+L as browser commands; listed in Options and the popup.
+- [x] Translate to English (Whisper, ahead of playback) or other languages (LLM on the finished transcript); Options can install the translation model.
+- [x] Feeds: captions follow the next video; the feed item's own URL (TikTok, Instagram, Facebook); vertical sizing (shorter side, 24-char lines, 22 % margin).
+- [x] Opt-in browser login for yt-dlp; automatic live fallback when a video can't be fetched.
+- [x] Verified in Brave: controls and shortcuts on YouTube; Shorts captioned, translated to French, next Short followed; TikTok fetched.
+- [ ] Instagram with the login setting on (needs the user's session); translation speed in fast feeds (LLM ↔ Whisper swap on 4 GB).
+
 ### Still open
 
 - [ ] M05.8 yt-dlp toggle: folded into M05b's engine relay.

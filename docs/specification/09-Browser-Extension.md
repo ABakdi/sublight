@@ -27,6 +27,7 @@ Outputs: Chromium MV3 (dev + built), later Firefox via WXT target ([ADR-0015](..
 
 ```
 permissions: ["storage", "tabCapture", "activeTab", "scripting", "offscreen", "downloads"]
+page shortcuts (content script, with captions on): Alt+Shift+V / , / . / 0 / T / K
 commands: toggle-captions (Alt+Shift+C), toggle-live (Alt+Shift+L)
 host_permissions: ["http://127.0.0.1:17421/*", "http://localhost:17421/*"]
 content_scripts: [ { matches ["<all_urls>"], js [content], all_frames: true, run_at: "document_idle" } ]
@@ -93,7 +94,21 @@ Known gaps, for M05: the caption can sit on top of the host player's control bar
 - **Download SRT** (`captions.download`, mode `words` | `sentences`): saves right away when the whole video is done, else waits for the running job (the popup shows its progress), else starts one. Saved with `chrome.downloads` as `<page title>.<lang>[.word-by-word].srt`. A pending download keeps running if the tab navigates away.
 - **Display modes** (`cuesForMode`, core): **word by word** (text grows as each word is spoken) or **sentences** (one sentence per cue, ≤ 2 lines and 7 s, long ones split at a clause break near the middle). The same modes shape the overlay and the SRT.
 
-### 4.7 Updates and a stale service worker
+### 4.7 Quick controls on the video (ADR-0021)
+
+- `QuickControls` (`src/quickControls.tsx`) renders in its own shadow root inside the overlay frame (`[data-sublight-controls]`); key, pointer, click and wheel events stop there.
+- Collapsed: a 34 px **CC** button (dim until the pointer is over the video). Open: **Captions** On/Off, **Translate to** (Original, English, Arabic, French, Spanish, German, Italian, Portuguese, Dutch, Russian, Turkish, Hindi, Japanese, Korean, Chinese), **Delay** (− / typed ms / +, 100 ms steps, ±30 s, Reset), and a note line ("Translating to French… 40 %", "No speech found in this video", "Live: about 3 s behind").
+- Drag the button or the panel's handle; release snaps to the nearest corner (`nearestCorner`). The corner and open state are in `storage.local.quickControls`. Bottom corners sit above the player's control bar (60 % of the caption margin); on vertical videos top corners drop below the feed's top buttons.
+- `ViewerControls` (`src/viewerControls.ts`) holds the viewer's on/off and delay for the page's lifetime (so a feed scroll keeps them) and the "Translate to" preference (`storage.local.captionTarget`, last language in `lastTranslateTarget`). Live captions get the same controls without translation.
+- The delay is added to the overlay's offset (`OverlayFrame.setUserDelay`): + shows captions later. A toast confirms each change ("Delay +300 ms", "Captions off").
+
+### 4.8 Short-form feeds (ADR-0021)
+
+- **Follow:** after "Caption this video" the page keeps captions on until they are stopped (`following`). When another video starts playing (checked on `play` and every 2 s), the content script sends `captions.next` with that video's state and the SW starts a new `url` job for it (quiet restart: the page keeps its controls). A pending "Download SRT" of the previous video is finished first.
+- **The video's own URL** (`videoPageUrl`): on TikTok, Instagram and Facebook feeds, the nearest link to a single video (`/@user/video/<id>`, `/reel/<id>`, `/p/<id>`), searching upward from the `<video>` but not past a container holding other videos. It goes to the engine as `pageUrl`.
+- **Vertical video** (width < 0.8 × height): text scales by the shorter side ([05](05-Overlay-Rendering.md)), lines wrap at 24 characters (`cuesForMode(…, { maxLineChars: 24 })`), captions sit 22 % up.
+
+### 4.9 Updates and a stale service worker
 
 After the extension's files change on disk (a new build of the unpacked extension), Chromium and Brave keep running the **old service worker** until the extension is reloaded, while the popup loads the new files. New popup actions then reach an old background that doesn't know them and nothing happens (seen 2026-09-26: "Caption this video" and "Download SRT" silently did nothing). Each build has one id (`__SUBLIGHT_BUILD__`, `src/build.ts`) in every entrypoint. The popup pings the SW and compares ids; on a mismatch it shows **"Reload sublight"** (`runtime.reload()`), and any action the background doesn't answer says so instead of doing nothing. Content scripts in tabs opened before a reload are orphaned, so reload the page too.
 
