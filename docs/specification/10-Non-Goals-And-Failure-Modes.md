@@ -10,17 +10,17 @@ _What sublight deliberately is not, and how every component fails — with detec
 
 ## 1. Non-goals (explicit "no")
 
-| #   | Non-goal                                                     | Why                                                                                                               |
-| --- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| N1  | DRM/protected streams (Netflix, Prime, Disney+, Spotify…)    | Technically blocked (encrypted audio), legally messy. UI explains instead.                                        |
-| N2  | Cloud/API inference                                          | Privacy is the product ([Req F6](../architecture/Requirements.md)).                                               |
-| N3  | Remote/multi-device engine                                   | v1 is one-machine. (Documented as future ADR material.)                                                           |
-| N4  | Speech diarization ("who said this")                         | Deferred; speaker markers only from `[SPEAKER]`-style input for now.                                              |
-| N5  | OCR/burned-in subtitles                                      | Separate problem; may pair with M09 tooling later.                                                                |
-| N6  | Editing _platform_ (multi-user, teams, server sync)          | Local-first single-user tool focused on subtitles-for-language.                                                   |
-| N7  | Live **streams** (Twitch etc.) transcription                 | Rolling-window ASR is designed for playback capture; livestream support is a later question, note in checkpoints. |
-| N8  | Auto-transcribing podcasts/audiobooks from the _file system_ | Player handles user-opened files only; no filesystem scanning.                                                    |
-| N9  | YouTube _downloads_ / video saving                           | yt-dlp is used for **audio** only (optional toggle), never storage of video.                                      |
+| #   | Non-goal                                                     | Why                                                                                                                                                                                            |
+| --- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1  | DRM/protected streams (Netflix, Prime, Disney+, Spotify…)    | Technically blocked (encrypted audio), legally messy. UI explains instead.                                                                                                                     |
+| N2  | Cloud/API inference                                          | Privacy is the product ([Req F6](../architecture/Requirements.md)).                                                                                                                            |
+| N3  | Remote/multi-device engine                                   | v1 is one-machine. (Documented as future ADR material.)                                                                                                                                        |
+| N4  | Speech diarization ("who said this")                         | Deferred; speaker markers only from `[SPEAKER]`-style input for now.                                                                                                                           |
+| N5  | OCR/burned-in subtitles                                      | Separate problem; may pair with M09 tooling later.                                                                                                                                             |
+| N6  | Editing _platform_ (multi-user, teams, server sync)          | Local-first single-user tool focused on subtitles-for-language.                                                                                                                                |
+| N7  | Live **streams** (Twitch etc.) transcription                 | Rolling-window ASR is designed for playback capture; livestream support is a later question, note in checkpoints.                                                                              |
+| N8  | Auto-transcribing podcasts/audiobooks from the _file system_ | Player handles user-opened files only; no filesystem scanning.                                                                                                                                 |
+| N9  | YouTube _downloads_ / video saving                           | yt-dlp is used for **audio** only, streamed in pieces for captioning ahead of playback ([ADR-0020](../architecture/decisions/0020-caption-ahead-of-playback.md)); no video file is ever saved. |
 
 ## 2. Failure-mode matrix
 
@@ -59,7 +59,7 @@ No silent failure, ever. Same copy family for mute and autoplay-blocked cases.
 
 1. **Engine CPU-only** (no CUDA build): everything works, slower; model defaults drop to `base`; translation to NLLB if 3B too slow.
 2. **No whisper model installed yet**: UI offers one-click install (models registry) before captioning.
-3. **yt-dlp unavailable**: toggle hidden; tab capture path unaffected.
+3. **yt-dlp unavailable or failing**: videos with a direct media URL still caption ahead of playback; others fail with `MEDIA_UNREACHABLE` and the popup offers live captions (tab capture path unaffected).
 4. **Player without engine**: playback, styling, SRT import/export all work — only intelligence is off. ("If the engine is down, sublight is still a nice player.")
 
 ## 5. Test contracts referenced

@@ -6,7 +6,7 @@ date: 2026-09-23
 
 # ADR-0010 — Audio capture strategy (three sources, one pipeline)
 
-**Status:** accepted
+**Status:** accepted. Amended by [ADR-0020](0020-caption-ahead-of-playback.md): for recorded videos the engine now fetches the audio itself (direct URL or pinned yt-dlp) and captions ahead of playback by default; the in-page capture paths below are the fallback for live streams and videos it can't fetch.
 
 ## Context
 

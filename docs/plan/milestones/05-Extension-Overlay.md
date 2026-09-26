@@ -81,6 +81,20 @@ Reported: still late, captions pop in and out, words burst then vanish, poor qua
 - **Download SRT** works while listening (the draft so far) and after Stop, named after the page.
 - Result: final words within 20 ms of speech on JFK with the right text; live ~3 s behind at a steady offset.
 
+### Third round (2026-09-26): captions ahead of playback ([ADR-0020](../../architecture/decisions/0020-caption-ahead-of-playback.md))
+
+Live capture can't be exact: it only hears audio once it has played (~2–3 s behind on the T1000). For recorded videos, the engine now fetches the audio itself and transcribes around the playhead, so captions show at their exact time.
+
+- [x] Engine `url` job: resolve (direct src via ffprobe, else pinned yt-dlp), 30 s first piece at the playhead then 2-min pieces, seek focus, coverage, one at a time, cached per page URL; fails loudly on partial audio.
+- [x] `pnpm engine:setup-ytdlp` (pinned 2026.08.19, SHA-256 checked).
+- [x] Extension: "Caption this video" with exact timing, "Pause until captions are ready", hide during ads, re-attach after SW restarts.
+- [x] Caption modes in core (word by word / sentences), used by the overlay and the SRT.
+- [x] "Download SRT" for the whole video in either mode (reuses or starts the job, survives navigation).
+- [x] Popup redesign: video card, captions card with timeline, display, download, "More" (live, test captions).
+- [x] Measured on YouTube: first captions ~10 s after start (held), words shown a median 23–28 ms after their timestamps, 15-min SRT in 94 s. Direct file (JFK): within 25–35 ms of the speech.
+- [x] e2e: "Caption this video" missing-model error; direct-URL captions + sentence SRT (real ASR). Not yet run in CI: they need port 17421 free.
+- [ ] Login-walled sites (yt-dlp cookies), per-site yt-dlp failures in the real-browser matrix, Firefox.
+
 ### Still open
 
 - [ ] M05.8 yt-dlp toggle: folded into M05b's engine relay.

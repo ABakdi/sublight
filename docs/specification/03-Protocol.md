@@ -85,6 +85,15 @@ Job creation bodies (discriminated by `type`):
 
 Drafts arrive as `job.partial` in media time; audio/anchors for a job that isn't queued/running get `409`.
 
+### Captions ahead of playback (ADR-0020)
+
+| Endpoint                                                                                                          | Notes                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/jobs {type:"url", pageUrl, mediaUrl?, userAgent?, model, params:{language, task?, fromMs?}, priority?}` | the engine fetches the audio (direct URL, else yt-dlp) and transcribes around `fromMs`; one `url` job at a time (a newer one cancels it); cached per canonical page URL |
+| `POST /v1/url/:jobId/focus`                                                                                       | `{ mediaMs }`: the viewer seeked; the next piece starts there. `409` unless running                                                                                     |
+
+Drafts (`job.partial`) carry `coverage` (captioned media ranges) and `mediaDurationMs`. `MEDIA_UNREACHABLE` (`422`) when the audio can't be fetched: no direct URL and no yt-dlp, yt-dlp's error, a live stream, or a site that returns only part of the stream.
+
 ### Auth pairing (v1 handshake)
 
 | Endpoint                              | Notes                                                                                                                                                                                                               |

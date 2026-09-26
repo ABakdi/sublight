@@ -84,6 +84,12 @@ The "Open in Sublight Player" flow ([ADR-0017](../architecture/decisions/0017-op
 - `LiveHub` keeps one `LiveSession` per live job: PCM appended to `jobs/live/<id>.pcm` with a chunk index (sample ↔ wall time) and the playback anchors (wall time → media time). Audio may arrive before the queue starts the job.
 - `liveRunner` (`gpu: true`, usually `interactive`): rolling-window passes, commit/draft split, media-time mapping, stop → refinement per playing stretch with the never-regress guard, 60 s idle timeout. Details in [08 §5](08-Audio-Capture.md#5-live-captioning-loop-as-built).
 
+## 7c. Captions ahead of playback (ADR-0020)
+
+- `aheadRunner` (`type: "url"`, `gpu: true`, exclusive): resolves the page's audio (`media/remote.ts`), then transcribes pieces around a focus point that `POST /v1/url/:id/focus` moves. Details in [08 §6a](08-Audio-Capture.md#6a-captions-ahead-of-playback-adr-0020).
+- **yt-dlp:** `pnpm engine:setup-ytdlp` installs the pinned standalone release **2026.08.19** (Linux x64/arm64, macOS, Windows; SHA-256 checked, no Python) into `~/.sublight/bin/yt-dlp` with `yt-dlp.json`. The engine looks for it at startup; without it, only videos with a direct media URL can be fetched. YouTube's signature code runs in the engine's own Node (`--js-runtimes node:<path>`).
+- Whisper requests also send `no_language_probabilities=true`: otherwise verbose_json costs a second full encode per request ([07 §1.2](07-ASR-And-Translation.md#12-segmentation-whispercpp-server-output)).
+
 ## 8. Observability
 
 - Logs: JSONL to `~/.sublight/logs/engine.log` (rotate 10 MB × 5): startup, job state changes, `job.log` errors, model state; whisper-server's own output in `logs/whisper-server.log`. `job.log` events also go out over WS.

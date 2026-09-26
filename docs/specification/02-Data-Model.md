@@ -39,6 +39,8 @@ interface SubtitleTrack {
   kind: 'transcript' | 'translation' | 'import'
   derivedFrom?: { trackId?: string; sourceLanguage: string } // for translations; no trackId when translated straight from audio (ADR-0018)
   draft?: boolean // true while live captions are replacing
+  coverage?: { startMs: number; endMs: number }[] // drafts made ahead of playback: captioned ranges (ADR-0020)
+  mediaDurationMs?: number // length of the media it was made from, when known
   cues: SubtitleCue[]
   style?: SubtitleStyle // track-level style (defaults to user global)
   syncOffsetMs?: number // whole-track nudge (δ or manual)
@@ -123,6 +125,7 @@ From words → cues (ASR side):
 - Group words greedily: target 2–3 lines of ≤ 42 chars each, or ≤ 7 s max cue; hard break at sentence-final punctuation (`.!?…`) and pauses ≥ 300 ms between words.
 - ~~Merge cues closer than 80 ms~~ (removed 2026-09-26): continuous speech is always < 80 ms apart, so the merge undid the length split and produced 8–10 s cues. Merged fragment text is re-wrapped from the words, never truncated.
 - **Reading hold**: each cue stays up max(1 s, 50 ms × characters) and lingers 0.5 s after its last word, never past the next cue's start; gaps < 80 ms close. Word timings are untouched.
+- **Caption modes** (`cuesForMode`): `words`, where each cue grows word by word (`revealByWords`); or `sentences` (`cuesBySentence`), with one sentence per cue (split at `.?!…` or a 1.5 s pause), ≤ 2 lines and 7 s, and long sentences split at the clause break (`, ; : —`) nearest the middle. Both need word timings; tracks without them pass through. The overlay and the SRT export use the same modes.
 - **Fragments** (≤ 2 words or < 800 ms) fold into a neighbour when the result still fits one cue: across the shorter pause (≤ 1 s), **never across a sentence end**. Read speech otherwise leaves one-word flashes ("Weitere", "Kafka") that also break line-by-line translation. Measured: 182 → 149 cues on 10 min of German, 3 left with ≤ 2 words.
 - Minimum duration 200 ms enforced by stretching end (never move start past start).
 

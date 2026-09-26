@@ -40,6 +40,7 @@ _Every significant decision about sublight lives here. **If changing something w
 | [0017](decisions/0017-open-in-player.md)                 | Open in Sublight Player (page-video migration) | 2026-09-23 | `accepted` | One click moves a page's video into the Player: classified sources (direct / hls / dash / engine-fetchable / blob), layered transport, storage+hash handoff, no new permissions. |
 | [0018](decisions/0018-whisper-translate-to-english.md)   | Whisper translate for →English; LLM optional   | 2026-09-25 | `accepted` | Whisper's built-in `translate` task makes English subtitles from any language with no extra model; the LLM is installed on demand for other targets.                             |
 | [0019](decisions/0019-translator-qwen3-4b.md)            | Translator model: Qwen3-4B-Instruct-2507       | 2026-09-25 | `accepted` | Apache-2.0 successor to Qwen2.5-3B (research license); Q4_K_M in llama.cpp b11174; NLLB off the default path (non-commercial).                                                   |
+| [0020](decisions/0020-caption-ahead-of-playback.md)      | Caption page videos ahead of playback          | 2026-09-26 | `accepted` | The engine fetches the video's audio (direct URL or pinned yt-dlp) and transcribes around the playhead, so captions show at their exact time; live capture becomes the fallback. |
 
 ## The process for changing a decision
 

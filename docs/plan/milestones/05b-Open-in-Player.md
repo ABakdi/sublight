@@ -48,7 +48,7 @@ Design lives in [ADR-0017](../../architecture/decisions/0017-open-in-player.md) 
 
 ## Open questions
 
-- Whether the engine's v1 buffer-to-disk meeting yt-dlp's format-selection mid-stream is streamable enough for long videos — validate with a 1 h YouTube fixture before committing to the v1 shape (v2 on-the-fly relay is the fallback).
+- ~~Whether yt-dlp's formats stream well enough for long videos~~: answered by [ADR-0020](../../architecture/decisions/0020-caption-ahead-of-playback.md): ffmpeg reads any 30 s of a YouTube audio URL in ~1 s with Range requests; `media/remote.ts` is the resolver `media/resolve` can build on. Remaining question: whether the engine's v1 buffer-to-disk relay is streamable enough for long videos — validate with a 1 h YouTube fixture before committing to the v1 shape (v2 on-the-fly relay is the fallback).
 - S2 (service-worker byte relay for referrer-protected direct files) stays out of M05b — only revisit when a real user hits a site the other paths can't cover.
 
 ## Related

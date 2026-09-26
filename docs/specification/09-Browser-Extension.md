@@ -26,7 +26,8 @@ Outputs: Chromium MV3 (dev + built), later Firefox via WXT target ([ADR-0015](..
 ## 2. Manifest (relevant keys)
 
 ```
-permissions: ["storage", "tabCapture", "activeTab", "scripting"]
+permissions: ["storage", "tabCapture", "activeTab", "scripting", "offscreen", "downloads"]
+commands: toggle-captions (Alt+Shift+C), toggle-live (Alt+Shift+L)
 host_permissions: ["http://127.0.0.1:17421/*", "http://localhost:17421/*"]
 content_scripts: [ { matches ["<all_urls>"], js [content], all_frames: true, run_at: "document_idle" } ]
 action: { default_popup: "popup.html" }
@@ -85,6 +86,13 @@ Known gaps, for M05: the caption can sit on top of the host player's control bar
 - **Options**: live model, spoken language, and "Subtitles in" (spoken language / English via Whisper `translate`).
 - Found in the build: with `monitor` constant-folded to `false` in the content script, Rollup emitted a `for` loop with no body (`for (…) if (opts.monitor) t.stop()`), which broke the bundle; the loop is braced now.
 
+### 4.6 Captions ahead of playback (as built, ADR-0020)
+
+- **SW** (`captionsController.ts`): "Caption this video" creates a `url` job with the owning frame's URL, the `<video>`'s http(s) src (`VideoState.primary.src`), the browser's User-Agent, the captions model (Options, default whisper-small) and `fromMs` = the playhead. It follows the job over the engine WS, sends each track to the frame (`captions.track`), stores it (`storage.session.captionsTrack:<tabId>`) and relays seeks to `/v1/url/:id/focus`. After a SW restart, `captions.status` re-attaches to the running job.
+- **Content** (`captionsContent.ts`): `PageCaptions` shows the track at exact media time (no delay), holds playback where captions aren't ready ("Captioning this part…"), and hides during ads (element duration ≠ `mediaDurationMs`). A URL change to another video (compared without `t`/`si`/… parameters) ends it; YouTube rewriting `&t=` does not.
+- **Download SRT** (`captions.download`, mode `words` | `sentences`): saves right away when the whole video is done, else waits for the running job (the popup shows its progress), else starts one. Saved with `chrome.downloads` as `<page title>.<lang>[.word-by-word].srt`. A pending download keeps running if the tab navigates away.
+- **Display modes** (`cuesForMode`, core): **word by word** (text grows as each word is spoken) or **sentences** (one sentence per cue, ≤ 2 lines and 7 s, long ones split at a clause break near the middle). The same modes shape the overlay and the SRT.
+
 ## 5. Capture wiring
 
 The content script drives [Audio capture](08-Audio-Capture.md): probe `captureStream()`, fall back to `tabCapture` (audio-only) requested from the SW; chunks streamed via the SW's WS channel to the engine with `{ mediaTimeStart = T₀ }`.
@@ -112,7 +120,7 @@ content script ◄─runtime.sendMessage─► SW ◄─fetch/WS─► engine
 
 ## 7. Popup & options
 
-- **Popup**: current page video status; "Caption this video" (start/stop); live progress; language picker (target(s)); quick style toggles (size/position/theme); "Built with" draft state ruler; **"Open in Sublight Player" primary action** when a video is detected (§8).
+- **Popup (as built, 2026-09-26):** engine badge in the header; a video card (page title, playing/paused, time, site); **"Caption this video"** with a timeline of captioned parts and the playhead, status ("Captioned up to 9:30 · 38 % of the video") and "Pause until captions are ready"; **Display** (word by word / sentences, size S/M/L, position); **Download subtitles** (word by word / sentences + Download SRT, with progress while the rest is transcribed); **More** (live captions for live streams and unreachable videos, test captions). Planned: language picker, "Open in Sublight Player" (§8).
 - **Options**: full [style schema](02-Data-Model.md#6-style-schema) editor with live preview; default model/language; glossary; engine health (port, token status, "Open logs"); pairing flow (paste token / `sublight://`); cache/disk controls; per-site overrides (e.g. disable on a site).
 
 ## 8. Open in Sublight Player
