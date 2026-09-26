@@ -106,7 +106,8 @@ Live capture can't be exact: it only hears audio once it has played (~2–3 s be
 - [x] Show both (original + translation) with paired timing; bilingual `url` jobs; Alt+Shift+B.
 - [x] Jobs end with their tab: close/reload/leave cancels; engine leases with keep-alive for `url` and `translate` jobs.
 - [x] English translation quality: an Options choice, Fast (Whisper, ahead) or Better (LLM on the transcript: accurate, 1:1 with the original, ~0.8× real time on the T1000).
-- [ ] Faster "Better" English: translate piece by piece around the playhead instead of after the whole transcript (both models don't fit a 4 GB GPU at once, so this needs batching to limit swaps).
+- [x] "Better" English translates from the playhead first (`fromMs` on translate jobs): first lines ~19 s after the transcript.
+- [ ] Start "Better" English before the whole transcript is done (interleaving whisper and the LLM on 4 GB costs a model swap per switch).
 - [ ] Instagram with the login setting on (needs the user's session); translation speed in fast feeds (LLM ↔ Whisper swap on 4 GB).
 
 ### Still open

@@ -93,6 +93,8 @@ Drafts arrive as `job.partial` in media time; audio/anchors for a job that isn't
 | `POST /v1/jobs {type:"url", pageUrl, mediaUrl?, userAgent?, cookiesFromBrowser?, model, params:{language, task?, fromMs?}, priority?}` | the engine fetches the audio (direct URL, else yt-dlp) and transcribes around `fromMs`; one `url` job at a time (a newer one cancels it); cached per canonical page URL |
 | `POST /v1/url/:jobId/focus`                                                                                                            | `{ mediaMs }`: the viewer seeked; the next piece starts there. `409` unless running                                                                                     |
 
+`translate` jobs take an optional `fromMs`: paragraphs from the playhead on are translated first, then the rest (same result, same cache entry).
+
 `params.bilingual` (with `task: "translate"`): each piece is also transcribed; the result is `[English translation, original]`, the translation timed to the original's words, and drafts carry the original as `companion` on `job.partial`.
 
 `cookiesFromBrowser` (opt-in, [ADR-0021](../architecture/decisions/0021-quick-controls-and-short-video-feeds.md)): one of `brave`, `chrome`, `chromium`, `edge`, `firefox`, `opera`, `vivaldi`; yt-dlp reads that browser's cookies for sites that need a login.
