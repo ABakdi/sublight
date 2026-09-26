@@ -19,6 +19,8 @@ export interface WsEventJobPartial {
   type: 'job.partial'
   jobId: string
   draft: SubtitleTrack
+  /** A second track made alongside (the original of a bilingual `url` job). */
+  companion?: SubtitleTrack
 }
 export interface WsEventJobLog {
   type: 'job.log'

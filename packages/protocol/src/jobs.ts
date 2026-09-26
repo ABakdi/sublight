@@ -40,6 +40,12 @@ export interface TranslateJob {
   glossary: { source: string; target: string }[]
   style: 'casual' | 'neutral' | 'formal'
   priority?: JobPriority
+  /**
+   * The client keeps this job alive with `POST /v1/jobs/:id/keepalive` (at
+   * least every 90 s); silent longer, it is cancelled, and it is never
+   * resumed after an engine restart. For work only a live page wants.
+   */
+  lease?: boolean
 }
 
 /**
@@ -100,8 +106,21 @@ export interface UrlJob {
     task?: AsrTask
     /** Where playback is: transcription starts here, then continues around it. */
     fromMs?: number
+    /**
+     * With `task: "translate"`: also transcribe each piece, so the result has
+     * the English translation and the original (`tracks[0]`, `tracks[1]`),
+     * translation timed to the original's words. Drafts carry the original as
+     * `companion`.
+     */
+    bilingual?: boolean
   }
   priority?: JobPriority
+  /**
+   * The client keeps this job alive with `POST /v1/jobs/:id/keepalive` (at
+   * least every 90 s); silent longer, it is cancelled, and it is never
+   * resumed after an engine restart. For work only a live page wants.
+   */
+  lease?: boolean
 }
 
 /**
