@@ -24,6 +24,8 @@ export interface VideoState {
     height: number
     /** The element's own media URL when it is http(s) (not blob:/MSE). */
     src: string | null
+    /** This video's own page when the page is a feed of many (TikTok, Reels), else the page URL. */
+    pageUrl: string
   } | null
   demoCaptions: boolean
   /** Epoch ms of this snapshot; with playbackRate it extrapolates the playhead. */
@@ -92,8 +94,14 @@ export type Message =
   | { type: 'captions.begin'; jobId: string }
   | { type: 'captions.track'; track: SubtitleTrack; final: boolean }
   | { type: 'captions.end' }
+  /** A line for the quick controls ("Translating to French… 40 %"), null clears it. */
+  | { type: 'captions.ui'; note: string | null }
   // content → SW
   | { type: 'captions.seek'; jobId: string; mediaMs: number }
+  /** The viewer picked another language in the quick controls ('original' or a code). */
+  | { type: 'captions.translate'; jobId: string; target: string }
+  /** Captions are on and another video took over (feed scroll, next video): caption it. */
+  | { type: 'captions.next'; state: VideoState }
   | { type: 'captions.navigated'; jobId: string }
   // popup → SW
   | { type: 'live.start'; tabId: number }

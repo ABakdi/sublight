@@ -4,7 +4,8 @@ import { PageCaptions } from '../src/captionsContent'
 import { DemoOverlay } from '../src/demoOverlay'
 import { LiveSession } from '../src/liveContent'
 import { isMessage, type Message } from '../src/messages'
-import { pickPrimary, snapshot, videoKey } from '../src/videos'
+import { isPlaying, pickPrimary, snapshot, videoKey, videoPageUrl } from '../src/videos'
+import { DELAY_STEP_MS } from '../src/quickControls'
 
 const MEDIA_EVENTS = ['play', 'pause', 'loadedmetadata', 'seeked', 'ratechange', 'ended', 'emptied']
 const RESCAN_MS = 2000
@@ -45,7 +46,12 @@ export default defineContentScript({
       for (const v of videos) {
         if (watched.has(v)) continue
         watched.add(v)
-        for (const e of MEDIA_EVENTS) v.addEventListener(e, () => schedule(true))
+        for (const e of MEDIA_EVENTS)
+          v.addEventListener(e, () => {
+            schedule(true)
+            // A feed's next video starts playing: caption it without waiting for the rescan.
+            if (e === 'play') setTimeout(() => follow(), 300)
+          })
       }
       const primary = pickPrimary(videos) ?? videos[0] ?? null
       syncOverlay(primary)
@@ -89,15 +95,73 @@ export default defineContentScript({
     }
 
     let captions: PageCaptions | null = null
+    /** The page of the video being captioned (a feed item's own URL on TikTok/Reels). */
+    let captionsPage = ''
+    /**
+     * Captions stay on for this page until the viewer stops them: when another
+     * video takes over (scrolling a feed, the next video, SPA navigation), it
+     * gets captioned too (Spec 09 §4.8).
+     */
+    let following = false
+    let lastFollow: { video: HTMLVideoElement; page: string } | null = null
+
     const endCaptionsForNavigation = () => {
       if (!captions) return
       const jobId = captions.jobId
       captions.destroy()
       captions = null
+      // The engine stops that job; `following` picks up the next video.
       void browser.runtime
         .sendMessage({ type: 'captions.navigated', jobId } satisfies Message)
         .catch(() => {})
     }
+
+    /** Caption the video that is playing now, if it isn't the captioned one. */
+    const follow = () => {
+      if (!following) return
+      const playing = videos.filter(isPlaying)
+      const primary = pickPrimary(playing)
+      if (!primary) return
+      const page = videoKey(videoPageUrl(primary))
+      if (captions && captions.target === primary && page === captionsPage) return
+      if (lastFollow?.video === primary && lastFollow.page === page) return
+      lastFollow = { video: primary, page }
+      if (captions) endCaptionsForNavigation()
+      const msg: Message = { type: 'captions.next', state: snapshot(videos, primary, demoOn) }
+      void browser.runtime.sendMessage(msg).catch(() => {})
+    }
+
+    // Keyboard (Spec 09 §7): Alt+Shift+V captions on/off, Alt+Shift+, and . delay
+    // −/+100 ms, Alt+Shift+0 no delay, Alt+Shift+T translate on/off,
+    // Alt+Shift+K open/close the controls. Physical keys (e.code), so any layout works.
+    window.addEventListener(
+      'keydown',
+      (e) => {
+        if (!e.altKey || !e.shiftKey || e.ctrlKey || e.metaKey) return
+        const controls = captions?.controls ?? live?.controls
+        if (!controls) return
+        const origin = e.composedPath()[0] as HTMLElement | undefined
+        if (
+          origin &&
+          (origin.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(origin.tagName))
+        )
+          return
+        const actions: Record<string, () => void> = {
+          KeyV: () => controls.toggleVisible(),
+          Period: () => controls.nudge(DELAY_STEP_MS),
+          Comma: () => controls.nudge(-DELAY_STEP_MS),
+          Digit0: () => controls.setDelay(0),
+          KeyT: () => void controls.toggleTarget(),
+          KeyK: () => controls.toggleExpanded(),
+        }
+        const act = actions[e.code]
+        if (!act) return
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        act()
+      },
+      true,
+    )
 
     setInterval(() => {
       // A real move to another video, not YouTube dropping `&t=` from the URL.
@@ -105,8 +169,10 @@ export default defineContentScript({
         lastUrl = location.href
         endLiveForNavigation()
         endCaptionsForNavigation()
+        lastFollow = null
         schedule(true)
       } else schedule()
+      follow()
     }, RESCAN_MS)
 
     browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
@@ -133,6 +199,9 @@ export default defineContentScript({
           demoOn = false
           syncOverlay(null)
           captions = new PageCaptions(primary, message.jobId)
+          captionsPage = videoKey(videoPageUrl(primary))
+          following = true
+          lastFollow = { video: primary, page: captionsPage }
           sendResponse({ ok: true })
           return undefined
         }
@@ -143,6 +212,12 @@ export default defineContentScript({
         case 'captions.end':
           captions?.destroy()
           captions = null
+          following = false
+          lastFollow = null
+          sendResponse({ ok: true })
+          return undefined
+        case 'captions.ui':
+          captions?.controls.setNote(message.note)
           sendResponse({ ok: true })
           return undefined
         case 'live.begin': {
@@ -160,6 +235,7 @@ export default defineContentScript({
           live?.destroy()
           captions?.destroy()
           captions = null
+          following = false
           demoOn = false
           syncOverlay(null) // live captions replace test captions
           live = new LiveSession(primary, message.jobId, endLiveForNavigation)

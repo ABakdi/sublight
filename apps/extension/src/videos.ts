@@ -1,5 +1,38 @@
 import type { VideoState } from './messages'
 
+const FEED_LINKS: [RegExp, RegExp][] = [
+  // host, path of one video's own page
+  [/(^|\.)tiktok\.com$/, /\/@[^/]+\/video\/\d+/],
+  [/(^|\.)instagram\.com$/, /\/(reels?|p)\/[\w-]+/],
+  [/(^|\.)facebook\.com$/, /\/(reel|watch|videos)\/?[\w.-]*/],
+]
+
+/**
+ * This video's own page. Feeds (TikTok's For You, Instagram's Reels tab) show
+ * many videos under one URL; the engine needs the one playing. Walk up from
+ * the <video> to the nearest link to a single video, stopping before a
+ * container that holds other videos (the next feed item's link isn't ours).
+ */
+export function videoPageUrl(video: HTMLElement, href = location.href): string {
+  let url: URL
+  try {
+    url = new URL(href)
+  } catch {
+    return href
+  }
+  const rule = FEED_LINKS.find(([host]) => host.test(url.hostname))
+  if (!rule || rule[1].test(url.pathname)) return href
+  let node = video.parentElement
+  for (let depth = 0; node && depth < 15; depth++, node = node.parentElement) {
+    if (node.querySelectorAll('video').length > 1) break
+    const link = [...node.querySelectorAll('a[href]')].find((a) =>
+      rule[1].test(new URL(a.getAttribute('href')!, href).pathname),
+    )
+    if (link) return new URL(link.getAttribute('href')!, href).toString()
+  }
+  return href
+}
+
 /** The same video whatever start-time or tracking parameters its URL gains or loses. */
 export function videoKey(href: string): string {
   try {
@@ -65,6 +98,7 @@ export function snapshot(
           width: Math.round(primary.getBoundingClientRect().width),
           height: Math.round(primary.getBoundingClientRect().height),
           src: /^https?:/i.test(primary.currentSrc) ? primary.currentSrc : null,
+          pageUrl: videoPageUrl(primary),
         }
       : null,
     demoCaptions,
