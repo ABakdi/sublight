@@ -217,7 +217,8 @@ describe('live runner', () => {
     session.anchor({ wallMs: Date.now(), mediaMs: 0, rate: 1, playing: true })
     session.append(tone(2000), Date.now())
     const out = run.run(job, ctx('j7').c)
-    await new Promise((r) => setTimeout(r, 100))
+    // Supersede after the first live pass, however long the machine takes to get there.
+    for (let i = 0; i < 500 && fw.calls.length < 1; i++) await new Promise((r) => setTimeout(r, 10))
     run.exclusive!.supersede!('j7')
     const result = await out
     expect(result.tracks[0]!.cues.length).toBeGreaterThan(0)
