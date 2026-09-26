@@ -13,13 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -27,8 +27,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The engine normalizes media with ffmpeg; without it its media tests skip.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
       - name: Lint (ESLint)
         run: pnpm lint
+
+      - name: Format check (Prettier)
+        run: pnpm format:check
 
       - name: Docs link check
         run: pnpm lint:links
@@ -39,8 +46,9 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      # Playwright is a dependency of the e2e package, not the root.
       - name: Install Playwright browsers (Chromium + deps)
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter @sublight/e2e exec playwright install --with-deps chromium
 
       - name: Build
         run: pnpm build
@@ -53,4 +61,12 @@ jobs:
 
       - name: E2E (extension, headless via chromium channel)
         run: pnpm e2e:extension
-        if: always()
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
