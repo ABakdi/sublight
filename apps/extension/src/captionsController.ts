@@ -285,6 +285,10 @@ class CaptionsController {
           style: 'neutral',
           priority: 'interactive',
           lease: true,
+          // What the viewer is about to see gets translated first.
+          fromMs: this.owner
+            ? Math.round(playhead((await latest(this.tabId, this.owner)).state))
+            : 0,
         }),
       })
       this.translation = { lang, jobId: job.id }
