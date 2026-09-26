@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import { ENGINE_BASE_URL } from '@sublight/protocol'
 import { browser } from 'wxt/browser'
-import { CAPTION_MODEL_KEY, DEFAULT_CAPTION_MODEL } from '../../src/captionsController'
+import {
+  AUTO_LIVE_KEY,
+  CAPTION_MODEL_KEY,
+  COOKIES_KEY,
+  DEFAULT_CAPTION_MODEL,
+  TRANSLATE_MODEL,
+} from '../../src/captionsController'
 import { EngineBadge } from '../../src/EngineBadge'
 import { engineRequest, getToken, probeEngine, setToken } from '../../src/engine'
 import {
@@ -107,6 +113,9 @@ export function OptionsApp() {
       </section>
 
       <LiveSettings online={status?.state === 'online'} />
+      <FetchSettings />
+      <TranslationModel online={status?.state === 'online'} />
+      <Shortcuts />
 
       <p style={{ color: colors.muted, fontSize: 12, marginTop: 20 }}>
         Style presets, default models and languages, cache controls and one-click pairing arrive in
@@ -271,6 +280,186 @@ function LiveSettings({ online }: { online: boolean }) {
           </select>
         </label>
       </div>
+    </section>
+  )
+}
+
+const sectionStyle = {
+  border: `1px solid ${colors.border}`,
+  borderRadius: 8,
+  padding: 16,
+  marginTop: 16,
+}
+const hint = { fontSize: 13, color: colors.muted, margin: '0 0 12px', lineHeight: 1.5 }
+
+const COOKIE_CHOICES: [string, string][] = [
+  ['', 'Off'],
+  ['brave', 'Brave'],
+  ['chrome', 'Chrome'],
+  ['chromium', 'Chromium'],
+  ['edge', 'Edge'],
+  ['firefox', 'Firefox'],
+  ['opera', 'Opera'],
+  ['vivaldi', 'Vivaldi'],
+]
+
+/** How the engine gets a page's video (ADR-0020). */
+function FetchSettings() {
+  const [cookies, setCookies] = useState('')
+  const [autoLive, setAutoLive] = useState(true)
+  useEffect(() => {
+    void browser.storage.local.get([COOKIES_KEY, AUTO_LIVE_KEY]).then((got) => {
+      setCookies((got[COOKIES_KEY] as string | undefined) ?? '')
+      setAutoLive(got[AUTO_LIVE_KEY] !== false)
+    })
+  }, [])
+  return (
+    <section style={sectionStyle}>
+      <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>Getting the video</h2>
+      <p style={hint}>
+        The engine fetches a video’s audio itself to caption it ahead of playback. Some sites
+        (Instagram, private or age-restricted videos) only allow that when logged in.
+      </p>
+      <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600, maxWidth: 360 }}>
+        Use my browser login
+        <select
+          data-testid="cookies-browser"
+          style={{
+            font: '13px system-ui',
+            padding: '6px 8px',
+            borderRadius: 6,
+            border: `1px solid ${colors.border}`,
+          }}
+          value={cookies}
+          onChange={(e) => {
+            setCookies(e.target.value)
+            void browser.storage.local.set({ [COOKIES_KEY]: e.target.value })
+          }}
+        >
+          {COOKIE_CHOICES.map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <span style={{ fontWeight: 400, color: colors.muted, lineHeight: 1.4 }}>
+          The engine (on this computer) reads that browser’s cookies with yt-dlp when it fetches a
+          video. Nothing leaves your machine except the normal request to the site.
+        </span>
+      </label>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginTop: 12 }}>
+        <input
+          type="checkbox"
+          data-testid="auto-live"
+          checked={autoLive}
+          onChange={(e) => {
+            setAutoLive(e.target.checked)
+            void browser.storage.local.set({ [AUTO_LIVE_KEY]: e.target.checked })
+          }}
+        />
+        When a video can’t be fetched, caption it live instead (about 3 s behind)
+      </label>
+    </section>
+  )
+}
+
+/** The LLM for "Translate to" languages other than English (installed on demand, ADR-0018). */
+function TranslationModel({ online }: { online: boolean }) {
+  const [info, setInfo] = useState<ModelsResponse['models'][number] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!online) return
+    const load = () =>
+      engineRequest<ModelsResponse>('/v1/models').then(
+        (r) => setInfo(r.models.find((m) => m.id === TRANSLATE_MODEL) ?? null),
+        () => {},
+      )
+    void load()
+    const id = setInterval(() => void load(), 2000)
+    return () => clearInterval(id)
+  }, [online])
+  const install = async () => {
+    setError(null)
+    try {
+      await engineRequest(`/v1/models/${TRANSLATE_MODEL}/install`, { method: 'POST' })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+  const gb = info?.sizeBytes ? `${(info.sizeBytes / 1e9).toFixed(1)} GB` : '2.5 GB'
+  return (
+    <section style={sectionStyle}>
+      <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>Translation</h2>
+      <p style={hint}>
+        “Translate to” English works from the audio with the speech model. Other languages need the
+        translation model ({info?.name ?? 'Qwen3-4B-Instruct'}, {gb}).
+      </p>
+      {!online ? (
+        <span style={{ fontSize: 13, color: colors.muted }}>Connect the engine first.</span>
+      ) : info?.installed ? (
+        <span data-testid="translate-model-state" style={{ fontSize: 13, color: colors.ok }}>
+          Installed
+        </span>
+      ) : info?.state === 'downloading' ? (
+        <span data-testid="translate-model-state" style={{ fontSize: 13 }}>
+          Downloading… {Math.round((info.progress ?? 0) * 100)} %
+        </span>
+      ) : (
+        <button
+          data-testid="translate-model-install"
+          style={primaryButton}
+          onClick={() => void install()}
+        >
+          Install ({gb})
+        </button>
+      )}
+      {(error ?? info?.error) && (
+        <div style={{ fontSize: 12, color: colors.bad, marginTop: 8 }}>{error ?? info?.error}</div>
+      )}
+    </section>
+  )
+}
+
+const SHORTCUTS: [string, string][] = [
+  ['Alt+Shift+C', 'Caption this video / stop'],
+  ['Alt+Shift+V', 'Captions on / off'],
+  ['Alt+Shift+.', 'Delay +100 ms (captions later)'],
+  ['Alt+Shift+,', 'Delay −100 ms (captions earlier)'],
+  ['Alt+Shift+0', 'No delay'],
+  ['Alt+Shift+T', 'Translate on / off (the last language used)'],
+  ['Alt+Shift+K', 'Open / close the quick controls'],
+  ['Alt+Shift+L', 'Live captions (live streams)'],
+]
+
+function Shortcuts() {
+  return (
+    <section style={sectionStyle}>
+      <h2 style={{ fontSize: 15, margin: '0 0 8px' }}>Keyboard shortcuts</h2>
+      <table style={{ fontSize: 13, borderCollapse: 'collapse' }}>
+        <tbody>
+          {SHORTCUTS.map(([keys, what]) => (
+            <tr key={keys}>
+              <td style={{ padding: '3px 16px 3px 0' }}>
+                <kbd
+                  style={{
+                    font: '12px ui-monospace, monospace',
+                    background: '#f2f4f7',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                  }}
+                >
+                  {keys}
+                </kbd>
+              </td>
+              <td style={{ padding: '3px 0', color: colors.text }}>{what}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p style={{ ...hint, marginTop: 10, marginBottom: 0 }}>
+        Alt+Shift+C and Alt+Shift+L can be changed at brave://extensions/shortcuts (or
+        chrome://extensions/shortcuts). The others work on a page with captions on.
+      </p>
     </section>
   )
 }

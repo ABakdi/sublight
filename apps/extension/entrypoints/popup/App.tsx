@@ -264,6 +264,26 @@ export function PopupApp() {
           <div style={{ fontSize: 11, color: colors.muted, lineHeight: 1.4 }}>
             Shows the video clock every 2.5 s, to check position and sync on this site.
           </div>
+
+          <div style={{ ...label, marginTop: 6 }}>On the video</div>
+          <div style={{ fontSize: 11, color: colors.muted, lineHeight: 1.5 }}>
+            The <b>CC</b> button on the video opens quick controls: captions on/off, translate,
+            delay. Keys: Alt+Shift+V on/off · Alt+Shift+, and . delay ∓100 ms · Alt+Shift+T
+            translate · Alt+Shift+K controls.{' '}
+            <button
+              style={{
+                ...button,
+                border: 'none',
+                padding: 0,
+                background: 'none',
+                color: colors.accent,
+                fontSize: 11,
+              }}
+              onClick={() => void browser.runtime.openOptionsPage()}
+            >
+              All shortcuts
+            </button>
+          </div>
         </div>
       </details>
 

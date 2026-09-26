@@ -70,6 +70,8 @@ async function handle(message: Message, sender: { tab?: { id?: number }; frameId
       )
     case 'captions.seek':
     case 'captions.navigated':
+    case 'captions.translate':
+    case 'captions.next':
       return onCaptionsMessage(message, sender)
     case 'live.start': {
       const frames = await readFrames(message.tabId)
