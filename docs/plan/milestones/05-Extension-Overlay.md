@@ -55,7 +55,7 @@ Found in real Brave 153, to handle in this milestone: captions overlap the YouTu
 - [x] SPA navigation / new `src` mid-session: the session ends, the old captions are removed from the page, the popup says "The page moved to another video; the captions so far can be downloaded" (verified on YouTube in Brave).
 - [x] Notices (Spec 08 §7): a muted video → "unmute it"; tab audio silent for 8 s while playing → "unmute the tab, or the video may be protected (DRM)". The DRM case isn't verified on a real DRM site.
 - [x] No second overlay on the Sublight Player page (AC6): the page refuses the session with "use its Caption tab".
-- [x] **Download SRT** of the finished live track from the popup (M05.6 partial; saving into a Player project goes with M05b's hand-off).
+- [x] **Download SRT** from the popup: the draft so far while listening, the refined track after Stop, named after the page title (M05.6 partial; saving into a Player project goes with M05b's hand-off).
 - [x] Live English translation: Options → "Subtitles in: English (translated)" (Whisper `translate`).
 - [x] Popup caption style quick-toggles: size S/M/L, bottom/top, applied live to every overlay (M05.7).
 - [x] Site matrix (M05.9), in Brave: YouTube watch page ✅, **YouTube embedded in an iframe on another site** ✅ (session attached to the iframe's frame, first caption 6.9 s), cross-origin `<video>` via tabCapture ✅, generic same-origin page ✅ (headless e2e). Vimeo: **not verified**, the automation couldn't get its player to play.
@@ -68,6 +68,18 @@ Reported: captions late, not in sync, flashing on and off too fast. Measured and
 - A core bug re-merged cues split for length (the 80 ms merge), making 8-10 s cues that changed in big jumps → removed; cues now hold for reading time instead.
 - **Word by word**: text fills in as each word is spoken (live and final, extension and Player).
 - Final captions after Stop are exact (± 10 ms at speech onsets).
+
+### Second round (2026-09-26): quality and steady timing
+
+Reported: still late, captions pop in and out, words burst then vanish, poor quality. Found by driving the engine with the JFK clip pass by pass:
+
+- A forgotten live session (a paused tab streaming silence) held the GPU; new sessions queued forever ("Listening · 0 cues"). Now one live session at a time, a silence timeout, and no resuming live jobs after a restart.
+- The final SRT kept garbled draft words: the "never regress" rule compared word counts, and repeats made the drafts longer. Refinement now wins unless it lost half the words.
+- Every whisper request ran a hidden second encode (language probabilities): 2× GPU time. Off, plus an encoder context sized to the live window: whisper-small passes 3.7 s → ~0.6 s cadence, so drafts use whisper-small again (base garbled).
+- Windows starting in silence shifted words by one; the leading silence is now cut. Repeated window heads ("And And") and decoding loops are dropped; punctuation timing fixes late starts after pauses.
+- The draft display delay followed the last word and jumped over silence (pops, bursts). Now a steady delay that only moves gradually.
+- **Download SRT** works while listening (the draft so far) and after Stop, named after the page.
+- Result: final words within 20 ms of speech on JFK with the right text; live ~3 s behind at a steady offset.
 
 ### Still open
 

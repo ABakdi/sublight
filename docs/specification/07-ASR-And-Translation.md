@@ -30,6 +30,9 @@ Token → word rules (`apps/engine/src/asr/words.ts`):
 - **Times: word start = first token `t0`, end = last _speech_ token `t1`.** Punctuation-only tokens don't move the end; whisper often times a trailing comma across the following pause.
 - **DTW (`--dtw`) is not used.** Measured on the JFK sample against energy onsets after pauses: token `t0` hit 0.32 s (ref 0.33) and 8.19 s (ref 8.19). DTW put the same onsets at 0.52 s and 8.48 s: on this build it tracks token _ends_, 200–400 ms late as an onset. Skipping DTW also keeps flash attention on (faster).
 - Words are made monotonic and ≥ 10 ms; confidence = mean token probability.
+- **Language probabilities off** (`no_language_probabilities=true`): with `verbose_json`, whisper-server otherwise runs a separate language-detection encode on every request, even when the language is given, doubling GPU time (whisper-small, T1000: 3.67 → 1.97 s per 11 s). `language` in the response still names the language used or detected.
+- **Punctuation after a pause** marks where sound resumed: whisper times the "," of "Americans, ask" at 3.29 s and "ask" at 3.49 s (spoken at 3.29 s). A word starting ≤ 300 ms after punctuation that came ≥ 150 ms after its own word starts at the punctuation's time.
+- **Decoding loops**: where a phrase repeats back to back and one copy's words average < 80 ms (too short to be speech), that copy goes. Whisper wrote "Ask what you can do for your country." four times over one utterance, 10 ms per word; real repetition keeps its durations.
 - **Onset snapping** (M05): whisper often times the first word of a segment at the segment start, which is the end of the preceding silence. For words after a pause, the start moves forward to an energy onset inside the word (≤ 500 ms later, never earlier). On the 30-min corpus clip the median |onset error| dropped from 93 to **77 ms**.
 - **Annotations** split across tokens ("[ Applause ]", "(upbeat music)" up to 4 words) and ">>" speaker-change markers are removed.
 
@@ -68,7 +71,7 @@ videoTime(cue) = audioStreamTime(cue) + T₀ + δ
 
 - Re-run ASR over the **full captured audio** with the user's chosen model (drafts used a fast/live model window).
 - Re-anchor at control points (§1.4b); rebuild cues atomically; replace draft track in place (`draft:false`).
-- Guard: if refinement's overall confidence or corpus metrics are worse than the draft's, keep the draft (never regress).
+- Guard (as built): refinement replaces the live words unless it has fewer than half of them ([08 §5](08-Audio-Capture.md#5-live-captioning-loop-as-built)).
 
 ### 1.6 Long-form chunking
 
