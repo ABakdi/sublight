@@ -3,6 +3,7 @@ import type { SubtitleTrack } from '@sublight/core'
 import type { Message } from './messages'
 import { isReady, type Range } from './coverage'
 import { OverlayFrame } from './overlayFrame'
+import { ViewerControls } from './viewerControls'
 
 /** Pause playback where captions aren't ready yet, until they are (storage.local, default on). */
 export const HOLD_KEY = 'holdPlayback'
@@ -34,6 +35,7 @@ export class PageCaptions {
     'emptied',
   ]
   private track: SubtitleTrack | null = null
+  readonly controls: ViewerControls
   private hidden = false
 
   constructor(
@@ -42,6 +44,10 @@ export class PageCaptions {
   ) {
     this.overlay = new OverlayFrame(video)
     this.overlay.setStatus('Captioning…')
+    this.controls = new ViewerControls(this.overlay, {
+      canTranslate: true,
+      onTarget: (target) => void send({ type: 'captions.translate', jobId: this.jobId, target }),
+    })
     for (const e of this.events) video.addEventListener(e, this.onEvent)
     void browser.storage.local.get(HOLD_KEY).then((got) => {
       this.hold = got[HOLD_KEY] !== false

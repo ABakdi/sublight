@@ -5,6 +5,7 @@ import { startPcmCapture, type PcmCapture } from './capture'
 import type { Message } from './messages'
 import { DisplayDelay } from './liveDelay'
 import { OverlayFrame } from './overlayFrame'
+import { ViewerControls } from './viewerControls'
 import { levelDb, pcmToBase64 } from './pcm'
 
 /** Element audio silent this long while the video plays → it's tainted/DRM: use tabCapture. */
@@ -22,6 +23,7 @@ const send = (msg: Message) => browser.runtime.sendMessage(msg).catch(() => {})
  */
 export class LiveSession {
   private overlay: OverlayFrame
+  readonly controls: ViewerControls
   private capture: PcmCapture | null = null
   private silentMs = 0
   private fellBack = false
@@ -34,6 +36,8 @@ export class LiveSession {
     private readonly onSourceChange: () => void = () => {},
   ) {
     this.overlay = new OverlayFrame(video)
+    this.controls = new ViewerControls(this.overlay, { canTranslate: false })
+    this.controls.setNote('Live: follows the sound, about 3 s behind it.')
     for (const e of this.events) video.addEventListener(e, this.onPlayback)
     video.addEventListener('emptied', this.onEmptied)
     this.sendAnchor()
