@@ -12,6 +12,8 @@ import {
 
 /** "Translate to" (storage.local): 'original' or a language code; followed on every video. */
 export const TARGET_KEY = 'captionTarget'
+/** Show the original and the translation together (storage.local). */
+export const BOTH_KEY = 'showBoth'
 /** The language Alt+Shift+T switches to from the original. */
 export const LAST_TARGET_KEY = 'lastTranslateTarget'
 
@@ -37,13 +39,19 @@ export class ViewerControls implements ControlsActions {
 
   constructor(
     private readonly overlay: OverlayFrame,
-    private readonly opts: { canTranslate: boolean; onTarget?: (target: string) => void },
+    private readonly opts: {
+      canTranslate: boolean
+      onTarget?: (target: string) => void
+      /** "Show both" changed: redraw with or without the original. */
+      onBoth?: () => void
+    },
   ) {
     this.model = {
       visible: viewer.visible,
       delayMs: viewer.delayMs,
       target: 'original',
       canTranslate: opts.canTranslate,
+      both: false,
       note: null,
       expanded: false,
       corner: 'top-left',
@@ -52,18 +60,33 @@ export class ViewerControls implements ControlsActions {
     overlay.setVisible(viewer.visible)
     overlay.setUserDelay(viewer.delayMs)
     this.render()
-    void browser.storage.local.get([CONTROLS_KEY, TARGET_KEY]).then((got) => {
+    void browser.storage.local.get([CONTROLS_KEY, TARGET_KEY, BOTH_KEY]).then((got) => {
       const prefs = (got[CONTROLS_KEY] as ControlsPrefs | undefined) ?? {}
       this.model = {
         ...this.model,
         corner: prefs.corner ?? this.model.corner,
         expanded: prefs.expanded ?? false,
+        both: got[BOTH_KEY] === true,
         target: opts.canTranslate
           ? ((got[TARGET_KEY] as string | undefined) ?? 'original')
           : 'original',
       }
       this.render()
+      opts.onBoth?.()
     })
+  }
+
+  get both(): boolean {
+    return this.model.both
+  }
+
+  toggleBoth = (): void => {
+    if (!this.opts.canTranslate) return
+    this.model = { ...this.model, both: !this.model.both }
+    void browser.storage.local.set({ [BOTH_KEY]: this.model.both })
+    this.overlay.toast(this.model.both ? 'Original + translation' : 'Translation only')
+    this.opts.onBoth?.()
+    this.render()
   }
 
   get target(): string {

@@ -92,7 +92,8 @@ export type Message =
   | { type: 'captions.download'; tabId: number; mode: CaptionMode }
   // SW → content
   | { type: 'captions.begin'; jobId: string }
-  | { type: 'captions.track'; track: SubtitleTrack; final: boolean }
+  /** `companion`: the original, when `track` is a translation (bilingual display). */
+  | { type: 'captions.track'; track: SubtitleTrack; final: boolean; companion?: SubtitleTrack }
   | { type: 'captions.end' }
   /** A line for the quick controls ("Translating to French… 40 %"), null clears it. */
   | { type: 'captions.ui'; note: string | null }
@@ -120,6 +121,8 @@ export type Message =
   | { type: 'live.navigated'; jobId: string }
   /** A user-facing hint from the page or offscreen ("unmute the video"), null clears it. */
   | { type: 'live.hint'; jobId: string; message: string | null }
+  /** The page with captions is unloading (reload, navigation, close): cancel its jobs. */
+  | { type: 'page.gone' }
   // SW → offscreen
   | { type: 'offscreen.start'; jobId: string; streamId: string }
   | { type: 'offscreen.stop' }

@@ -131,9 +131,16 @@ export default defineContentScript({
       void browser.runtime.sendMessage(msg).catch(() => {})
     }
 
+    // Reload, a real navigation or closing: nobody will see these captions.
+    // (In-page URL changes don't fire pagehide; `follow` handles those.)
+    window.addEventListener('pagehide', () => {
+      if (!captions && !live) return
+      void browser.runtime.sendMessage({ type: 'page.gone' } satisfies Message).catch(() => {})
+    })
+
     // Keyboard (Spec 09 §7): Alt+Shift+V captions on/off, Alt+Shift+, and . delay
     // −/+100 ms, Alt+Shift+0 no delay, Alt+Shift+T translate on/off,
-    // Alt+Shift+K open/close the controls. Physical keys (e.code), so any layout works.
+    // Alt+Shift+K open/close the controls, Alt+Shift+B original + translation. Physical keys (e.code), so any layout works.
     window.addEventListener(
       'keydown',
       (e) => {
@@ -153,6 +160,7 @@ export default defineContentScript({
           Digit0: () => controls.setDelay(0),
           KeyT: () => void controls.toggleTarget(),
           KeyK: () => controls.toggleExpanded(),
+          KeyB: () => controls.toggleBoth(),
         }
         const act = actions[e.code]
         if (!act) return
@@ -206,7 +214,7 @@ export default defineContentScript({
           return undefined
         }
         case 'captions.track':
-          captions?.showTrack(message.track, message.final)
+          captions?.showTrack(message.track, message.final, message.companion)
           sendResponse({ ok: true })
           return undefined
         case 'captions.end':

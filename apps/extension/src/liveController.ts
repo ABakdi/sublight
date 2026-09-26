@@ -316,6 +316,28 @@ export async function stopLive(tabId: number): Promise<LiveState | null> {
   return c.state
 }
 
+/**
+ * The tab is gone (closed, reloaded, navigated away): cancel its live job
+ * outright. No refinement pass: nobody is left to see it.
+ */
+export async function cancelLive(tabId: number): Promise<void> {
+  const c = controllers.get(tabId)
+  controllers.delete(tabId)
+  const state = c?.state ?? (await liveStatus(tabId))
+  const jobIds = new Set(
+    [
+      state?.jobId,
+      ...[...finishing.values()].filter((f) => f.tabId === tabId).map((f) => f.jobId),
+    ].filter((id): id is string => !!id),
+  )
+  for (const id of jobIds) {
+    finishing.delete(id)
+    await engineRequest(`/v1/jobs/${id}/cancel`, { method: 'POST' }).catch(() => {})
+  }
+  if (c || state?.phase === 'listening' || state?.phase === 'starting') await stopOffscreen()
+  await browser.storage.session.remove([liveKey(tabId), liveTrackKey(tabId)])
+}
+
 /** Stopped controllers still waiting for their refinement result. */
 const finishing = new Map<string, LiveController>()
 

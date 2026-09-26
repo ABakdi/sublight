@@ -427,6 +427,7 @@ const SHORTCUTS: [string, string][] = [
   ['Alt+Shift+,', 'Delay −100 ms (captions earlier)'],
   ['Alt+Shift+0', 'No delay'],
   ['Alt+Shift+T', 'Translate on / off (the last language used)'],
+  ['Alt+Shift+B', 'Show the original and the translation together'],
   ['Alt+Shift+K', 'Open / close the quick controls'],
   ['Alt+Shift+L', 'Live captions (live streams)'],
 ]

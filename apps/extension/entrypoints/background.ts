@@ -1,6 +1,7 @@
 import { defineBackground } from 'wxt/utils/define-background'
 import { browser } from 'wxt/browser'
 import {
+  cancelCaptionsForTab,
   captionsStatus,
   downloadCaptions,
   onCaptionsMessage,
@@ -10,7 +11,7 @@ import {
 } from '../src/captionsController'
 import { BUILD_ID } from '../src/build'
 import { probeEngine } from '../src/engine'
-import { liveStatus, onLiveMessage, startLive, stopLive } from '../src/liveController'
+import { cancelLive, liveStatus, onLiveMessage, startLive, stopLive } from '../src/liveController'
 import { isMessage, type Message, type TabStatus, type VideoState } from '../src/messages'
 
 type FrameMap = Record<string, VideoState>
@@ -68,6 +69,14 @@ async function handle(message: Message, sender: { tab?: { id?: number }; frameId
         message.mode,
         ownerFrame(await readFrames(message.tabId)),
       )
+    case 'page.gone': {
+      // The page that showed captions was reloaded or left (not an in-page URL change).
+      const tabId = sender.tab?.id
+      if (tabId === undefined) return { ok: false }
+      await cancelCaptionsForTab(tabId)
+      await cancelLive(tabId)
+      return { ok: true }
+    }
     case 'captions.seek':
     case 'captions.navigated':
     case 'captions.translate':
@@ -144,10 +153,15 @@ export default defineBackground(() => {
     })
   })
 
+  // A closed tab takes its jobs with it: nothing should keep the GPU busy for it.
   browser.tabs.onRemoved.addListener((tabId) => {
     void browser.storage.session.remove(tabKey(tabId))
+    void cancelCaptionsForTab(tabId)
+    void cancelLive(tabId)
   })
   // A full navigation drops every frame's state; content scripts re-report on load.
+  // (Its jobs are cancelled by the page's own `page.gone`: this event also
+  // fires for in-page URL changes, like scrolling YouTube Shorts.)
   browser.tabs.onUpdated.addListener((tabId, info) => {
     if (info.status === 'loading' && info.url) void browser.storage.session.remove(tabKey(tabId))
   })

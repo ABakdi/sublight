@@ -38,9 +38,19 @@ const translatedKey = (tabId: number) => `captionsTranslated:${tabId}`
 export interface SavedCaptions {
   track: SubtitleTrack
   final: boolean
+  /** The original next to a Whisper translation (bilingual display). */
+  companion?: SubtitleTrack
 }
 
-type Stored = CaptionsState & { frameId: number; task?: 'transcribe' | 'translate' }
+type Stored = CaptionsState & {
+  frameId: number
+  task?: 'transcribe' | 'translate'
+  /** A translation job still running, so it can be cancelled even after a SW restart. */
+  translateJobId?: string
+}
+
+/** How often a followed url job hears from us (the engine cancels it after 90 s of silence). */
+const KEEPALIVE_MS = 30_000
 
 const languageName = (code: string) => TARGETS.find(([c]) => c === code)?.[1] ?? code
 const whisperTarget = (target: string) => isEnglish(target)
@@ -58,11 +68,14 @@ const whisperTarget = (target: string) => isEnglish(target)
 class CaptionsController {
   state: Stored
   private ws: WebSocket | null = null
+  private keepalive: ReturnType<typeof setInterval> | undefined
   /** The page moved on while a download waits: keep transcribing, stop showing. */
   detached = false
   /** The language the viewer wants ('original' or a code). */
   target = 'original'
   private translation: { lang: string; jobId: string | null } | null = null
+  /** The transcript being translated: shown as the original next to it. */
+  private source: SubtitleTrack | null = null
   private owner: { frameId: number; state: VideoState } | null = null
 
   constructor(tabId: number, frameId: number, jobId: string, title?: string) {
@@ -111,6 +124,14 @@ class CaptionsController {
       ws.send(JSON.stringify({ type: 'subscribe', jobIds: [this.jobId] }))
     }
     ws.onmessage = (m) => void this.onEvent(JSON.parse(String(m.data)) as WsEvent)
+    clearInterval(this.keepalive)
+    // Leased jobs: the engine cancels them if we stop checking in (tab or browser closed).
+    this.keepalive = setInterval(() => {
+      const ids = [this.translation?.jobId]
+      if (this.state.phase === 'starting' || this.state.phase === 'captioning') ids.push(this.jobId)
+      for (const id of ids)
+        if (id) void engineRequest(`/v1/jobs/${id}/keepalive`, { method: 'POST' }).catch(() => {})
+    }, KEEPALIVE_MS)
     // Missed events (SW restart, or a job that finished before we subscribed).
     const job = await engineRequest<JobSummary>(`/v1/jobs/${this.jobId}`).catch(() => null)
     if (job?.state === 'done') await this.finish()
@@ -123,10 +144,16 @@ class CaptionsController {
     else this.ws?.addEventListener('open', send, { once: true })
   }
 
-  private async draft(track: SubtitleTrack): Promise<void> {
+  private async draft(track: SubtitleTrack, companion?: SubtitleTrack): Promise<void> {
     // While a translation is shown, the transcript keeps growing underneath.
-    if (!this.translationShown()) this.toPage({ type: 'captions.track', track, final: false })
-    const saved: SavedCaptions = { track, final: false }
+    if (!this.translationShown())
+      this.toPage({
+        type: 'captions.track',
+        track,
+        final: false,
+        ...(companion ? { companion } : {}),
+      })
+    const saved: SavedCaptions = { track, final: false, ...(companion ? { companion } : {}) }
     await browser.storage.session.set({ [captionsTrackKey(this.tabId)]: saved })
     await this.save({ phase: 'captioning', coverage: track.coverage ?? [] })
     if (this.pendingTranslation())
@@ -150,7 +177,7 @@ class CaptionsController {
       return
     }
     if (e.jobId !== this.jobId) return
-    if (e.type === 'job.partial') await this.draft(e.draft)
+    if (e.type === 'job.partial') await this.draft(e.draft, e.companion)
     else if (e.type === 'job.progress') {
       await this.save({
         progress: e.progress,
@@ -178,8 +205,9 @@ class CaptionsController {
     if (this.state.phase === 'done') return
     const result = await engineRequest<JobResult>(`/v1/jobs/${this.jobId}/result`)
     const track = result.tracks[0]
+    const companion = result.tracks[1]
     if (track) {
-      const saved: SavedCaptions = { track, final: true }
+      const saved: SavedCaptions = { track, final: true, ...(companion ? { companion } : {}) }
       await browser.storage.session.set({ [captionsTrackKey(this.tabId)]: saved })
     }
     const pending = this.state.pendingDownload
@@ -195,7 +223,13 @@ class CaptionsController {
         // Keep the transcript on screen until the translation arrives.
         this.toPage({ type: 'captions.track', track, final: true })
         await this.translate(track, this.target)
-      } else this.toPage({ type: 'captions.track', track, final: true })
+      } else
+        this.toPage({
+          type: 'captions.track',
+          track,
+          final: true,
+          ...(companion ? { companion } : {}),
+        })
     }
     if (track && track.cues.length === 0) this.note('No speech found in this video.')
     if (pending && track) await saveSrt(await this.shownTrack(track), pending, this.state.title)
@@ -219,7 +253,7 @@ class CaptionsController {
       { lang: string; track: SubtitleTrack } | undefined
     if (done?.lang === lang) {
       this.translation = { lang, jobId: null }
-      this.toPage({ type: 'captions.track', track: done.track, final: true })
+      this.toPage({ type: 'captions.track', track: done.track, final: true, companion: track })
       this.note(null)
       return
     }
@@ -236,9 +270,12 @@ class CaptionsController {
           glossary: [],
           style: 'neutral',
           priority: 'interactive',
+          lease: true,
         }),
       })
       this.translation = { lang, jobId: job.id }
+      this.source = track
+      await this.save({ translateJobId: job.id })
       this.subscribe(job.id)
       if (job.state === 'done') await this.translationDone(job.id, lang)
     } catch (err) {
@@ -254,7 +291,12 @@ class CaptionsController {
   private async onTranslationEvent(e: WsEvent): Promise<void> {
     const t = this.translation!
     if (e.type === 'job.partial' && t.lang === this.target)
-      this.toPage({ type: 'captions.track', track: e.draft, final: true })
+      this.toPage({
+        type: 'captions.track',
+        track: e.draft,
+        final: true,
+        ...(this.source ? { companion: this.source } : {}),
+      })
     else if (e.type === 'job.progress' && t.lang === this.target)
       this.note(`Translating to ${languageName(t.lang)}… ${Math.round(e.progress * 100)} %`)
     else if (e.type === 'job.state') {
@@ -276,7 +318,12 @@ class CaptionsController {
     if (!track) return
     await browser.storage.session.set({ [translatedKey(this.tabId)]: { lang, track } })
     if (lang === this.target) {
-      this.toPage({ type: 'captions.track', track, final: true })
+      this.toPage({
+        type: 'captions.track',
+        track,
+        final: true,
+        ...(this.source ? { companion: this.source } : {}),
+      })
       this.note(null)
     }
     if (this.state.phase === 'done') this.close()
@@ -298,7 +345,13 @@ class CaptionsController {
       return
     }
     if (target === 'original' || whisperTarget(target)) {
-      if (saved) this.toPage({ type: 'captions.track', track: saved.track, final: saved.final })
+      if (saved)
+        this.toPage({
+          type: 'captions.track',
+          track: saved.track,
+          final: saved.final,
+          ...(saved.companion ? { companion: saved.companion } : {}),
+        })
       this.note(null)
       return
     }
@@ -326,12 +379,14 @@ class CaptionsController {
 
   /** Stop a translation still running (the viewer moved on): it would hold the GPU. */
   async cancelTranslation(): Promise<void> {
-    const id = this.translation?.jobId
+    const id = this.translation?.jobId ?? this.state.translateJobId
     this.translation = null
     if (id) await engineRequest(`/v1/jobs/${id}/cancel`, { method: 'POST' }).catch(() => {})
+    await this.save({ translateJobId: undefined })
   }
 
   close(): void {
+    clearInterval(this.keepalive)
     this.ws?.close()
     this.ws = null
     if (controllers.get(this.tabId) === this) controllers.delete(this.tabId)
@@ -430,12 +485,15 @@ export async function startCaptions(
         pageUrl: v.primary?.pageUrl ?? v.url,
         ...(v.primary?.src ? { mediaUrl: v.primary.src } : {}),
         userAgent: navigator.userAgent,
+        // Leased: cancelled by the engine if this tab (or the browser) goes away.
+        lease: true,
         ...(cookies ? { cookiesFromBrowser: cookies } : {}),
         model,
         priority: 'interactive',
         params: {
           language: (prefs[LIVE_LANGUAGE_KEY] as string | undefined) || null,
-          ...(task === 'translate' ? { task } : {}),
+          // English also brings the original along, for "Show both".
+          ...(task === 'translate' ? { task, bilingual: true } : {}),
           fromMs: Math.round(playhead(v)),
         },
       }),
@@ -488,6 +546,37 @@ export async function stopCaptions(
   await c.save({ phase: 'stopped', pendingDownload: undefined })
   c.close()
   return c.state
+}
+
+/**
+ * The tab is gone (closed, reloaded, navigated away): cancel its captioning
+ * and any translation so they don't hold the GPU. Works from the stored state
+ * too, after a service-worker restart. A download the viewer asked for still
+ * finishes (and saves the file).
+ */
+export async function cancelCaptionsForTab(tabId: number): Promise<void> {
+  const c = controllers.get(tabId)
+  const got = await browser.storage.session.get(stateKey(tabId))
+  const state = (c?.state ?? got[stateKey(tabId)]) as Stored | undefined
+  if (state?.pendingDownload && c) {
+    c.detached = true
+    return
+  }
+  if (c) {
+    await c.cancelTranslation()
+    c.close()
+  } else if (state?.translateJobId) {
+    await engineRequest(`/v1/jobs/${state.translateJobId}/cancel`, { method: 'POST' }).catch(
+      () => {},
+    )
+  }
+  if (state?.jobId && (state.phase === 'starting' || state.phase === 'captioning'))
+    await engineRequest(`/v1/jobs/${state.jobId}/cancel`, { method: 'POST' }).catch(() => {})
+  await browser.storage.session.remove([
+    stateKey(tabId),
+    captionsTrackKey(tabId),
+    translatedKey(tabId),
+  ])
 }
 
 /** State for the popup; re-attaches to a running job after a service-worker restart. */

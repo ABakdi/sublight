@@ -74,6 +74,8 @@ export class OverlayFrame {
   private root: Root
   private raf = 0
   private cues: SubtitleCue[] = []
+  /** A second line (the translation, when both languages are shown). */
+  private secondary: SubtitleCue[] | null = null
   private draft = false
   private offsetMs = 0
   /** The viewer's own delay (quick controls), added to `offsetMs`. */
@@ -168,6 +170,13 @@ export class OverlayFrame {
         actions: this.controls.actions,
       }),
     )
+  }
+
+  /** A second, smaller line above the captions (null removes it). */
+  setSecondary(cues: SubtitleCue[] | null): void {
+    if (cues === this.secondary) return
+    this.secondary = cues
+    this.render()
   }
 
   /** Captions on/off (the controls stay). */
@@ -265,6 +274,12 @@ export class OverlayFrame {
           video: this.video,
           draft: this.draft,
           syncOffsetMs: this.offsetMs + this.userDelayMs,
+          ...(this.visible && this.secondary
+            ? {
+                secondaryCues: this.secondary,
+                secondarySyncOffsetMs: this.offsetMs + this.userDelayMs,
+              }
+            : {}),
           style,
         }),
         this.status &&

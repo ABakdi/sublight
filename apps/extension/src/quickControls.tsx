@@ -38,6 +38,8 @@ export interface ControlsModel {
   target: string
   /** Live captions can't be translated (they follow the sound as it plays). */
   canTranslate: boolean
+  /** Show the original and the translation together (language learning). */
+  both: boolean
   /** One line of state ("Translating… 40 %", "Live: ~3 s behind"). */
   note: string | null
   expanded: boolean
@@ -54,6 +56,7 @@ export interface ControlsActions {
   toggleVisible(): void
   setDelay(ms: number): void
   setTarget(target: string): void
+  toggleBoth(): void
   setExpanded(on: boolean): void
   setCorner(corner: Corner): void
 }
@@ -249,6 +252,27 @@ export function QuickControls({
           ))}
         </select>
       </label>
+
+      {model.canTranslate && model.target !== 'original' && (
+        <div style={{ ...row, justifyContent: 'space-between' }}>
+          <span title="The original with the translation above it: see which words go together">
+            Show both
+          </span>
+          <button
+            data-testid="qc-both"
+            data-on={model.both}
+            title="Original and translation together (Alt+Shift+B)"
+            style={{
+              ...small,
+              minWidth: 52,
+              background: model.both ? '#4f46e5' : 'rgba(255,255,255,0.12)',
+            }}
+            onClick={actions.toggleBoth}
+          >
+            {model.both ? 'On' : 'Off'}
+          </button>
+        </div>
+      )}
 
       <div style={{ ...row, justifyContent: 'space-between' }}>
         <span title="+ shows captions later, − earlier">Delay</span>

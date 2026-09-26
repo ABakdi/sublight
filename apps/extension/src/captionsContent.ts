@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser'
-import type { SubtitleTrack } from '@sublight/core'
+import { pairWithOriginal, type SubtitleTrack } from '@sublight/core'
 import type { Message } from './messages'
 import { isReady, type Range } from './coverage'
 import { OverlayFrame } from './overlayFrame'
@@ -47,6 +47,7 @@ export class PageCaptions {
     this.controls = new ViewerControls(this.overlay, {
       canTranslate: true,
       onTarget: (target) => void send({ type: 'captions.translate', jobId: this.jobId, target }),
+      onBoth: () => this.draw(),
     })
     for (const e of this.events) video.addEventListener(e, this.onEvent)
     void browser.storage.local.get(HOLD_KEY).then((got) => {
@@ -78,7 +79,7 @@ export class PageCaptions {
     }
     if (this.hidden) {
       this.hidden = false
-      if (this.track) this.overlay.setCues(this.track.cues, false, 0)
+      this.draw()
     }
     if (e.type === 'seeked') {
       this.userOverride = false
@@ -100,17 +101,33 @@ export class PageCaptions {
     if (!this.hidden) {
       this.hidden = true
       this.overlay.setCues([], false, 0)
+      this.overlay.setSecondary(null)
       this.overlay.setStatus(null)
     }
   }
 
-  showTrack(track: SubtitleTrack, final: boolean): void {
+  /** The original, when `track` is a translation. */
+  private companion: SubtitleTrack | null = null
+
+  showTrack(track: SubtitleTrack, final: boolean, companion?: SubtitleTrack): void {
     this.final = final
     this.track = track
+    this.companion = companion ?? null
     if (track.coverage) this.coverage = track.coverage
     if (this.foreign()) return this.showForeign()
-    this.overlay.setCues(track.cues, false, 0)
+    this.draw()
     this.check()
+  }
+
+  /**
+   * "Show both": the original is the main line (word by word, the words to
+   * learn) and the translation sits above it; otherwise just the track.
+   */
+  private draw(): void {
+    if (!this.track || this.hidden) return
+    const both = this.controls.both && this.companion && this.companion !== this.track
+    this.overlay.setCues(both ? this.companion!.cues : this.track.cues, false, 0)
+    this.overlay.setSecondary(both ? pairWithOriginal(this.track.cues, this.companion!.cues) : null)
   }
 
   private check(): void {
