@@ -203,3 +203,84 @@ describe('url runner failures', () => {
     ).rejects.toMatchObject({ code: 'MEDIA_UNREACHABLE' })
   })
 })
+
+describe('bilingual url job', () => {
+  it('returns the English translation and the original, drafts carry both', async () => {
+    const calls: boolean[] = []
+    const runner = aheadRunner({
+      models: {
+        entry: () => ({ role: 'asr', tasks: ['transcribe', 'translate'] }),
+        isInstalled: () => true,
+        pathOf: () => '/m.bin',
+      } as unknown as ModelManager,
+      whisper: {
+        ensure: async () => {},
+        infer: async (wav: Buffer, p: { translate: boolean }): Promise<VerboseJson> => {
+          calls.push(p.translate)
+          const ms = ((wav.length - 44) / 2 / SAMPLE_RATE) * 1000
+          const words = []
+          for (let t = 0; t + 600 <= ms; t += 1000)
+            words.push({
+              word: p.translate ? ' en' : ' de',
+              start: t / 1000,
+              end: (t + 600) / 1000,
+            })
+          return {
+            task: p.translate ? 'translate' : 'transcribe',
+            language: 'german',
+            duration: ms / 1000,
+            text: '',
+            segments: [
+              {
+                id: 0,
+                text: p.translate ? ' Hello there.' : ' Hallo.',
+                start: 0,
+                end: ms / 1000,
+                words,
+              },
+            ],
+          }
+        },
+      } as unknown as WhisperWorker,
+      ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
+      ytDlp: null,
+      resolve: async () => ({
+        input: 'x',
+        headers: {},
+        durationMs: 20_000,
+        title: 'Clip',
+        via: 'direct',
+      }),
+      slice: async (_m, out, _s, d) => {
+        const n = Math.round((d * SAMPLE_RATE) / 1000)
+        const pcm = new Int16Array(n)
+        for (let i = 0; i < n; i++)
+          pcm[i] = Math.round(8000 * Math.sin((2 * Math.PI * 440 * i) / SAMPLE_RATE))
+        writeFileSync(out, wavBytes(pcm))
+      },
+    })
+    const partials: { draft: SubtitleTrack; companion?: SubtitleTrack }[] = []
+    const out = await runner.run(
+      {
+        type: 'url',
+        pageUrl: 'https://example.test/',
+        model: 'whisper-small',
+        params: { language: null, task: 'translate', bilingual: true },
+      },
+      {
+        jobId: 'bi1',
+        signal: new AbortController().signal,
+        progress: () => {},
+        partial: (draft, companion) =>
+          partials.push({ draft, ...(companion ? { companion } : {}) }),
+        chunkDir: () => tmp(),
+      },
+    )
+    expect(calls).toEqual([true, false]) // one piece: translate, then transcribe
+    expect(out.tracks.map((t) => [t.kind, t.language])).toEqual([
+      ['translation', 'en'],
+      ['transcript', 'de'],
+    ])
+    expect(partials[0]!.companion?.language).toBe('de')
+  })
+})

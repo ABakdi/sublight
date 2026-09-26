@@ -1,6 +1,12 @@
 import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { buildCuesFromWords, newId, type SpeechWord, type SubtitleTrack } from '@sublight/core'
+import {
+  alignToWords,
+  buildCuesFromWords,
+  newId,
+  type SpeechWord,
+  type SubtitleTrack,
+} from '@sublight/core'
 import { COOKIE_BROWSERS, type UrlJob } from '@sublight/protocol'
 import { JobError, type JobRunner, type RunOutput } from '../jobs/queue'
 import { levelDb, SAMPLE_RATE, wavBytes } from '../live/session'
@@ -23,7 +29,7 @@ const CONTEXT_MS = 1000
 /** Don't leave a sliver this short to a later piece. */
 const MIN_REST_MS = 10_000
 /** Bump when output changes for the same input, so stale cache entries miss. */
-const PIPELINE_VERSION = 2
+const PIPELINE_VERSION = 3
 
 export interface Range {
   startMs: number
@@ -184,6 +190,7 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
         req.model,
         req.params?.task ?? 'transcribe',
         req.params?.language ?? 'auto',
+        req.params?.bilingual ? 'bilingual' : '',
       ].join('|')
     },
 
@@ -208,12 +215,35 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
 
         const total = media.durationMs
         const pieces: Piece[] = []
+        /** Bilingual: the original's words per piece, next to the translation. */
+        const bilingual = task === 'translate' && req.params.bilingual === true
+        const originals: Piece[] = []
         let language = req.params.language ?? null
+
+        const original = (draft: boolean): SubtitleTrack => {
+          const source = language ?? 'und'
+          return {
+            id: newId(),
+            projectId: '',
+            language: source,
+            title: media.title ?? source,
+            kind: 'transcript',
+            ...(draft ? { draft: true, coverage: coverageOf(pieces) } : {}),
+            mediaDurationMs: total,
+            cues: buildCuesFromWords(composeWords(originals)),
+            createdAt: Date.now(),
+          }
+        }
 
         const track = (draft: boolean): SubtitleTrack => {
           const words = composeWords(pieces)
           const source = language ?? 'und'
           const translated = task === 'translate'
+          const segmentCues = () =>
+            cuesFromSegments(
+              words.map((w) => ({ startMs: w.startMs, endMs: w.endMs, text: w.word })),
+              7000,
+            )
           return {
             id: newId(),
             projectId: '',
@@ -224,10 +254,9 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
             ...(draft ? { draft: true, coverage: coverageOf(pieces) } : {}),
             mediaDurationMs: total,
             cues: translated
-              ? cuesFromSegments(
-                  words.map((w) => ({ startMs: w.startMs, endMs: w.endMs, text: w.word })),
-                  7000,
-                )
+              ? bilingual
+                ? alignToWords(segmentCues(), composeWords(originals))
+                : segmentCues()
               : buildCuesFromWords(words),
             createdAt: Date.now(),
           }
@@ -248,6 +277,7 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
           const to = Math.min(total, range.endMs + CONTEXT_MS)
           const file = join(ctx.chunkDir(), `${range.startMs}.wav`)
           let words: SpeechWord[] = []
+          let originalWords: SpeechWord[] = []
           try {
             await slice(media, file, from, to - from)
             const pcm = pcmFromWav(file)
@@ -286,18 +316,41 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
                   : snapToOnsets(wordsFromVerbose(json), onsetsFromLevels(levelsFromPcm(heard)))
               const offset = from + lead
               const last = range.endMs >= total
-              words = raw
-                .map((w) => ({ ...w, startMs: w.startMs + offset, endMs: w.endMs + offset }))
-                .filter((w) => w.startMs >= range.startMs && (last || w.startMs < range.endMs))
+              const place = (list: SpeechWord[]) =>
+                list
+                  .map((w) => ({ ...w, startMs: w.startMs + offset, endMs: w.endMs + offset }))
+                  .filter((w) => w.startMs >= range.startMs && (last || w.startMs < range.endMs))
+              words = place(raw)
+              if (bilingual) {
+                // The English first (what the viewer is waiting for), then the original.
+                pieces.push({ ...range, words })
+                ctx.partial(track(true), original(true))
+                pieces.pop()
+                // The same audio again, as a transcript: the words to learn from.
+                const prior = originals.find((p) => p.endMs === range.startMs)
+                const heardJson = await deps.whisper.infer(wavBytes(heard), {
+                  language,
+                  translate: false,
+                  prompt: promptFrom(prior?.words.map((w) => w.word) ?? []),
+                  signal: ctx.signal,
+                })
+                originalWords = place(
+                  snapToOnsets(wordsFromVerbose(heardJson), onsetsFromLevels(levelsFromPcm(heard))),
+                )
+              }
             }
           } finally {
             rmSync(file, { force: true })
           }
           pieces.push({ ...range, words })
-          ctx.partial(track(true))
+          if (bilingual) originals.push({ ...range, words: originalWords })
+          ctx.partial(track(true), bilingual ? original(true) : undefined)
         }
         ctx.progress(1, 'done')
-        return { tracks: [track(false)], ...(language ? { language } : {}) }
+        return {
+          tracks: bilingual ? [track(false), original(false)] : [track(false)],
+          ...(language ? { language } : {}),
+        }
       } finally {
         focusOf.delete(ctx.jobId)
       }
