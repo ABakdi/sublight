@@ -7,8 +7,9 @@ import type { LiveJob } from '@sublight/protocol'
 import type { WhisperWorker } from '../src/asr/whisper'
 import type { VerboseJson } from '../src/asr/words'
 import type { RunContext } from '../src/jobs/queue'
+import { leadingSilenceMs } from '../src/asr/onsets'
 import { LiveHub } from '../src/live/hub'
-import { liveRunner, mergeByMediaRange } from '../src/live/runner'
+import { liveRunner, mergeByMediaRange, repeatedHead } from '../src/live/runner'
 import { LiveSession, SAMPLE_RATE, splitStable, wavBytes } from '../src/live/session'
 import type { ModelManager } from '../src/models/manager'
 import type { GpuResidency } from '../src/workers/gpu'
@@ -305,5 +306,34 @@ describe('live refine model', () => {
     session.stopping = true
     await done
     expect(loaded).toEqual(['whisper-base', 'whisper-small'])
+  })
+})
+
+describe('repeated words at a window start', () => {
+  const committed = [w('And', 330, 400), w('so', 690, 850)]
+  it('drops a re-heard tail word', () => {
+    expect(repeatedHead(committed, [w('so,', 700, 860), w('my', 870, 1000)])).toBe(1)
+    expect(
+      repeatedHead(committed, [w('And', 340, 400), w('so', 700, 850), w('my', 870, 900)]),
+    ).toBe(2)
+  })
+  it('keeps a real repetition later on and different words', () => {
+    expect(repeatedHead(committed, [w('so', 5000, 5100)])).toBe(0)
+    expect(repeatedHead(committed, [w('my', 870, 1000)])).toBe(0)
+  })
+})
+
+describe('leading silence before a pass', () => {
+  const pcm = (...parts: Buffer[]) => {
+    const b = Buffer.concat(parts)
+    return new Int16Array(b.buffer, b.byteOffset, b.length / 2)
+  }
+  const quiet = (ms: number) => Buffer.alloc(Math.round((ms * SAMPLE_RATE) / 1000) * 2)
+  it('starts 300 ms before the first sound', () => {
+    expect(leadingSilenceMs(pcm(quiet(1400), tone(1000)))).toBe(1100)
+    expect(leadingSilenceMs(pcm(tone(1000), quiet(1000), tone(500)))).toBe(0)
+  })
+  it("skips the previous word's leftover at the window start", () => {
+    expect(leadingSilenceMs(pcm(tone(120), quiet(1000), tone(1000)))).toBe(820)
   })
 })

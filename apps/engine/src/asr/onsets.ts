@@ -43,6 +43,12 @@ export function frameLevelsDb(wavPath: string): Float32Array {
   }
 }
 
+/** Noise floor of frame levels: their 10th percentile. */
+function noiseFloorDb(levels: Float32Array): number {
+  const sorted = Float32Array.from(levels).sort()
+  return sorted[Math.floor(sorted.length * 0.1)]!
+}
+
 /**
  * Speech onsets in ms (Spec 07 §1.4a): the noise floor is the 10th
  * percentile of frame levels; an onset is the first frame at least `riseDb`
@@ -51,9 +57,7 @@ export function frameLevelsDb(wavPath: string): Float32Array {
  */
 export function onsetsFromLevels(levels: Float32Array, opts: OnsetOptions = {}): number[] {
   if (levels.length === 0) return []
-  const sorted = Float32Array.from(levels).sort()
-  const floor = sorted[Math.floor(sorted.length * 0.1)]!
-  const threshold = floor + (opts.riseDb ?? 10)
+  const threshold = noiseFloorDb(levels) + (opts.riseDb ?? 10)
   const quietFrames = Math.round((opts.minSilenceMs ?? 150) / 10)
   const onsets: number[] = []
   let quiet = quietFrames // audio start counts as after silence
@@ -84,6 +88,33 @@ export function levelsFromPcm(pcm: Int16Array): Float32Array {
     levels[f] = rms > 0 ? 20 * Math.log10(rms) : -120
   }
   return levels
+}
+
+/** Quiet kept before the first onset when trimming: a little lead-in helps whisper. */
+const LEAD_IN_MS = 300
+/** A sound this short at a window's start, then a pause, is the previous word's tail. */
+const LEFTOVER_MS = 250
+const LEFTOVER_GAP_MS = 500
+
+/**
+ * Leading silence to cut from a window before whisper, in ms. Whisper stamps
+ * the first word at the start of the audio, and with a long pause there every
+ * later word can slip by one (JFK, a window from 1.9 s: "not" timed where
+ * "ask" is spoken). Starting 300 ms before the first onset fixes it.
+ */
+export function leadingSilenceMs(pcm: Int16Array): number {
+  const levels = levelsFromPcm(pcm)
+  const onsets = onsetsFromLevels(levels)
+  let first = onsets[0]
+  // A live window starts where the last committed word ended, which can be a
+  // few frames early: a short leftover of that word, then the pause. Skip it.
+  const next = onsets[1]
+  if (first === 0 && next !== undefined) {
+    const threshold = noiseFloorDb(levels) + 10
+    const tail = levels.slice(LEFTOVER_MS / 10, next / 10)
+    if (tail.length * 10 >= LEFTOVER_GAP_MS && tail.every((l) => l < threshold)) first = next
+  }
+  return first === undefined ? 0 : Math.max(0, first - LEAD_IN_MS)
 }
 
 /** Only move a start this far (whisper's segment-start guess vs the real onset). */

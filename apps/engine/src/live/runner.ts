@@ -3,8 +3,8 @@ import type { LiveJob } from '@sublight/protocol'
 import { isWhisperLanguage, whisperLanguageCode } from '../asr/languages'
 import { cuesFromSegments } from '../asr/segments'
 import { mergeWords, planChunks, promptFrom } from '../asr/transcribe'
-import { levelsFromPcm, onsetsFromLevels, snapToOnsets } from '../asr/onsets'
-import type { WhisperWorker } from '../asr/whisper'
+import { leadingSilenceMs, levelsFromPcm, onsetsFromLevels, snapToOnsets } from '../asr/onsets'
+import { audioCtxFor, type WhisperWorker } from '../asr/whisper'
 import { segmentsFromVerbose, wordsFromVerbose, type VerboseJson } from '../asr/words'
 import { JobError, type JobRunner, type RunContext, type RunOutput } from '../jobs/queue'
 import { SILENCE_DB } from '../media/store'
@@ -62,6 +62,30 @@ export function mergeByMediaRange(existing: SpeechWord[], incoming: SpeechWord[]
   )
 }
 
+const norm = (word: string) => word.toLowerCase().replace(/[^\p{L}\p{N}']/gu, '')
+
+/**
+ * How many leading `incoming` words repeat the tail of `committed`. A new
+ * window starts right after the last committed word, and whisper often hears
+ * that word (or the last few) again at its start: "And And so my fellow…".
+ */
+export function repeatedHead(
+  committed: SpeechWord[],
+  incoming: SpeechWord[],
+  toleranceMs = 1000,
+): number {
+  for (let k = Math.min(3, committed.length, incoming.length); k > 0; k--) {
+    const tail = committed.slice(-k)
+    const head = incoming.slice(0, k)
+    if (
+      tail.every((w, i) => norm(w.word) === norm(head[i]!.word)) &&
+      head[0]!.startMs < tail[k - 1]!.endMs + toleranceMs
+    )
+      return k
+  }
+  return 0
+}
+
 /**
  * `live` jobs (Spec 08 §5, M05): transcribe captured audio as it arrives. A
  * rolling window (≤ 28 s from the last committed word) goes through whisper
@@ -73,6 +97,35 @@ export function mergeByMediaRange(existing: SpeechWord[], incoming: SpeechWord[]
  */
 export function liveRunner(deps: LiveDeps): JobRunner<LiveJob> {
   const opt = { ...LIVE_DEFAULTS, ...deps.options }
+
+  /** One whisper pass over `pcm`, leading silence cut; words relative to `pcm`'s start. */
+  async function hear(
+    pcm: Int16Array,
+    task: 'transcribe' | 'translate',
+    opts: {
+      language: string | null
+      prompt?: string | undefined
+      fast?: boolean
+      signal: AbortSignal
+    },
+  ): Promise<{ words: SpeechWord[]; json: VerboseJson }> {
+    const lead = leadingSilenceMs(pcm)
+    const heard = lead > 0 ? pcm.subarray(samples(lead)) : pcm
+    const json = await deps.whisper.infer(wavBytes(heard), {
+      language: opts.language,
+      translate: task === 'translate',
+      ...(opts.prompt ? { prompt: opts.prompt } : {}),
+      // Live windows are short: encode only what's there (refinement: full).
+      ...(opts.fast ? { audioCtx: audioCtxFor((heard.length * 1000) / SAMPLE_RATE) } : {}),
+      signal: opts.signal,
+    })
+    const words = toWords(json, task, heard).map((w) => ({
+      ...w,
+      startMs: w.startMs + lead,
+      endMs: w.endMs + lead,
+    }))
+    return { words, json }
+  }
 
   /** Whisper output for one window → words relative to it, starts snapped to energy onsets. */
   const toWords = (
@@ -124,12 +177,8 @@ export function liveRunner(deps: LiveDeps): JobRunner<LiveJob> {
       const from = seg.from + samples(chunk.startMs)
       const pcm = session.read(from, Math.min(seg.to, from + samples(chunk.sliceMs)))
       if (levelDb(pcm) < SILENCE_DB) continue
-      const json = await deps.whisper.infer(wavBytes(pcm), {
-        language,
-        translate: task === 'translate',
-        signal,
-      })
-      const words = toWords(json, task, pcm).map((w) => ({
+      const { words: heard } = await hear(pcm, task, { language, signal })
+      const words = heard.map((w) => ({
         ...w,
         startMs: w.startMs + chunk.startMs,
         endMs: w.endMs + chunk.startMs,
@@ -237,22 +286,26 @@ export function liveRunner(deps: LiveDeps): JobRunner<LiveJob> {
             windowStart = end // silence (or a paused video): nothing to hear
             continue
           }
-          const json = await deps.whisper.infer(wavBytes(pcm), {
+          const { words: heard, json } = await hear(pcm, task, {
             language,
-            translate: task === 'translate',
             prompt: promptFrom(committed.map((w) => w.word)),
+            fast: true,
             signal: ctx.signal,
           })
           language ??= whisperLanguageCode(json.detected_language ?? json.language)
           // Commit everything when stopping or when the window is about full.
           const final = session.stopping || windowMs >= opt.maxWindowMs
           const { committed: stable, tentative } = splitStable(
-            toWords(json, task, pcm),
+            heard,
             windowMs,
             final ? 0 : opt.holdMs,
           )
-          committed = mergeByMediaRange(committed, session.toMedia(stable, windowStart))
-          const draft = session.toMedia(tentative, windowStart)
+          let stableMedia = session.toMedia(stable, windowStart)
+          let draft = session.toMedia(tentative, windowStart)
+          const repeats = repeatedHead(committed, [...stableMedia, ...draft])
+          draft = draft.slice(Math.max(0, repeats - stableMedia.length))
+          stableMedia = stableMedia.slice(repeats)
+          committed = mergeByMediaRange(committed, stableMedia)
           // A final pass committed everything it heard: the whole window is consumed.
           if (final) windowStart = end
           else if (stable.length) windowStart += samples(stable[stable.length - 1]!.endMs)
@@ -278,8 +331,11 @@ export function liveRunner(deps: LiveDeps): JobRunner<LiveJob> {
             await refineSegment(session, segments[i]!, req, language, ctx.signal),
           )
         }
-        // Never regress (Spec 07 §1.5): keep the live words if refinement lost many.
-        const words = refined.length >= committed.length * 0.8 ? refined : committed
+        // Refinement has full context and the better model, so it wins; keep
+        // the live words only if it lost most of them (Spec 07 §1.5). A
+        // closer ratio kept garbled drafts: repeats made them look longer.
+        const words =
+          segments.length > 0 && refined.length >= committed.length * 0.5 ? refined : committed
         return { tracks: [track(words, req, language, false)], ...(language ? { language } : {}) }
       } finally {
         deps.hub.close(ctx.jobId)

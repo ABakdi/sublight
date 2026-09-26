@@ -29,7 +29,7 @@ import { segmentsFromVerbose, wordsFromVerbose, type Segment, type VerboseJson }
 export const CHUNK_MS = 2 * 60 * 1000
 export const CHUNK_OVERLAP_MS = 1000
 /** Bump when output changes for the same input, so stale cache entries miss. */
-const PIPELINE_VERSION = 7
+const PIPELINE_VERSION = 8
 
 export interface TranscribeDeps {
   media: MediaStore

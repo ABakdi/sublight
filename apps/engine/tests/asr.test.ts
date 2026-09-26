@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { validateCues } from '@sublight/core'
-import { segmentsFromVerbose, wordsFromVerbose, type VerboseJson } from '../src/asr/words'
+import { audioCtxFor } from '../src/asr/whisper'
+import {
+  dropRepeatLoops,
+  segmentsFromVerbose,
+  wordsFromVerbose,
+  type VerboseJson,
+} from '../src/asr/words'
 import { cuesFromSegments } from '../src/asr/segments'
 import { CHUNK_OVERLAP_MS, mergeWords, planChunks } from '../src/asr/transcribe'
 import { whisperLanguageCode } from '../src/asr/languages'
@@ -273,5 +279,65 @@ describe('sound annotations', () => {
     )
     dropAnnotations(words)
     expect(words).toHaveLength(8)
+  })
+})
+
+describe('decoding loops', () => {
+  const w = (word: string, startMs: number, endMs: number) => ({ word, startMs, endMs })
+  it('drops squeezed copies of a repeated phrase and keeps the real one', () => {
+    const words = [
+      w('Ask', 5410, 5420),
+      w('what', 5430, 5440),
+      w('you', 5450, 5460),
+      w('Ask', 6350, 6360),
+      w('what', 6370, 6380),
+      w('you', 6390, 6400),
+      w('Ask', 8190, 8400),
+      w('what', 8430, 8700),
+      w('you', 8910, 9000),
+    ]
+    dropRepeatLoops(words)
+    expect(words.map((x) => x.startMs)).toEqual([8190, 8430, 8910])
+  })
+  it('keeps real repetition', () => {
+    const words = [w('no,', 0, 300), w('no', 400, 700), w('go', 1000, 1300), w('go', 1400, 1700)]
+    dropRepeatLoops(words)
+    expect(words).toHaveLength(4)
+  })
+})
+
+describe('encoder context for short audio', () => {
+  it('covers the audio with headroom, within 384..1500', () => {
+    expect(audioCtxFor(11_000)).toBe(768)
+    expect(audioCtxFor(1000)).toBe(384)
+    expect(audioCtxFor(28_000)).toBe(1500)
+  })
+})
+
+describe('a word after a pause and punctuation', () => {
+  it('starts where whisper timed the punctuation (sound resumed)', () => {
+    const json: VerboseJson = {
+      task: 'transcribe',
+      language: 'english',
+      duration: 5,
+      text: '',
+      segments: [
+        {
+          id: 0,
+          text: '',
+          words: [
+            { word: ' Americans', start: 1.75, end: 2.0 },
+            { word: ',', start: 3.29, end: 3.29 },
+            { word: ' ask', start: 3.49, end: 3.8 },
+            { word: ' not', start: 4.24, end: 4.5 },
+          ],
+        },
+      ],
+    }
+    expect(wordsFromVerbose(json).map((w) => [w.word, w.startMs])).toEqual([
+      ['Americans,', 1750],
+      ['ask', 3290],
+      ['not', 4240],
+    ])
   })
 })
