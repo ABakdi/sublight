@@ -21,8 +21,8 @@ export interface RunContext {
   signal: AbortSignal
   /** 0..1 plus an optional phase label. */
   progress(progress: number, detail?: string): void
-  /** Stream a partial track (chunk commits, live drafts). */
-  partial(track: SubtitleTrack): void
+  /** Stream a partial track (chunk commits, live drafts), with an optional second one. */
+  partial(track: SubtitleTrack, companion?: SubtitleTrack): void
   /** Per-job scratch dir for resumable checkpoints. */
   chunkDir(): string
 }
@@ -55,9 +55,18 @@ export interface QueueOptions {
   maxAttempts?: number
   /** Concurrent non-GPU jobs (Protocol §7). */
   cpuConcurrency?: number
+  /** Tests: a shorter lease. */
+  leaseMs?: number
 }
 
 const PRIORITY_RANK = { interactive: 0, batch: 1 } as const
+
+/** A leased job (`lease: true`) is cancelled after this long without a keep-alive. */
+export const LEASE_MS = 90_000
+
+const isLeased = (job: JobRecord) => (job.request as { lease?: boolean }).lease === true
+const isOpen = (job: JobRecord) =>
+  job.state === 'queued' || job.state === 'running' || job.state === 'interrupted'
 
 /**
  * Job queue (Spec 06 §5): priority classes (interactive > batch, then FIFO),
@@ -73,6 +82,9 @@ export class JobQueue {
   private readonly maxAttempts: number
   private readonly cpuConcurrency: number
   private metrics = { asrSeconds: 0, audioSeconds: 0 }
+  /** Last keep-alive per leased job. */
+  private seen = new Map<string, number>()
+  private leaseTimer: ReturnType<typeof setInterval> | undefined
 
   constructor(
     private readonly store: JobStore,
@@ -90,8 +102,8 @@ export class JobQueue {
   /** After registering runners: recover interrupted work and start pumping. */
   start(): void {
     for (const job of this.store.all()) {
-      const open = job.state === 'queued' || job.state === 'running' || job.state === 'interrupted'
-      if (open && this.runners.get(job.type)?.exclusive) {
+      // Streamed input, or wanted only by a page that's gone: don't resume.
+      if (isOpen(job) && (this.runners.get(job.type)?.exclusive || isLeased(job))) {
         this.store.patch(job.id, { state: 'cancelled', detail: 'engine restarted' })
         continue
       }
@@ -102,6 +114,12 @@ export class JobQueue {
         this.store.patch(job.id, { state: 'queued', detail: 'resuming after restart' })
       }
     }
+    const lease = this.opts.leaseMs ?? LEASE_MS
+    this.leaseTimer = setInterval(
+      () => this.expireLeases(),
+      Math.max(10, Math.min(10_000, lease / 3)),
+    )
+    this.leaseTimer.unref?.()
     this.pump()
   }
 
@@ -200,6 +218,27 @@ export class JobQueue {
     return this.store.readResult(id)
   }
 
+  /** Renew a leased job; false when there's no such open job. */
+  keepalive(id: string): boolean {
+    const job = this.store.get(id)
+    if (!job || !isOpen(job)) return false
+    this.seen.set(id, Date.now())
+    return true
+  }
+
+  /** Cancel leased jobs nobody has kept alive (tab closed, browser gone). */
+  private expireLeases(): void {
+    const lease = this.opts.leaseMs ?? LEASE_MS
+    for (const job of this.store.all()) {
+      if (!isOpen(job) || !isLeased(job)) continue
+      const last = this.seen.get(job.id) ?? job.createdAt
+      if (Date.now() - last > lease) {
+        this.seen.delete(job.id)
+        this.cancel(job.id)
+      }
+    }
+  }
+
   cancel(id: string): JobSummary | null {
     const job = this.store.get(id)
     if (!job) return null
@@ -230,6 +269,7 @@ export class JobQueue {
   /** SIGTERM: stop starting work, abort running jobs and mark them interrupted. */
   async shutdown(): Promise<void> {
     this.stopped = true
+    clearInterval(this.leaseTimer)
     for (const [id, ctl] of this.running) {
       this.store.patch(id, { state: 'interrupted', detail: 'engine stopped' })
       ctl.abort()
@@ -308,7 +348,13 @@ export class JobQueue {
           ...(detail ? { detail } : {}),
         })
       },
-      partial: (track) => this.bus.emit({ type: 'job.partial', jobId: job.id, draft: track }),
+      partial: (track, companion) =>
+        this.bus.emit({
+          type: 'job.partial',
+          jobId: job.id,
+          draft: track,
+          ...(companion ? { companion } : {}),
+        }),
       chunkDir: () => this.store.chunkDir(job.id),
     }
 

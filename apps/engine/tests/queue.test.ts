@@ -219,6 +219,29 @@ describe('job queue (Spec 06 §5, Protocol §5)', () => {
     expect(fake.started).toEqual([])
   })
 
+  it('cancels a leased job nobody keeps alive, and never resumes one', async () => {
+    const bus = new EventBus()
+    const fake = fakeRunner()
+    const dir = tmp()
+    const queue = new JobQueue(new JobStore(dir), bus, { autoRetry: true, leaseMs: 60 })
+    queue.register(fake.runner)
+    queue.start()
+    const kept = queue.create(request('a', { lease: true } as Partial<TranscribeJob>))
+    const left = queue.create(request('b', { lease: true } as Partial<TranscribeJob>))
+    const timer = setInterval(() => queue.keepalive(kept.id), 20)
+    await until(() => queue.get(left.id)!.state === 'cancelled')
+    expect(queue.get(kept.id)!.state).toBe('running')
+    clearInterval(timer)
+    expect(queue.keepalive(left.id)).toBe(false)
+    // A restart cancels it instead of resuming it.
+    const again = new JobQueue(new JobStore(dir), new EventBus(), { autoRetry: true })
+    again.register(fakeRunner().runner)
+    again.start()
+    expect(again.get(kept.id)!.state).toBe('cancelled')
+    await queue.shutdown()
+    await again.shutdown()
+  })
+
   it('leaves interrupted jobs alone without autoRetry until the key is replayed', async () => {
     const first = setup()
     const job = first.queue.create(request('a'), 'key-1')

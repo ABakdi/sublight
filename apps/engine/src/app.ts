@@ -162,6 +162,12 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
       const job = s.jobs.get(c.req.param('id'))
       return job ? c.json(job) : jsonError(c, 'JOB_NOT_FOUND', 'unknown job', 404)
     })
+    // Leased jobs (`lease: true`) are cancelled after 90 s without this.
+    app.post('/v1/jobs/:id/keepalive', (c) => {
+      if (!s.jobs.keepalive(c.req.param('id')))
+        return jsonError(c, 'JOB_NOT_FOUND', 'no open job with that id', 404)
+      return c.body(null, 204)
+    })
     app.post('/v1/jobs/:id/cancel', (c) => {
       const job = s.jobs.cancel(c.req.param('id'))
       return job ? c.json(job) : jsonError(c, 'JOB_NOT_FOUND', 'unknown job', 404)
