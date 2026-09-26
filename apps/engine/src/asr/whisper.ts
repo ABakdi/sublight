@@ -22,7 +22,20 @@ export interface InferenceParams {
   translate: boolean
   /** Text preceding this audio (previous chunk), for continuity of names and style. */
   prompt?: string
+  /** Encoder context in frames (1500 = 30 s); smaller is faster for short audio. */
+  audioCtx?: number
   signal?: AbortSignal
+}
+
+/**
+ * Encoder context for `ms` of audio: 50 frames per second with 30% headroom,
+ * at least 384, rounded up to 64. The encoder always runs on the full context,
+ * so a 10 s live window at 1500 costs as much as 30 s. Measured on JFK
+ * (whisper-small, T1000): 1500 → 1.97 s, 768 → 1.08 s, same words and times.
+ */
+export function audioCtxFor(ms: number): number {
+  const frames = Math.ceil(((ms / 1000) * 50 * 1.3) / 64) * 64
+  return Math.min(1500, Math.max(384, frames))
 }
 
 /**
@@ -63,7 +76,12 @@ export class WhisperWorker {
     form.set('translate', params.translate ? 'true' : 'false')
     form.set('temperature', '0.0')
     form.set('token_timestamps', 'true')
+    // verbose_json otherwise runs a separate language-detection encode on
+    // every request, even with the language given: twice the GPU time.
+    // `language` in the response still names the language used or detected.
+    form.set('no_language_probabilities', 'true')
     if (params.prompt) form.set('prompt', params.prompt)
+    if (params.audioCtx && params.audioCtx < 1500) form.set('audio_ctx', String(params.audioCtx))
     const res = await this.server.request('/inference', {
       method: 'POST',
       body: form,
