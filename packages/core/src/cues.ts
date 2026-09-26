@@ -363,11 +363,22 @@ export function cuesBySentence(
 }
 
 /**
- * The cues to show or export for a mode. Needs word timings on every cue
+ * The cues to show or export for a mode; `maxLineChars` rewraps for narrow
+ * (vertical) videos. Needs word timings on every cue
  * (transcripts); tracks without them (Whisper translate, imported SRT) are
  * returned as they are.
  */
-export function cuesForMode(cues: SubtitleCue[], mode: CaptionMode): SubtitleCue[] {
+export function cuesForMode(
+  cues: SubtitleCue[],
+  mode: CaptionMode,
+  opts?: { maxLineChars?: number },
+): SubtitleCue[] {
   if (cues.length === 0 || !cues.every((c) => c.words?.length)) return cues
-  return mode === 'sentences' ? cuesBySentence(cues.flatMap((c) => c.words!)) : revealByWords(cues)
+  const words = cues.flatMap((c) => c.words!)
+  const maxLine = opts?.maxLineChars
+  if (mode === 'sentences') return cuesBySentence(words, maxLine ? { maxLineChars: maxLine } : {})
+  // Narrow (vertical) videos: regroup into shorter lines before revealing.
+  if (maxLine && maxLine < MAX_LINE_CHARS)
+    return revealByWords(buildCuesFromWords(words, { maxLineChars: maxLine }), maxLine)
+  return revealByWords(cues)
 }

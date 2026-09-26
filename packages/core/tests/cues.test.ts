@@ -245,6 +245,10 @@ describe('sentence captions', () => {
     const cues = buildCuesFromWords(jfk)
     expect(cuesForMode(cues, 'words').length).toBe(jfk.length)
     expect(cuesForMode(cues, 'sentences').length).toBe(3)
+    const narrow = cuesForMode(cues, 'sentences', { maxLineChars: 20 })
+    expect(narrow.every((c) => c.text.split('\n').every((l) => l.length <= 20))).toBe(true)
+    const narrowWords = cuesForMode(cues, 'words', { maxLineChars: 20 })
+    expect(narrowWords.every((c) => c.text.split('\n').every((l) => l.length <= 20))).toBe(true)
     const plain = [{ id: 'a', startMs: 0, endMs: 1000, text: 'no words' }]
     expect(cuesForMode(plain, 'sentences')).toBe(plain)
   })
