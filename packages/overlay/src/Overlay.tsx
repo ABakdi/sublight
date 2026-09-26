@@ -145,9 +145,14 @@ export function SubtitleOverlay({
   useLayoutEffect(() => {
     const host = hostRef.current
     if (!host) return
+    // Scale by the shorter side: a 16:9 player is sized by its height, a
+    // vertical (9:16) short by its width, so captions fit both.
     const measure = () => {
-      const h = host.getBoundingClientRect().height || host.clientHeight
-      setHostHeight(h > 0 ? h : REFERENCE_VIDEO_HEIGHT_PX)
+      const r = host.getBoundingClientRect()
+      const h = r.height || host.clientHeight
+      const w = r.width || host.clientWidth
+      const side = w > 0 && h > 0 ? Math.min(w, h) : h
+      setHostHeight(side > 0 ? side : REFERENCE_VIDEO_HEIGHT_PX)
     }
     measure()
     const ro = new ResizeObserver(measure)

@@ -7,7 +7,10 @@ export const REFERENCE_VIDEO_HEIGHT_PX = 720
 export const MIN_FONT_SCALE = 0.5
 export const MAX_FONT_SCALE = 2.5
 
-/** Scale factor so 34 px stays legible at any container height, clamped [0.5, 2.5]. */
+/**
+ * Scale factor so 34 px stays legible at any size, clamped [0.5, 2.5]. Pass the
+ * container's shorter side: the height of a 16:9 player, the width of a 9:16 short.
+ */
 export function scaleFactor(containerHeightPx: number): number {
   if (!Number.isFinite(containerHeightPx) || containerHeightPx <= 0) return 1
   const s = containerHeightPx / REFERENCE_VIDEO_HEIGHT_PX
