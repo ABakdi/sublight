@@ -85,6 +85,7 @@ export async function resolveRemote(
   pageUrl: string,
   mediaUrl?: string,
   userAgent?: string,
+  cookiesFromBrowser?: string,
 ): Promise<RemoteMedia> {
   if (isHttp(mediaUrl)) {
     const headers: Record<string, string> = { Referer: pageUrl }
@@ -111,17 +112,24 @@ export async function resolveRemote(
       // YouTube needs a JavaScript runtime for its signatures; use ours.
       '--js-runtimes',
       `node:${process.execPath}`,
+      // Opt-in, for sites that need a login (Instagram): the user's own browser cookies.
+      ...(cookiesFromBrowser ? ['--cookies-from-browser', cookiesFromBrowser] : []),
       pageUrl,
     ],
     60_000,
   )
   if (r.code !== 0) {
-    const reason =
+    const last =
       r.stderr
         .trim()
         .split('\n')
         .pop()
         ?.replace(/^ERROR:\s*/, '') ?? 'unknown error'
+    const needsLogin = /log(ged)?[- ]?in|cookies|empty media response|private/i.test(last)
+    const reason =
+      needsLogin && !cookiesFromBrowser
+        ? `${last} (this site may need your login: turn on “Use my browser login” in sublight’s Options)`
+        : last
     throw new JobError(
       'MEDIA_UNREACHABLE',
       `couldn't get this video's audio: ${reason}`,

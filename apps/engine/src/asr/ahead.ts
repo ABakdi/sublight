@@ -1,7 +1,7 @@
 import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { buildCuesFromWords, newId, type SpeechWord, type SubtitleTrack } from '@sublight/core'
-import type { UrlJob } from '@sublight/protocol'
+import { COOKIE_BROWSERS, type UrlJob } from '@sublight/protocol'
 import { JobError, type JobRunner, type RunOutput } from '../jobs/queue'
 import { levelDb, SAMPLE_RATE, wavBytes } from '../live/session'
 import type { FfmpegBinaries } from '../media/ffmpeg'
@@ -150,6 +150,14 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
     validate(req) {
       if (!req.pageUrl || !/^https?:\/\//i.test(req.pageUrl))
         throw new JobError('JOB_INVALID', 'pageUrl must be an http(s) URL')
+      if (
+        req.cookiesFromBrowser !== undefined &&
+        !(COOKIE_BROWSERS as readonly string[]).includes(req.cookiesFromBrowser)
+      )
+        throw new JobError(
+          'JOB_INVALID',
+          `unsupported cookiesFromBrowser '${req.cookiesFromBrowser}'`,
+        )
       const entry = deps.models.entry(req.model)
       if (entry.role !== 'asr')
         throw new JobError('JOB_INVALID', `'${req.model}' is not a speech-recognition model`)
@@ -191,6 +199,7 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
             req.pageUrl,
             req.mediaUrl,
             req.userAgent,
+            req.cookiesFromBrowser,
           ))
         const slice = deps.slice ?? ((m, out, s, d) => sliceRemote(deps.ffmpeg, m, out, s, d))
         ctx.progress(0, 'loading model')
