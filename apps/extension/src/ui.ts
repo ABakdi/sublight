@@ -5,17 +5,19 @@ export const colors = {
   text: '#101828',
   muted: '#667085',
   border: '#e4e7ec',
+  surface: '#f9fafb',
   ok: '#067647',
   warn: '#b54708',
   bad: '#b42318',
   accent: '#4f46e5',
+  accentSoft: '#eef2ff',
 }
 
 export const button: CSSProperties = {
   font: 'inherit',
   fontSize: 12,
   padding: '6px 10px',
-  borderRadius: 6,
+  borderRadius: 8,
   border: `1px solid ${colors.border}`,
   background: '#fff',
   color: colors.text,
@@ -27,6 +29,24 @@ export const primaryButton: CSSProperties = {
   background: colors.accent,
   borderColor: colors.accent,
   color: '#fff',
+  fontWeight: 600,
+}
+
+export const card: CSSProperties = {
+  border: `1px solid ${colors.border}`,
+  borderRadius: 12,
+  padding: 12,
+  background: '#fff',
+  display: 'grid',
+  gap: 8,
+}
+
+export const label: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: colors.muted,
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
 }
 
 export function clock(ms: number): string {

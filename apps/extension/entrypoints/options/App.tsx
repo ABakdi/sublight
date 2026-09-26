@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ENGINE_BASE_URL } from '@sublight/protocol'
 import { browser } from 'wxt/browser'
+import { CAPTION_MODEL_KEY, DEFAULT_CAPTION_MODEL } from '../../src/captionsController'
 import { EngineBadge } from '../../src/EngineBadge'
 import { engineRequest, getToken, probeEngine, setToken } from '../../src/engine'
 import {
@@ -136,11 +137,13 @@ function LiveSettings({ online }: { online: boolean }) {
   const [language, setLanguage] = useState('')
   const [task, setTask] = useState('transcribe')
   const [refine, setRefine] = useState(DEFAULT_REFINE_MODEL)
+  const [captionModel, setCaptionModel] = useState(DEFAULT_CAPTION_MODEL)
 
   useEffect(() => {
     void browser.storage.local
-      .get([LIVE_MODEL_KEY, LIVE_REFINE_KEY, LIVE_LANGUAGE_KEY, LIVE_TASK_KEY])
+      .get([LIVE_MODEL_KEY, LIVE_REFINE_KEY, LIVE_LANGUAGE_KEY, LIVE_TASK_KEY, CAPTION_MODEL_KEY])
       .then((got) => {
+        setCaptionModel((got[CAPTION_MODEL_KEY] as string | undefined) || DEFAULT_CAPTION_MODEL)
         setTask((got[LIVE_TASK_KEY] as string | undefined) || 'transcribe')
         setRefine((got[LIVE_REFINE_KEY] as string | undefined) || DEFAULT_REFINE_MODEL)
         setModel((got[LIVE_MODEL_KEY] as string | undefined) || DEFAULT_LIVE_MODEL)
@@ -167,12 +170,35 @@ function LiveSettings({ online }: { online: boolean }) {
     <section
       style={{ border: `1px solid ${colors.border}`, borderRadius: 8, padding: 16, marginTop: 16 }}
     >
-      <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>Live captions</h2>
+      <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>Captions</h2>
       <p style={{ fontSize: 13, color: colors.muted, margin: '0 0 12px', lineHeight: 1.5 }}>
-        Used by “Caption live” in the popup. Faster models show captions sooner; they are refined
-        when you stop.
+        “Caption this video” and “Download SRT” transcribe ahead of playback with the captions
+        model: a larger model is more accurate and still runs ahead. Live captions (under “More” in
+        the popup) use the live models and are refined when you stop.
       </p>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
+          Captions model
+          <select
+            data-testid="caption-model-select"
+            style={field}
+            value={captionModel}
+            onChange={(e) => {
+              setCaptionModel(e.target.value)
+              save({ [CAPTION_MODEL_KEY]: e.target.value })
+            }}
+          >
+            {(models.length
+              ? models
+              : [{ id: captionModel, name: captionModel, installed: true }]
+            ).map((m) => (
+              <option key={m.id} value={m.id} disabled={!m.installed}>
+                {m.name}
+                {m.installed ? '' : ' (not installed)'}
+              </option>
+            ))}
+          </select>
+        </label>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
           Live drafts
           <select

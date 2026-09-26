@@ -24,10 +24,24 @@ export function engineHint(status: EngineStatus): string {
   }
 }
 
-export function EngineBadge({ status }: { status: EngineStatus | null }) {
+/** Engine state; `compact` (popup header) keeps the hint in a tooltip unless something is wrong. */
+export function EngineBadge({
+  status,
+  compact = false,
+}: {
+  status: EngineStatus | null
+  compact?: boolean
+}) {
   const copy = status ? COPY[status.state] : { label: 'Checking engine…', color: colors.muted }
+  const hint = status ? engineHint(status) : ''
+  const showHint = !!status && (!compact || status.state !== 'online')
   return (
-    <div data-testid="engine-status" data-state={status?.state ?? 'checking'}>
+    <div
+      data-testid="engine-status"
+      data-state={status?.state ?? 'checking'}
+      title={hint}
+      style={compact ? { maxWidth: 190 } : undefined}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600 }}>
         <span
           aria-hidden
@@ -35,9 +49,9 @@ export function EngineBadge({ status }: { status: EngineStatus | null }) {
         />
         <span style={{ color: copy.color }}>{copy.label}</span>
       </div>
-      {status && (
+      {showHint && (
         <div style={{ fontSize: 11, color: colors.muted, marginTop: 2, lineHeight: 1.4 }}>
-          {engineHint(status)}
+          {hint}
         </div>
       )}
     </div>
