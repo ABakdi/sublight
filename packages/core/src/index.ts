@@ -17,6 +17,8 @@ export {
   LINGER_MS,
   cuesBySentence,
   cuesForMode,
+  alignToWords,
+  pairWithOriginal,
   SENTENCE_GAP_MS,
 } from './cues'
 export type { CaptionMode } from './cues'

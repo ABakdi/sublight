@@ -382,3 +382,71 @@ export function cuesForMode(
     return revealByWords(buildCuesFromWords(words, { maxLineChars: maxLine }), maxLine)
   return revealByWords(cues)
 }
+
+/**
+ * Snap segment-timed cues (Whisper's English translation) to the original's
+ * word timings: a cue starts with the first word it covers and ends with the
+ * last, when those are close to Whisper's own times. Whisper's segment times
+ * are coarse; the original's words are snapped to speech onsets.
+ */
+export function alignToWords(
+  cues: SubtitleCue[],
+  words: SpeechWord[],
+  windowMs = 700,
+): SubtitleCue[] {
+  if (words.length === 0) return cues
+  const out = cues.map((c) => {
+    // Start: the first word the cue covers (Whisper often starts a segment at
+    // the pause before it, so a start may move forward up to 1.5 s).
+    const first = words.find((w) => w.startMs >= c.startMs - windowMs && w.startMs < c.endMs)
+    const startMs = first && first.startMs - c.startMs <= 1500 ? first.startMs : c.startMs
+    // End: the last word it covers, if that's close (missing words don't shrink it).
+    let last: SpeechWord | undefined
+    for (const w of words) if (w.endMs > c.startMs && w.endMs <= c.endMs + windowMs) last = w
+    const endMs = last && Math.abs(c.endMs - last.endMs) <= windowMs ? last.endMs : c.endMs
+    return endMs > startMs ? { ...c, startMs, endMs } : c
+  })
+  for (let i = 0; i < out.length - 1; i++) {
+    const next = out[i + 1]!
+    if (out[i]!.endMs > next.startMs)
+      out[i] = { ...out[i]!, endMs: Math.max(out[i]!.startMs + 1, next.startMs) }
+  }
+  return out
+}
+
+/**
+ * Pair a translation with the original for showing both (language learning).
+ * Whisper translates in its own chunks, which don't line up one-to-one with
+ * the original's cues, so shown as they are the translation would come and
+ * go at different moments (and leave gaps). Instead, originals and
+ * translations that overlap form a group, and the group's translation stays
+ * up exactly while its originals do.
+ */
+export function pairWithOriginal(
+  translation: SubtitleCue[],
+  original: SubtitleCue[],
+): SubtitleCue[] {
+  const overlaps = (a: SubtitleCue, b: SubtitleCue) => {
+    const shared = Math.min(a.endMs, b.endMs) - Math.max(a.startMs, b.startMs)
+    const shorter = Math.min(a.endMs - a.startMs, b.endMs - b.startMs)
+    return shared > 0 && shared >= shorter * 0.3
+  }
+  const groups: { orig: SubtitleCue[]; trans: SubtitleCue[] }[] = []
+  for (const t of [...translation].sort((a, b) => a.startMs - b.startMs)) {
+    const mine = original.filter((o) => overlaps(o, t))
+    const last = groups[groups.length - 1]
+    if (last && mine.some((o) => last.orig.includes(o))) {
+      last.trans.push(t)
+      for (const o of mine) if (!last.orig.includes(o)) last.orig.push(o)
+    } else groups.push({ orig: mine, trans: [t] })
+  }
+  return groups.map((g) => {
+    const spans = g.orig.length ? g.orig : g.trans
+    return {
+      id: g.trans[0]!.id,
+      startMs: Math.min(...spans.map((c) => c.startMs)),
+      endMs: Math.max(...spans.map((c) => c.endMs)),
+      text: g.trans.map((c) => c.text.replace(/\s*\n\s*/g, ' ')).join(' '),
+    }
+  })
+}

@@ -12,6 +12,8 @@ import {
   revealByWords,
   cuesBySentence,
   cuesForMode,
+  alignToWords,
+  pairWithOriginal,
 } from '../src/cues'
 import type { SpeechWord } from '../src/types'
 
@@ -251,5 +253,58 @@ describe('sentence captions', () => {
     expect(narrowWords.every((c) => c.text.split('\n').every((l) => l.length <= 20))).toBe(true)
     const plain = [{ id: 'a', startMs: 0, endMs: 1000, text: 'no words' }]
     expect(cuesForMode(plain, 'sentences')).toBe(plain)
+  })
+})
+
+describe('translation timed to the original', () => {
+  it('snaps segment times to the nearest word boundaries, within reach', () => {
+    const words = [
+      { word: 'Ist', startMs: 770, endMs: 950 },
+      { word: 'das', startMs: 960, endMs: 1100 },
+      { word: 'Universum', startMs: 1120, endMs: 1800 },
+      { word: 'unendlich?', startMs: 1820, endMs: 2600 },
+      { word: 'Heute', startMs: 9120, endMs: 9400 },
+    ]
+    const cues = [
+      { id: 'a', startMs: 0, endMs: 3000, text: 'Is the universe infinite?' },
+      { id: 'b', startMs: 8770, endMs: 12990, text: 'Today we know…' },
+    ]
+    const out = alignToWords(cues, words)
+    expect(out.map((c) => [c.startMs, c.endMs])).toEqual([
+      [770, 2600],
+      [9120, 12990], // no word end near 12.99 s: kept
+    ])
+  })
+})
+
+describe('showing the original and the translation together', () => {
+  const c = (id: string, startMs: number, endMs: number, text: string) => ({
+    id,
+    startMs,
+    endMs,
+    text,
+  })
+  it('keeps the translation up exactly while the originals it covers are', () => {
+    const original = [
+      c('o1', 79_000, 81_000, 'Es gibt zwei Möglichkeiten.'),
+      c('o2', 81_000, 84_000, 'Entweder das Universum ist riesig, aber endlich,'),
+      c('o3', 84_000, 86_000, 'oder es ist unendlich.'),
+      c('o4', 90_000, 92_000, 'Neu.'),
+    ]
+    const translation = [
+      c('t1', 79_500, 82_000, 'There are two possibilities. Either the universe is huge,'),
+      c('t2', 82_000, 86_000, 'but finite, or it is infinite.'),
+      c('t3', 90_100, 91_900, 'New.'),
+    ]
+    expect(
+      pairWithOriginal(translation, original).map((x) => [x.startMs, x.endMs, x.text]),
+    ).toEqual([
+      [
+        79_000,
+        86_000,
+        'There are two possibilities. Either the universe is huge, but finite, or it is infinite.',
+      ],
+      [90_000, 92_000, 'New.'],
+    ])
   })
 })
