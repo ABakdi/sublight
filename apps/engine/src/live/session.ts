@@ -1,6 +1,7 @@
 import { closeSync, openSync, readSync, rmSync, writeSync } from 'node:fs'
 import type { SpeechWord } from '@sublight/core'
 import type { LiveAnchor } from '@sublight/protocol'
+import { SILENCE_DB } from '../media/store'
 
 export const SAMPLE_RATE = 16000
 const MS_PER_SAMPLE = 1000 / SAMPLE_RATE
@@ -26,7 +27,11 @@ export class LiveSession {
   private total = 0
   /** Last time audio arrived (engine clock), for the idle timeout. */
   lastAudioAt = Date.now()
+  /** Last time audio above the silence floor arrived, for the silence timeout. */
+  lastSoundAt = Date.now()
   stopping = false
+  /** A newer live job replaced this one: finish now, without the refinement pass. */
+  superseded = false
 
   constructor(private readonly file: string) {
     this.fd = openSync(file, 'w+')
@@ -48,6 +53,9 @@ export class LiveSession {
     this.chunks.push({ sample: this.total, samples, wallMs })
     this.total += samples
     this.lastAudioAt = Date.now()
+    // Copy: a request body's byteOffset may be odd, which Int16Array refuses.
+    const view = new Int16Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + samples * 2))
+    if (levelDb(view) >= SILENCE_DB) this.lastSoundAt = this.lastAudioAt
   }
 
   /** Samples [from, to) as Int16. */

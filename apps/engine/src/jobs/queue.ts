@@ -38,6 +38,13 @@ export interface JobRunner<T extends JobCreation = JobCreation> {
   /** Identical output key for cache hits, or null to never cache. */
   cacheKey(request: T): string | null
   run(request: T, ctx: RunContext): Promise<RunOutput>
+  /**
+   * One at a time (live capture): a new job of this type replaces older ones.
+   * Queued ones are cancelled; each running one gets `supersede(jobId)` to
+   * wrap up quickly. Such jobs can't survive an engine restart either (their
+   * input was streamed), so they are cancelled instead of resumed.
+   */
+  exclusive?: { supersede(jobId: string): void }
 }
 
 export interface QueueOptions {
@@ -82,6 +89,11 @@ export class JobQueue {
   /** After registering runners: recover interrupted work and start pumping. */
   start(): void {
     for (const job of this.store.all()) {
+      const open = job.state === 'queued' || job.state === 'running' || job.state === 'interrupted'
+      if (open && this.runners.get(job.type)?.exclusive) {
+        this.store.patch(job.id, { state: 'cancelled', detail: 'engine restarted' })
+        continue
+      }
       if (job.state === 'running') {
         this.store.patch(job.id, { state: 'interrupted', detail: 'engine restarted' })
       }
@@ -113,6 +125,15 @@ export class JobQueue {
     }
     const runner = this.runnerFor(request.type)
     runner.validate(request)
+    if (runner.exclusive) {
+      for (const old of this.store.all()) {
+        if (old.type !== request.type) continue
+        if (old.state === 'queued' || old.state === 'interrupted') {
+          this.store.patch(old.id, { state: 'cancelled', detail: 'replaced by a newer job' })
+          this.emitState(old)
+        } else if (old.state === 'running') runner.exclusive.supersede(old.id)
+      }
+    }
     const cacheKey = runner.cacheKey(request) ?? undefined
     const now = Date.now()
     const job: JobRecord = {

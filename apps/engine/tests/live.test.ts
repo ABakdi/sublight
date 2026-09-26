@@ -186,6 +186,43 @@ describe('live runner', () => {
     expect(out.tracks[0]!.cues.length).toBeGreaterThan(0)
   })
 
+  it('stops by itself when it only hears silence (a paused tab left on)', async () => {
+    const hub = new LiveHub(tmp())
+    const run = liveRunner({
+      models,
+      whisper: fakeWhisper().whisper,
+      gpu,
+      hub,
+      options: { stepMs: 10, silenceTimeoutMs: 150 },
+    })
+    const session = hub.get('j6')
+    session.anchor({ wallMs: Date.now(), mediaMs: 0, rate: 1, playing: true })
+    session.append(tone(2000), Date.now())
+    // Silence keeps arriving, so the idle timeout never fires.
+    const feed = setInterval(() => session.append(Buffer.alloc(3200), Date.now()), 20)
+    try {
+      const out = await run.run(job, ctx('j6').c)
+      expect(out.tracks[0]!.cues.length).toBeGreaterThan(0)
+    } finally {
+      clearInterval(feed)
+    }
+  })
+
+  it('a superseded session finishes at once with its live words (no refinement)', async () => {
+    const hub = new LiveHub(tmp())
+    const fw = fakeWhisper()
+    const run = liveRunner({ models, whisper: fw.whisper, gpu, hub, options: { stepMs: 10 } })
+    const session = hub.get('j7')
+    session.anchor({ wallMs: Date.now(), mediaMs: 0, rate: 1, playing: true })
+    session.append(tone(2000), Date.now())
+    const out = run.run(job, ctx('j7').c)
+    await new Promise((r) => setTimeout(r, 100))
+    run.exclusive!.supersede('j7')
+    const result = await out
+    expect(result.tracks[0]!.cues.length).toBeGreaterThan(0)
+    expect(fw.calls).toHaveLength(2) // one live pass, the final pass; no refinement
+  })
+
   it('keeps the live words when refinement comes back with fewer', async () => {
     const hub = new LiveHub(tmp())
     let callsWhileStopping = 0

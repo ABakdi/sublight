@@ -189,6 +189,36 @@ describe('job queue (Spec 06 §5, Protocol §5)', () => {
     expect(second.queue.list()).toHaveLength(1) // no double-processing
   })
 
+  it('exclusive jobs: a new one cancels queued ones and supersedes the running one', async () => {
+    const { queue, fake } = setup()
+    const superseded: string[] = []
+    fake.runner.exclusive = { supersede: (id) => superseded.push(id) }
+    const a = queue.create(request('a'))
+    await tick()
+    const b = queue.create(request('b'))
+    expect(superseded).toEqual([a.id])
+    const c = queue.create(request('c'))
+    expect(queue.get(b.id)!.state).toBe('cancelled') // never ran: nobody waits for it
+    expect(superseded).toEqual([a.id, a.id])
+    fake.release('a')
+    await until(() => queue.get(c.id)!.state === 'running')
+  })
+
+  it('exclusive jobs are cancelled, not resumed, after a restart', async () => {
+    const first = setup()
+    const job = first.queue.create(request('a'))
+    await tick()
+    const bus = new EventBus()
+    const fake = fakeRunner()
+    fake.runner.exclusive = { supersede: () => {} }
+    const queue = new JobQueue(new JobStore(first.dir), bus, { autoRetry: true })
+    queue.register(fake.runner)
+    queue.start()
+    await tick()
+    expect(queue.get(job.id)!.state).toBe('cancelled')
+    expect(fake.started).toEqual([])
+  })
+
   it('leaves interrupted jobs alone without autoRetry until the key is replayed', async () => {
     const first = setup()
     const job = first.queue.create(request('a'), 'key-1')

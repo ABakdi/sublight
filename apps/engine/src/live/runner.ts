@@ -24,6 +24,8 @@ export interface LiveOptions {
   minNewMs: number
   /** No audio for this long ends the session (tab closed, extension reloaded). */
   idleTimeoutMs: number
+  /** Only silence for this long ends it too (a paused tab left captioning). */
+  silenceTimeoutMs: number
 }
 
 export const LIVE_DEFAULTS: LiveOptions = {
@@ -34,6 +36,7 @@ export const LIVE_DEFAULTS: LiveOptions = {
   maxWindowMs: 28_000,
   minNewMs: 500,
   idleTimeoutMs: 60_000,
+  silenceTimeoutMs: 600_000,
 }
 
 export interface LiveDeps {
@@ -181,6 +184,18 @@ export function liveRunner(deps: LiveDeps): JobRunner<LiveJob> {
     // Every capture is unique audio.
     cacheKey: () => null,
 
+    // One live session at a time: the GPU runs one job, so a new session
+    // replaces the previous one instead of queueing behind it forever (a
+    // forgotten tab streaming silence would otherwise block every later one).
+    exclusive: {
+      supersede(jobId) {
+        if (!deps.hub.has(jobId)) return
+        const session = deps.hub.get(jobId)
+        session.superseded = true
+        session.stopping = true
+      },
+    },
+
     async run(req, ctx: RunContext): Promise<RunOutput> {
       const task = req.params.task ?? 'transcribe'
       const session = deps.hub.get(ctx.jobId)
@@ -199,7 +214,12 @@ export function liveRunner(deps: LiveDeps): JobRunner<LiveJob> {
 
         for (;;) {
           if (ctx.signal.aborted) throw new DOMException('aborted', 'AbortError')
-          if (Date.now() - session.lastAudioAt > opt.idleTimeoutMs) session.stopping = true
+          const now = Date.now()
+          if (
+            now - session.lastAudioAt > opt.idleTimeoutMs ||
+            now - session.lastSoundAt > opt.silenceTimeoutMs
+          )
+            session.stopping = true
           const available = session.totalSamples - windowStart
           const fresh = session.totalSamples - lastRunEnd
           const due = Date.now() - lastRunAt >= opt.stepMs
@@ -244,11 +264,12 @@ export function liveRunner(deps: LiveDeps): JobRunner<LiveJob> {
         // Refinement pass (Spec 07 §1.5): full context per playing stretch,
         // with the (usually larger) refine model when one is set.
         const refineModel = req.params.refineModel ?? req.model
-        if (refineModel !== req.model) {
+        if (refineModel !== req.model && !session.superseded) {
           ctx.progress(0, 'loading refine model')
           await deps.whisper.ensure(refineModel, deps.models.pathOf(refineModel))
         }
-        const segments = session.playingSegments()
+        // Replaced by a newer session: hand the GPU over now, keep the live words.
+        const segments = session.superseded ? [] : session.playingSegments()
         let refined: SpeechWord[] = []
         for (let i = 0; i < segments.length; i++) {
           ctx.progress(i / Math.max(1, segments.length), 'refining')
