@@ -75,6 +75,7 @@ export const ERROR_CODES = [
   'GPU_OOM',
   'INTERNAL',
   'MEDIA_UNRESOLVABLE',
+  'MEDIA_UNREACHABLE',
   'NOT_FOUND',
 ] as const
 

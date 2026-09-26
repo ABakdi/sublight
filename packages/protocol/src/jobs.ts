@@ -61,6 +61,18 @@ export interface LiveJob {
   priority?: JobPriority
 }
 
+/** Browsers yt-dlp can read cookies from. */
+export const COOKIE_BROWSERS = [
+  'brave',
+  'chrome',
+  'chromium',
+  'edge',
+  'firefox',
+  'opera',
+  'vivaldi',
+] as const
+export type CookieBrowser = (typeof COOKIE_BROWSERS)[number]
+
 /**
  * Caption a page's video ahead of playback (ADR-0020, Spec 08 §6): the engine
  * finds the video's audio itself (the page's direct media URL, else yt-dlp on
@@ -77,6 +89,11 @@ export interface UrlJob {
   mediaUrl?: string
   /** The browser's User-Agent, sent when fetching `mediaUrl`. */
   userAgent?: string
+  /**
+   * Opt-in: let yt-dlp read this browser's cookies, for sites that need a
+   * login (Instagram). Off unless the user enables it in Options.
+   */
+  cookiesFromBrowser?: CookieBrowser
   model: string
   params: {
     language: string | null

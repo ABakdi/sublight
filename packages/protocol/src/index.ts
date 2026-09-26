@@ -1,6 +1,7 @@
 export type * from './events'
 export * from './http'
 export type * from './jobs'
+export { COOKIE_BROWSERS } from './jobs'
 export type * from './media'
 export { decodeOpenPayload, encodeOpenPayload } from './payload'
 export { chooseTranslationPath, isEnglish } from './routing'
