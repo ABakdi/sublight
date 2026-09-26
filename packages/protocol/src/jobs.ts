@@ -39,6 +39,8 @@ export interface TranslateJob {
   targetLang: string
   glossary: { source: string; target: string }[]
   style: 'casual' | 'neutral' | 'formal'
+  /** Where playback is: paragraphs from here on are translated first, then the rest. */
+  fromMs?: number
   priority?: JobPriority
   /**
    * The client keeps this job alive with `POST /v1/jobs/:id/keepalive` (at

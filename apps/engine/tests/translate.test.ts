@@ -16,7 +16,7 @@ import {
   languageName,
   type ChatMessage,
 } from '../src/translate/prompt'
-import { translateRunner } from '../src/translate/runner'
+import { paragraphOrder, translateRunner } from '../src/translate/runner'
 import type { GpuResidency } from '../src/workers/gpu'
 
 const cue = (
@@ -273,5 +273,19 @@ describe('translate runner', () => {
     expect(run.cacheKey(job({ targetLang: 'fr' }))).not.toBe(k)
     expect(run.cacheKey(job({ style: 'formal' }))).not.toBe(k)
     expect(run.cacheKey(job({ glossary: [{ source: 'a', target: 'b' }] }))).not.toBe(k)
+  })
+})
+
+describe('translating from the playhead', () => {
+  const cues = [0, 1, 2, 3, 4, 5].map((i) => ({ endMs: (i + 1) * 10_000 }))
+  const paragraphs = [
+    [0, 1],
+    [2, 3],
+    [4, 5],
+  ]
+  it('starts with the paragraph playing, then wraps around', () => {
+    expect(paragraphOrder(paragraphs, cues, 0)).toEqual([0, 1, 2])
+    expect(paragraphOrder(paragraphs, cues, 35_000)).toEqual([1, 2, 0])
+    expect(paragraphOrder(paragraphs, cues, 999_999)).toEqual([0, 1, 2])
   })
 })

@@ -158,7 +158,8 @@ export function translateRunner(deps: TranslateDeps): JobRunner<TranslateJob> {
       const low = new Array<boolean>(cues.length).fill(false)
       const speeds: number[] = []
       const dir = ctx.chunkDir()
-      for (let p = 0; p < paragraphs.length; p++) {
+      let done = 0
+      for (const p of paragraphOrder(paragraphs, cues, req.fromMs ?? 0)) {
         if (ctx.signal.aborted) throw new DOMException('aborted', 'AbortError')
         const idx = paragraphs[p]!
         const checkpoint = join(dir, `p${p}.json`)
@@ -166,7 +167,7 @@ export function translateRunner(deps: TranslateDeps): JobRunner<TranslateJob> {
         if (existsSync(checkpoint)) {
           result = JSON.parse(readFileSync(checkpoint, 'utf8')) as ParagraphResult
         } else {
-          ctx.progress(p / paragraphs.length, `translating ${p + 1} of ${paragraphs.length}`)
+          ctx.progress(done / paragraphs.length, `translating ${done + 1} of ${paragraphs.length}`)
           const before = idx[0]! - 1
           const context = []
           for (let i = Math.max(0, before - CONTEXT_LINES + 1); i <= before; i++) {
@@ -185,7 +186,8 @@ export function translateRunner(deps: TranslateDeps): JobRunner<TranslateJob> {
           low[ci] = result.lowConfidence
         })
         if (result.tokensPerSecond) speeds.push(result.tokensPerSecond)
-        ctx.progress((p + 1) / paragraphs.length, `translating ${p + 1} of ${paragraphs.length}`)
+        done++
+        ctx.progress(done / paragraphs.length, `translating ${done} of ${paragraphs.length}`)
         ctx.partial(makeTrack(req, cues, out, low, true))
       }
 
@@ -203,6 +205,20 @@ export function translateRunner(deps: TranslateDeps): JobRunner<TranslateJob> {
       }
     },
   }
+}
+
+/**
+ * Paragraph order: the one playing at `fromMs` and everything after it first
+ * (what the viewer is about to see), then the part before it.
+ */
+export function paragraphOrder(
+  paragraphs: number[][],
+  cues: { endMs: number }[],
+  fromMs: number,
+): number[] {
+  const all = paragraphs.map((_, i) => i)
+  const start = paragraphs.findIndex((idx) => cues[idx[idx.length - 1]!]!.endMs > fromMs)
+  return start <= 0 ? all : [...all.slice(start), ...all.slice(0, start)]
 }
 
 function makeTrack(
