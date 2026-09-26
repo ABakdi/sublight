@@ -3,15 +3,13 @@ import type { SubtitleTrack } from '@sublight/core'
 import type { LiveAnchor } from '@sublight/protocol'
 import { startPcmCapture, type PcmCapture } from './capture'
 import type { Message } from './messages'
+import { DisplayDelay } from './liveDelay'
 import { OverlayFrame } from './overlayFrame'
 import { levelDb, pcmToBase64 } from './pcm'
 
 /** Element audio silent this long while the video plays → it's tainted/DRM: use tabCapture. */
 const SILENT_FALLBACK_MS = 4000
 const SILENCE_DB = -60
-/** Cap and headroom for the live display delay. */
-const MAX_LAG_MS = 8000
-const LAG_MARGIN_MS = 300
 
 const send = (msg: Message) => browser.runtime.sendMessage(msg).catch(() => {})
 
@@ -70,7 +68,10 @@ export class LiveSession {
     void send({ type: 'live.anchor', jobId: this.jobId, anchor: this.anchorNow() })
   }
 
-  private onPlayback = () => this.sendAnchor()
+  private onPlayback = (e: Event) => {
+    if (e.type === 'seeked') this.delay.reset()
+    this.sendAnchor()
+  }
 
   /**
    * Tap the element's own audio. Returns false when the browser won't give it
@@ -122,30 +123,37 @@ export class LiveSession {
     void send({ type: 'live.audio', jobId: this.jobId, wallMs, pcm: pcmToBase64(pcm) })
   }
 
-  /** Smoothed display delay for drafts, ms. */
-  private lagMs = 0
+  /** Display delay for drafts (Spec 08 §5), moved smoothly by a timer. */
+  private delay = new DisplayDelay()
+  private delayTimer: ReturnType<typeof setInterval> | null = null
 
   /**
    * Engine cues are in media time (anchored), but drafts arrive a few seconds
    * after their words were spoken, when the playhead has already moved on:
    * shown at their true time they'd never be seen. While live, drafts are
-   * shown delayed by the measured lag (Spec 08 §5: "a few seconds behind the
-   * audio"); the final track goes back to exact timing.
+   * shown behind the audio by a steady delay (`DisplayDelay`); the final
+   * track goes back to exact timing.
    */
   showTrack(track: SubtitleTrack, final: boolean): void {
     if (final) {
+      this.stopDelay()
       this.overlay.setCues(track.cues, false, 0)
       return
     }
-    // Measure from the last *spoken* word: cue ends include the reading hold.
-    const lastWordEnd =
-      track.cues.flatMap((c) => c.words ?? []).at(-1)?.endMs ?? track.cues.at(-1)?.endMs
-    if (lastWordEnd !== undefined) {
-      const lag = this.video.currentTime * 1000 - lastWordEnd
-      const clamped = Math.max(0, Math.min(MAX_LAG_MS, lag + LAG_MARGIN_MS))
-      this.lagMs = this.lagMs === 0 ? clamped : Math.round(this.lagMs * 0.7 + clamped * 0.3)
-    }
-    this.overlay.setCues(track.cues, true, this.lagMs)
+    const starts = track.cues.flatMap((c) => c.words?.map((w) => w.startMs) ?? [c.startMs])
+    this.delay.onDraft(this.video.currentTime * 1000, starts)
+    this.overlay.setCues(track.cues, true, this.delayNow())
+    this.delayTimer ??= setInterval(() => this.overlay.setOffset(this.delayNow()), 100)
+  }
+
+  private delayNow(): number {
+    const v = this.video
+    return this.delay.tick(performance.now(), !v.paused && !v.ended)
+  }
+
+  private stopDelay(): void {
+    if (this.delayTimer) clearInterval(this.delayTimer)
+    this.delayTimer = null
   }
 
   stopCapture(): void {
@@ -156,6 +164,7 @@ export class LiveSession {
   /** Stop capturing but keep showing the captions (refinement result replaces them). */
   end(): void {
     this.stopCapture()
+    this.stopDelay()
     for (const e of this.events) this.video.removeEventListener(e, this.onPlayback)
     this.video.removeEventListener('emptied', this.onEmptied)
   }

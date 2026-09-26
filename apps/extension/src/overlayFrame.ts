@@ -80,6 +80,21 @@ export class OverlayFrame {
     this.render()
   }
 
+  /** Move the display delay (live drafts) without new cues. */
+  setOffset(offsetMs: number): void {
+    if (Math.abs(offsetMs - this.offsetMs) < 5) return
+    this.offsetMs = offsetMs
+    this.render()
+  }
+
+  /** Word steps are rebuilt only when the cues change, not on every offset move. */
+  private revealed: { from: SubtitleCue[]; steps: SubtitleCue[] } | null = null
+  private wordSteps(): SubtitleCue[] {
+    if (this.revealed?.from !== this.cues)
+      this.revealed = { from: this.cues, steps: revealByWords(this.cues) }
+    return this.revealed.steps
+  }
+
   private render(): void {
     const style: Partial<SubtitleStyle> = {
       ...(quickStyle.fontSize ? { fontSize: quickStyle.fontSize } : {}),
@@ -87,7 +102,7 @@ export class OverlayFrame {
     }
     this.root.render(
       createElement(SubtitleOverlay, {
-        cues: quickStyle.reveal === 'lines' ? this.cues : revealByWords(this.cues),
+        cues: quickStyle.reveal === 'lines' ? this.cues : this.wordSteps(),
         video: this.video,
         draft: this.draft,
         syncOffsetMs: this.offsetMs,
