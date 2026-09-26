@@ -93,6 +93,10 @@ Known gaps, for M05: the caption can sit on top of the host player's control bar
 - **Download SRT** (`captions.download`, mode `words` | `sentences`): saves right away when the whole video is done, else waits for the running job (the popup shows its progress), else starts one. Saved with `chrome.downloads` as `<page title>.<lang>[.word-by-word].srt`. A pending download keeps running if the tab navigates away.
 - **Display modes** (`cuesForMode`, core): **word by word** (text grows as each word is spoken) or **sentences** (one sentence per cue, ≤ 2 lines and 7 s, long ones split at a clause break near the middle). The same modes shape the overlay and the SRT.
 
+### 4.7 Updates and a stale service worker
+
+After the extension's files change on disk (a new build of the unpacked extension), Chromium and Brave keep running the **old service worker** until the extension is reloaded, while the popup loads the new files. New popup actions then reach an old background that doesn't know them and nothing happens (seen 2026-09-26: "Caption this video" and "Download SRT" silently did nothing). Each build has one id (`__SUBLIGHT_BUILD__`, `src/build.ts`) in every entrypoint. The popup pings the SW and compares ids; on a mismatch it shows **"Reload sublight"** (`runtime.reload()`), and any action the background doesn't answer says so instead of doing nothing. Content scripts in tabs opened before a reload are orphaned, so reload the page too.
+
 ## 5. Capture wiring
 
 The content script drives [Audio capture](08-Audio-Capture.md): probe `captureStream()`, fall back to `tabCapture` (audio-only) requested from the SW; chunks streamed via the SW's WS channel to the engine with `{ mediaTimeStart = T₀ }`.
