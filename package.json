@@ -26,6 +26,7 @@
     "engine:token": "pnpm --silent --filter @sublight/engine token",
     "engine:setup-whisper": "node scripts/setup-whisper.mjs",
     "engine:setup-llama": "node scripts/setup-llama.mjs",
+    "engine:setup-ytdlp": "node scripts/setup-ytdlp.mjs",
     "engine:transcribe": "pnpm --silent --filter @sublight/engine transcribe",
     "ext:try": "node scripts/try-extension.mjs",
     "prepare": "husky"

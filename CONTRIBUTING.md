@@ -40,6 +40,16 @@ curl -X POST -H "Authorization: Bearer $TOKEN" http://127.0.0.1:17421/v1/models/
 pnpm engine:transcribe some-video.mp4 --out some-video.srt   # or --translate for English
 ```
 
+Captioning page videos ahead of playback (the extension's "Caption this video" and "Download
+SRT", [ADR-0020](docs/architecture/decisions/0020-caption-ahead-of-playback.md)) needs yt-dlp for
+sites without a direct media URL (YouTube, Vimeo…):
+
+```sh
+pnpm engine:setup-ytdlp        # once: pinned yt-dlp 2026.08.19, SHA-256 checked, into ~/.sublight/bin
+```
+
+Restart the engine afterwards so it finds it.
+
 Translation into other languages needs the LLM worker too:
 
 ```sh
