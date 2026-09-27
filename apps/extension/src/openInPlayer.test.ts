@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifySources } from './openInPlayer'
+import { classifySources, openInPlayer } from './openInPlayer'
 import type { VideoState } from './messages'
 
 const state = (src: string | null, durationMs: number | null = 60_000): VideoState => ({
@@ -38,5 +38,14 @@ describe('what the page video is, for the Player', () => {
     expect(classifySources(state(null, Infinity))[0]!.kind).toBe('live')
     // Not loaded yet is not live: an HLS page whose length isn't known yet.
     expect(classifySources(state('https://cdn.test/master.m3u8', null))[0]!.kind).toBe('hls')
+  })
+})
+
+describe('what never moves to the Player (M05b AC5)', () => {
+  it('refuses a live stream, and a page without a video, with the reason', async () => {
+    const live = await openInPlayer(1, { frameId: 0, state: state(null, Infinity) })
+    expect(live).toEqual({ ok: false, error: expect.stringMatching(/live stream/) })
+    const none = await openInPlayer(1, { frameId: 0, state: { ...state(null), primary: null } })
+    expect(none).toEqual({ ok: false, error: 'No video on this page.' })
   })
 })
