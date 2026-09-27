@@ -1,4 +1,5 @@
 import type { OpenInPlayerSource } from '@sublight/core'
+import type { CookieBrowser } from './jobs'
 
 /**
  * "Open in Sublight Player" handoff payload (Spec 04 §9.1, ADR-0017).
@@ -17,6 +18,8 @@ export interface OpenInPlayerPayload {
   resumeAtMs?: number
   resumeAtRatio?: number
   requestedBy: 'popup' | 'overlay-chip' | 'context-menu'
+  /** How the engine should fetch the page's video (the extension's settings). */
+  engine?: { userAgent?: string; cookiesFromBrowser?: CookieBrowser }
 }
 
 /** Encode a payload into the `#sl=<base64url(json)>` hash (dev-player handoff). */
