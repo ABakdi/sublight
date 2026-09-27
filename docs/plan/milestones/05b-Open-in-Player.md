@@ -23,19 +23,20 @@ Design lives in [ADR-0017](../../architecture/decisions/0017-open-in-player.md) 
 - [x] **M05b.1** — Source classifier (content script): gather `currentSrc`/`src`/`<source>`/`isLive`/`duration`/`currentTime`; classify per [Spec 09 §8.2](../../specification/09-Browser-Extension.md#82-source-classification-content-script) table; multiple sources ordered by preference.
 - [x] **M05b.2** — Payload builder + handoff: `OpenInPlayerPayload` (schema in [04 §9.1](../../specification/04-Player-App.md#91-entry--payload-delivery)); storage handoff (`chrome.storage.session["openInPlayer.last"]`, consume-once) + dev hash (`#sl=<base64url>`); `tabs.create`.
 - [x] **M05b.3** — Player `/open` route: `introspectOpenPayload()` (storage first, hash fallback), immediate project creation (`media.kind = "page-video"` with pageUrl/title/sources), default name = page title.
-- [ ] **M05b.4** — Resolution pipeline S1/S1b: play direct URLs natively; bundle hls.js + dash.js for `.m3u8`/`.mpd`; resume on `loadedmetadata`; feed the shared cue scheduler.
+- [x] **M05b.4** — Resolution pipeline S1/S1b: play direct URLs natively; bundle hls.js + dash.js for `.m3u8`/`.mpd`; resume on `loadedmetadata`; feed the shared cue scheduler.
 - [x] **M05b.5** — Resolution pipeline S3: `POST /v1/media/resolve {url, site?}` → play `GET /v1/relay/:id`; "Preparing media…" progress (engine v1 buffering); Range-aware seeking.
-- [ ] **M05b.6** — Failure paths: resolve/relay errors map to [copy family](../../specification/10-Non-Goals-And-Failure-Modes.md); alternatives "caption this page in place instead" and "open the source page"; blob-MSE-without-engine-support explained, never silent.
+- [x] **M05b.6** — Failure paths: resolve/relay errors map to [copy family](../../specification/10-Non-Goals-And-Failure-Modes.md); alternatives "caption this page in place instead" and "open the source page"; blob-MSE-without-engine-support explained, never silent.
 - [x] **M05b.7** — Captioning a migrated video: relayed → existing local-file transcription orchestration; direct/HLS → engine best-effort audio fetch; teeny gap → in-page live path handoff.
 - [ ] **M05b.8** — Project persistence + re-open: transport fields saved ([02 §1](../../specification/02-Data-Model.md#1-core-types-typescript-in-packagescore)); library re-open re-resolves (relay re-resolve after engine restart); resume position persisted.
-- [ ] **M05b.9** — Fixtures + e2e (Chromium + Brave): direct `.mp4` page, HLS page, multi-source page, engine-mock "YouTube" (relay path), failure cases (blob-without-yt-dlp, live, DRM-styled).
+- [x] **M05b.9** — Fixtures + e2e (Chromium + Brave): direct `.mp4` page, HLS page, multi-source page, engine-mock "YouTube" (relay path), failure cases (blob-without-yt-dlp, live, DRM-styled).
 - [x] **M05b.10** — Popup UX + planned entry points: primary popup action; overlay chip & video context-menu item scoped as follow-ups.
 
 ## As built (2026-09-27)
 
 - Done: classifier, `#sl=` handoff (storage handoff not needed yet), `page-video` projects, direct playback with a relay fallback, engine resolve plus relay (pass-through or download-and-merge with progress), resume, `url`-job captions and Whisper English in the Player, re-resolve on reopen, the popup button and a Player-address option.
 - Verified in Brave: a direct mp4 page opens and plays at the page's position, and captions in the Player ("what your country can" at 6.5 s); YouTube opens through the relay in ~14 s at 240p and seeks. e2e: "Open in Sublight Player hands the page video over" (extension suite); unit tests for the store, classifier and relay.
-- Open: M05b.4 (hls.js/dash.js in the Player), M05b.6 (richer failure copy and alternatives), M05b.8 (persisted transport polish), M05b.9 (HLS and failure fixtures).
+- Also done (same day): HLS/DASH in the Player (native, hls.js, dash.js; engine remux fallback), failure messages per error code with "Try again", e2e fixtures for an HLS page and a dead stream.
+- Open: M05b.8 (persisted transport polish: a relayed video's position after a relay expires), dash.js e2e fixture.
 
 ## Acceptance criteria
 

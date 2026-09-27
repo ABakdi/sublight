@@ -83,7 +83,8 @@ Part of [M05b](../plan/milestones/05b-Open-in-Player.md). The extension detects 
 > - **Project and playback:** `openFromPage` creates a `page-video` project titled after the video and plays the page's own file directly when it has one (`transport: "direct"`, no engine needed). Otherwise, or when that file won't play here (`<video>` error), it goes through the engine relay (`transport: "engine-relay"`), showing "Preparing media… N %" while the engine downloads. It resumes at `resumeAtMs`.
 > - **Library:** reopening a page video resolves it again (relay ids die with the engine run).
 > - **Captions:** "Caption this video" and Whisper English translation run a `url` job on the page (the engine fetches the audio), so no file is uploaded. LLM translation works on the resulting track as for files.
-> - **Not yet:** HLS/DASH playback in the Player (hls.js/dash.js); those pages go through the engine.
+> - **HLS/DASH (M05b.4):** a page whose `<video>` points at an `.m3u8`/`.mpd` plays that stream: natively where the browser can (Safari, recent Chromium), else with hls.js / dash.js, loaded only when needed. A fatal stream error (a CDN refusing other sites, a dead playlist) falls back to the engine, which copies the stream into one seekable mp4 with ffmpeg (no re-encode). An attachment's cleanup only undoes its own attachment, since React runs effects twice in development.
+> - **Failures (M05b.6):** each engine error has its own message (`pageVideoError`): engine offline → start it and try again; DRM → can't be played or captioned outside its player; unreachable → why, plus "caption it on its page". "Try again" and "Open its page" are always there. Live streams (infinite duration) aren't handed over at all.
 
 ### 9.1 Entry & payload delivery
 
