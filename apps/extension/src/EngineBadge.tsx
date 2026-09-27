@@ -20,7 +20,7 @@ export function engineHint(status: EngineStatus): string {
     case 'refused':
       return status.detail
     case 'offline':
-      return 'Start it with `pnpm dev:engine`. Playback and test captions work without it.'
+      return 'Start it with `sublight-engine start`. Playback and test captions work without it.'
   }
 }
 

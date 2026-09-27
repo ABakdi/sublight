@@ -196,7 +196,7 @@ describe('caption flow (Spec 04 §5, M03.2-M03.3)', () => {
     await useCaptionStore
       .getState()
       .start({ model: 'whisper-small', language: null, task: 'transcribe' })
-    expect(useCaptionStore.getState().error!.message).toMatch(/pnpm dev:engine/)
+    expect(useCaptionStore.getState().error!.message).toMatch(/sublight-engine start/)
   })
 
   it('asks for the file again when the project was reopened without it', async () => {

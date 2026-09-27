@@ -1,12 +1,17 @@
 import { browser } from 'wxt/browser'
 import type { OpenInPlayerSource } from '@sublight/core'
-import { encodeOpenPayload, type CookieBrowser, type OpenInPlayerPayload } from '@sublight/protocol'
+import {
+  encodeOpenPayload,
+  PLAYER_DEFAULT_PORT,
+  type CookieBrowser,
+  type OpenInPlayerPayload,
+} from '@sublight/protocol'
 import { COOKIES_KEY } from './prefs'
 import type { Message, VideoState } from './messages'
 
-/** Options: where the Sublight Player runs (the dev server by default). */
+/** Options: where the Sublight Player runs (the one the engine serves by default; dev: :5173). */
 export const PLAYER_URL_KEY = 'playerUrl'
-export const DEFAULT_PLAYER_URL = 'http://localhost:5173/'
+export const DEFAULT_PLAYER_URL = `http://127.0.0.1:${PLAYER_DEFAULT_PORT}/`
 
 /**
  * What the page's video is, for the Player (Spec 09 §8.2): its own file, an

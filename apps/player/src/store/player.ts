@@ -100,7 +100,7 @@ export function pageVideoError(err: unknown): PageVideoError {
       return {
         code,
         message:
-          'This video can only play here through the engine, and the engine isn’t running. Start it (pnpm dev:engine), then try again.',
+          'This video can only play here through the engine, and the engine isn’t running. Start it (sublight-engine start), then try again.',
         captionOnPage: true,
       }
     case 'UNAUTHORIZED':

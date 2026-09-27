@@ -77,7 +77,7 @@ export async function engineRequest<T>(path: string, init: RequestInit = {}): Pr
       },
     })
   } catch {
-    throw new EngineRequestError('OFFLINE', 'The engine isn’t running (pnpm dev:engine).', 0)
+    throw new EngineRequestError('OFFLINE', 'The engine isn’t running (sublight-engine start).', 0)
   }
   if (res.status === 204) return undefined as T
   const body = (await res.json().catch(() => null)) as (T & ErrorEnvelope) | null

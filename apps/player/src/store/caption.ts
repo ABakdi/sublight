@@ -89,7 +89,7 @@ export function describeError(err: unknown): CaptionError {
     return { code: 'INTERNAL', message: err instanceof Error ? err.message : String(err) }
   }
   const messages: Record<string, string> = {
-    OFFLINE: 'The engine isn’t running. Start it with `pnpm dev:engine`, then try again.',
+    OFFLINE: 'The engine isn’t running. Start it with `sublight-engine start`, then try again.',
     UNAUTHORIZED:
       'The engine rejected the saved token. Paste the current one (`pnpm engine:token`).',
     AUDIO_EMPTY: 'This video’s audio is silent, so there is nothing to transcribe.',

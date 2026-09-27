@@ -39,9 +39,12 @@ function EngineGate() {
           {status === 'checking' ? 'Looking for the engine…' : 'The engine isn’t running'}
         </p>
         <p className="text-xs leading-relaxed text-zinc-400">
-          Captions are made by the local engine on this computer. Start it from the sublight folder:
+          Captions are made by the local engine on this computer. Start it from the sublight folder
+          (or run <code className="text-zinc-200">sublight-engine start</code>):
         </p>
-        <code className="rounded bg-black/40 px-2 py-1 text-xs text-zinc-200">pnpm dev:engine</code>
+        <code className="rounded bg-black/40 px-2 py-1 text-xs text-zinc-200">
+          pnpm engine start --detach
+        </code>
         <button type="button" className={BTN} onClick={() => void check()}>
           Check again
         </button>
@@ -75,7 +78,7 @@ function EngineGate() {
       )}
       {auto.error && <p className="text-xs text-red-300">{auto.error}</p>}
       <p className="text-xs leading-relaxed text-zinc-400">
-        Or run <code className="text-zinc-200">pnpm engine:token</code> and paste the token. It
+        Or run <code className="text-zinc-200">pnpm engine token</code> and paste the token. It
         stays in this browser.
       </p>
       <input
