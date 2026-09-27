@@ -12,7 +12,13 @@ import {
   type Route,
 } from '@playwright/test'
 import { DEV_EXTENSION_ID } from '@sublight/protocol'
-import { E2E_ENGINE_HEALTH_URL, E2E_ENGINE_URL, E2E_PLAYER_URL, E2E_TOKEN } from '../constants'
+import {
+  E2E_ENGINE_HEALTH_URL,
+  E2E_ENGINE_URL,
+  E2E_PLAYER_URL,
+  E2E_TOKEN,
+  findBravePath,
+} from '../constants'
 
 /**
  * The unpacked MV3 build in a real Chromium: stable ID, engine pairing,
@@ -22,6 +28,8 @@ import { E2E_ENGINE_HEALTH_URL, E2E_ENGINE_URL, E2E_PLAYER_URL, E2E_TOKEN } from
  * setup starts the engine with E2E_TOKEN.
  */
 const EXT = `chrome-extension://${DEV_EXTENSION_ID}`
+const BRAVE = process.env.E2E_BRAVE ? findBravePath() : null
+if (process.env.E2E_BRAVE && !BRAVE) throw new Error('E2E_BRAVE: Brave not found')
 const SITE = 'http://video-site.test'
 /** The slice of the extension API these pages call (e2e has no chrome types). */
 type ChromeTabs = { tabs: { query(q: object): Promise<{ id?: number; url?: string }[]> } }
@@ -29,10 +37,43 @@ type ChromeTabs = { tabs: { query(q: object): Promise<{ id?: number; url?: strin
 const fixtureVideo = readFileSync(resolve(process.cwd(), 'fixtures', 'video-4s.mp4'))
 /** What the stand-in site serves at /clip.mp4 (tests can swap in a speech clip). */
 let served: Buffer = fixtureVideo
-/** An HLS rendition of the fixture (made with ffmpeg when a test needs it). */
-let hlsDir: string | null = null
+/** HLS and DASH renditions of the fixture (made with ffmpeg when a test needs them). */
+const streamDirs: { hls?: string; dash?: string } = {}
 /** 'missing': the playlist 404s (a dead or blocked stream). */
 let hlsMode: 'ok' | 'missing' = 'ok'
+const STREAM_TYPES: Record<string, string> = {
+  m3u8: 'application/vnd.apple.mpegurl',
+  ts: 'video/mp2t',
+  mpd: 'application/dash+xml',
+  m4s: 'video/iso.segment',
+}
+const streamType = (file: string) => STREAM_TYPES[file.split('.').pop() ?? ''] ?? 'video/mp4'
+
+/** The fixture as a stream: HLS (`index.m3u8`) or DASH (`index.mpd`), 2 s segments. */
+function makeStream(kind: 'hls' | 'dash', source?: string): string {
+  const dir = mkdtempSync(join(tmpdir(), `sublight-e2e-${kind}-`))
+  const input = source
+    ? ['-i', source]
+    : [
+        '-f',
+        'lavfi',
+        '-i',
+        'testsrc=size=320x180:rate=10',
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440',
+      ]
+  const format =
+    kind === 'hls'
+      ? ['-f', 'hls', '-hls_time', '2', '-hls_playlist_type', 'vod', join(dir, 'index.m3u8')]
+      : ['-f', 'dash', '-seg_duration', '2', join(dir, 'index.mpd')]
+  execFileSync('ffmpeg', [
+    ...['-v', 'error', '-y', ...input, ...(source ? [] : ['-t', '6'])],
+    ...['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', ...format],
+  ])
+  return dir
+}
 
 /** Byte-range responses: without them the media element can't seek. */
 function fulfillVideo(range: string | undefined, route: Route) {
@@ -63,7 +104,8 @@ test.describe('extension in Chromium (Spec 09)', () => {
   test.beforeEach(async () => {
     const extensionPath = resolve(process.cwd(), '..', 'apps', 'extension', '.output', 'chrome-mv3')
     context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'sublight-ext-')), {
-      channel: 'chromium',
+      // E2E_BRAVE=1: the same suite in Brave (the Chromium + Brave matrix).
+      ...(BRAVE ? { executablePath: BRAVE } : { channel: 'chromium' }),
       headless: true,
       args: [
         `--disable-extensions-except=${extensionPath}`,
@@ -75,18 +117,23 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await context.route(`${SITE}/**`, (route) => {
       const url = new URL(route.request().url())
       if (url.pathname === '/clip.mp4') return fulfillVideo(route.request().headers().range, route)
-      if (url.pathname.startsWith('/hls/') && hlsDir) {
+      const kind = /^\/(hls|dash)\//.exec(url.pathname)?.[1] as 'hls' | 'dash' | undefined
+      const dir = kind && streamDirs[kind]
+      if (kind && dir) {
         if (hlsMode === 'missing') return route.fulfill({ status: 404, body: 'gone' })
         return route.fulfill({
-          body: readFileSync(join(hlsDir, url.pathname.slice(5))),
-          contentType: url.pathname.endsWith('.m3u8')
-            ? 'application/vnd.apple.mpegurl'
-            : 'video/mp2t',
-          // hls.js (browsers without native HLS) needs CORS; native playback doesn't.
+          body: readFileSync(join(dir, url.pathname.slice(kind.length + 2))),
+          contentType: streamType(url.pathname),
+          // hls.js and dash.js need CORS; native playback doesn't.
           headers: { 'access-control-allow-origin': '*' },
         })
       }
-      const src = url.pathname === '/watch-hls' ? '/hls/index.m3u8' : '/clip.mp4'
+      const src =
+        url.pathname === '/watch-hls'
+          ? '/hls/index.m3u8'
+          : url.pathname === '/watch-dash'
+            ? '/dash/index.mpd'
+            : '/clip.mp4'
       return route.fulfill({
         contentType: 'text/html',
         body: `<!doctype html><title>site</title><style>body{margin:0}video{width:640px;height:360px}</style>
@@ -228,7 +275,10 @@ test.describe('extension in Chromium (Spec 09)', () => {
    * A real HTTP site the engine can fetch (Playwright routes are browser-only)
    * serving the JFK clip as a video. Loopback page + loopback media: Chrome
    * blocks public pages from loading local media. `/next` is a second page
-   * with the same clip, for following a feed.
+   * with the same clip, for following a feed. `/watch-hls` plays it as HLS;
+   * `/watch-blob` plays it from a blob: URL, with no file for the extension
+   * to hand over, and names the file in `og:video` for the engine (yt-dlp's
+   * generic extractor), the way a site like YouTube needs the engine.
    */
   async function speechSite(): Promise<{ port: number; server: Server }> {
     const dir = mkdtempSync(join(tmpdir(), 'sublight-e2e-ahead-'))
@@ -239,7 +289,17 @@ test.describe('extension in Chromium (Spec 09)', () => {
       ...['-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', clip],
     ])
     served = readFileSync(clip)
+    let hls: string | null = null
     const server: Server = createServer((req, res) => {
+      if (req.url?.startsWith('/hls/')) {
+        hls ??= makeStream('hls', clip)
+        res.writeHead(200, {
+          'content-type': streamType(req.url),
+          'access-control-allow-origin': '*',
+        })
+        res.end(readFileSync(join(hls, req.url.slice(5).split('?')[0]!)))
+        return
+      }
       if (req.url?.startsWith('/clip.mp4')) {
         const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '')
         const start = m ? Number(m[1]) : 0
@@ -248,15 +308,26 @@ test.describe('extension in Chromium (Spec 09)', () => {
           'content-type': 'video/mp4',
           'accept-ranges': 'bytes',
           'content-length': end - start + 1,
+          'access-control-allow-origin': '*',
           ...(m ? { 'content-range': `bytes ${start}-${end}/${served.length}` } : {}),
         })
         res.end(served.subarray(start, end + 1))
         return
       }
+      const video = 'style="width:640px;height:360px"'
       res.writeHead(200, { 'content-type': 'text/html' })
-      res.end(
-        '<!doctype html><title>JFK</title><video src="/clip.mp4" style="width:640px;height:360px"></video>',
-      )
+      if (req.url === '/watch-blob') {
+        res.end(
+          `<!doctype html><title>JFK</title>` +
+            `<meta property="og:video" content="http://${req.headers.host}/clip.mp4">` +
+            `<meta property="og:video:type" content="video/mp4">` +
+            `<video ${video}></video><script>fetch('/clip.mp4').then((r) => r.blob())` +
+            `.then((b) => { document.querySelector('video').src = URL.createObjectURL(b) })</script>`,
+        )
+        return
+      }
+      const src = req.url === '/watch-hls' ? '/hls/index.m3u8' : '/clip.mp4'
+      res.end(`<!doctype html><title>JFK</title><video src="${src}" ${video}></video>`)
     })
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
     const port = (server.address() as { port: number }).port
@@ -461,6 +532,112 @@ test.describe('extension in Chromium (Spec 09)', () => {
         server.close()
       }
     })
+
+    /**
+     * Hand the page's video to the Player and caption it there (M05b.7): the
+     * engine fetches the audio from the page, T₀ = 0, exact timing.
+     */
+    async function captionInPlayer(site: Page): Promise<Page> {
+      const popup = await openPopupFor(site)
+      await expect(popup.getByTestId('video-status')).not.toHaveAttribute('data-videos', '0')
+      const [player] = await Promise.all([
+        context.waitForEvent('page'),
+        popup.getByTestId('open-in-player').click(),
+      ])
+      await player.waitForLoadState()
+      await player.getByTestId('handoff-open').click({ timeout: 15_000 })
+      await expect
+        .poll(
+          () =>
+            player.evaluate(() => {
+              const v = document.querySelector('[data-testid=video]') as HTMLVideoElement | null
+              return !!v && v.readyState >= 2 && v.duration > 5
+            }),
+          { timeout: 60_000 },
+        )
+        .toBe(true)
+      await player.getByTestId('panel-caption').click()
+      await player.getByTestId('caption-model').selectOption('whisper-small')
+      await player.getByTestId('caption-start').click()
+      await expect(player.getByTestId('caption-done')).toBeVisible({ timeout: 90_000 })
+      await player.evaluate(() => {
+        const v = document.querySelector('[data-testid=video]') as HTMLVideoElement
+        v.pause()
+        v.currentTime = 6.5
+      })
+      await expect
+        .poll(() =>
+          player.evaluate(
+            () =>
+              document.querySelector('[data-sublight-host]')?.shadowRoot?.querySelector('.sl-cue')
+                ?.textContent ?? '',
+          ),
+        )
+        .toMatch(/country/i)
+      return player
+    }
+
+    for (const [page, what] of [
+      ['watch', 'a direct file (M05b AC1)'],
+      ['watch-hls', 'an HLS stream (M05b AC2)'],
+    ] as const) {
+      test(`a page video from ${what} plays and captions in the Player (real ASR)`, async () => {
+        test.skip(
+          !process.env.E2E_REAL_ASR,
+          'set E2E_REAL_ASR=1 with whisper-small installed locally',
+        )
+        test.setTimeout(180_000)
+        const { port, server } = await speechSite()
+        try {
+          await usePlayer()
+          const site = context.pages()[0] ?? (await context.newPage())
+          await site.goto(`http://127.0.0.1:${port}/${page}`)
+          const player = await captionInPlayer(site)
+          const src = await player
+            .getByTestId('video')
+            .evaluate((v) => (v as HTMLVideoElement).currentSrc)
+          // The page's own file plays directly; the stream through the browser or hls.js.
+          if (page === 'watch') expect(src).toBe(`http://127.0.0.1:${port}/clip.mp4`)
+          else expect(src).not.toContain('/v1/relay/')
+        } finally {
+          server.close()
+        }
+      })
+    }
+
+    test('a page video with no file of its own is relayed by the engine and captions in the Player (M05b AC3, real ASR)', async () => {
+      test.skip(
+        !process.env.E2E_REAL_ASR,
+        'set E2E_REAL_ASR=1 with whisper-small and yt-dlp installed locally',
+      )
+      test.setTimeout(180_000)
+      const { port, server } = await speechSite()
+      try {
+        await usePlayer()
+        const site = context.pages()[0] ?? (await context.newPage())
+        await site.goto(`http://127.0.0.1:${port}/watch-blob`)
+        await site.waitForFunction(() => document.querySelector('video')!.src.startsWith('blob:'))
+        const player = await captionInPlayer(site)
+        // Played from the engine's relay ("Preparing media…" first: the site has no single file yt-dlp can pass through).
+        await expect(player.getByTestId('video')).toHaveAttribute(
+          'src',
+          /\/v1\/relay\/[0-9a-f]{32}$/,
+        )
+        // Seeking works on the relayed file.
+        await player.evaluate(() => {
+          ;(document.querySelector('[data-testid=video]') as HTMLVideoElement).currentTime = 9
+        })
+        await expect
+          .poll(() =>
+            player.evaluate(
+              () => (document.querySelector('[data-testid=video]') as HTMLVideoElement).readyState,
+            ),
+          )
+          .toBeGreaterThanOrEqual(2)
+      } finally {
+        server.close()
+      }
+    })
   })
 
   test('Open in Sublight Player hands the page video over (M05b)', async () => {
@@ -552,22 +729,11 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await options.close()
   }
 
-  function makeHls(): void {
-    if (hlsDir) return
-    hlsDir = mkdtempSync(join(tmpdir(), 'sublight-e2e-hls-'))
-    execFileSync('ffmpeg', [
-      ...['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=10', '-f', 'lavfi'],
-      ...['-i', 'sine=frequency=440', '-t', '6', '-c:v', 'libx264', '-pix_fmt', 'yuv420p'],
-      ...['-c:a', 'aac', '-f', 'hls', '-hls_time', '2', '-hls_playlist_type', 'vod'],
-      join(hlsDir, 'index.m3u8'),
-    ])
-  }
-
-  async function openHlsPage(): Promise<Page> {
-    makeHls()
+  async function openStreamPage(kind: 'hls' | 'dash' = 'hls'): Promise<Page> {
+    streamDirs[kind] ??= makeStream(kind)
     await usePlayer()
     const site = context.pages()[0] ?? (await context.newPage())
-    await site.goto(`${SITE}/watch-hls`)
+    await site.goto(`${SITE}/watch-${kind}`)
     const popup = await openPopupFor(site)
     await expect(popup.getByTestId('video-status')).not.toHaveAttribute('data-videos', '0')
     const [player] = await Promise.all([
@@ -581,7 +747,7 @@ test.describe('extension in Chromium (Spec 09)', () => {
 
   test('an HLS page plays in the Player (M05b.4)', async () => {
     hlsMode = 'ok'
-    const player = await openHlsPage()
+    const player = await openStreamPage()
     await expect(player.getByTestId('video')).toBeVisible()
     // Natively where the browser can, else hls.js (a blob: MediaSource source).
     await expect
@@ -594,12 +760,27 @@ test.describe('extension in Chromium (Spec 09)', () => {
       .toBe(true)
   })
 
+  test('a DASH page plays in the Player with dash.js (M05b.4)', async () => {
+    hlsMode = 'ok'
+    const player = await openStreamPage('dash')
+    await expect(player.getByTestId('video')).toBeVisible()
+    // Chromium has no native DASH: dash.js feeds the element through MediaSource.
+    await expect
+      .poll(() =>
+        player.evaluate(() => {
+          const v = document.querySelector('[data-testid=video]') as HTMLVideoElement
+          return v.currentSrc.startsWith('blob:') && v.readyState >= 2 && v.duration > 5
+        }),
+      )
+      .toBe(true)
+  })
+
   test('a page video that can’t be reached explains itself (M05b.6)', async () => {
     // The stream is gone, and the engine can't reach this made-up host
     // either: an honest message and a way forward, never a hang.
     hlsMode = 'missing'
     await assertEngineAlive()
-    const player = await openHlsPage()
+    const player = await openStreamPage()
     const error = player.getByTestId('page-video-error')
     await expect(error).toBeVisible({ timeout: 30_000 })
     await assertEngineAlive()

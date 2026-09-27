@@ -27,7 +27,7 @@ few simple conventions keep it coherent.
 | `pnpm typecheck`     | `tsc --noEmit` across all workspaces                                          |
 | `pnpm test`          | Vitest unit tests across all workspaces                                       |
 | `pnpm e2e`           | Playwright (Chromium; Brave when installed)                                   |
-| `pnpm e2e:extension` | Extension e2e (builds the unpacked MV3 and loads it)                          |
+| `pnpm e2e:extension` | Extension e2e (builds the unpacked MV3 and loads it; `E2E_BRAVE=1` in Brave)  |
 | `pnpm sync:run`      | Transcribe the sync corpus through a running engine                           |
 | `pnpm sync:measure`  | Sync-accuracy corpus report                                                   |
 
