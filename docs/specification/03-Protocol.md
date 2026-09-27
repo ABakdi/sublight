@@ -71,6 +71,7 @@ Job creation bodies (discriminated by `type`):
 | `PUT /v1/media/:mediaId`                | streaming upload (octet-stream, `X-Source-Name`, `X-Source-MediaHash?`); engine normalizes to 16 kHz mono PCM, stores under `sha256`, responds `{ mediaHash, durationMs, normalizedBytes }` |
 | `GET /v1/media/:ref`                    | metadata for a media id or `sha256:` hash: `{ mediaHash, durationMs, normalizedBytes, sourceName, createdAt, lastUsedAt }`                                                                  |
 | `DELETE /v1/media/:mediaHash`           | free cache (and the id aliases pointing at it)                                                                                                                                              |
+| `POST /v1/media/clear`                  | deletes cached audio no queued or running job needs; `{ ok, freedBytes }` (Player: Models → Clear)                                                                                          |
 | `POST /v1/media/resolve` _(M05b)_       | `{ pageUrl, mediaUrl?, userAgent?, cookiesFromBrowser? }` → `{ mediaId, relayPath, durationMs, title, via, state: "ready" \| "downloading" }`; used by "Open in Sublight Player"            |
 | `GET /v1/media/relay/:mediaId` _(M05b)_ | `{ state, progress, error? }` while a relayed video downloads ("Preparing media…")                                                                                                          |
 | `GET /v1/relay/:mediaId` _(M05b)_       | `Range`-aware byte stream for the Player's `<video>`; **no token** (the 128-bit id is the capability, 6 h expiry); `503` while downloading                                                  |
@@ -120,10 +121,13 @@ _Verified by tests + the [security baseline](../audits/Security-Baseline-Plan.md
 1. Token: 32 random bytes, hex; stored in `config.json`; accepted only via `Authorization` header (never cookies, never query).
 2. Comparison in constant time.
 3. `Host` header must be `127.0.0.1:17421` or `localhost:17421` — **defeats DNS-rebinding**.
-4. CORS: explicit allowlist only — `chrome-extension://ehgdbfcecgkljnpmednociabmmjemfkf` (the unpacked dev build, pinned by its manifest key), `http://localhost:5173`, `http://127.0.0.1:5173` (dev player), the Player the engine serves (`http://127.0.0.1:<player.port>` and `localhost`, default 17420, [ADR-0023](../architecture/decisions/0023-engine-serves-the-player.md)), plus `config.allowedOrigins` for store/packaged IDs. Never `*`, no reflection. Host and Origin are checked on **every** route, including the unauthenticated pairing probe.
+4. CORS: explicit allowlist only — `chrome-extension://ehgdbfcecgkljnpmednociabmmjemfkf` (the unpacked dev build, pinned by its manifest key), `http://localhost:5173`, `http://127.0.0.1:5173` (dev player, only with `devOrigins` / `SUBLIGHT_DEV=1`), the Player the engine serves (`http://127.0.0.1:<player.port>` and `localhost`, default 17420, [ADR-0023](../architecture/decisions/0023-engine-serves-the-player.md)), plus `config.allowedOrigins` for store/packaged IDs. Never `*`, no reflection. Host and Origin are checked on **every** route, including the unauthenticated pairing probe.
 5. No `content-type: text/html` responses (XSS-by-CORS confusion guard); error responses are JSON.
-6. Uploads size-capped (default 20 GB, configurable) and streamed — no full-buffering.
-7. WS: auth in first message; unauthenticated connections dropped in < 1 s.
+6. Uploads size-capped (default 20 GB, configurable) and streamed — no full-buffering. Other request bodies are bounded before they're read: 4 KB for pairing, 32 MB for jobs, 1 MB elsewhere (`BODY_TOO_LARGE`, `413`).
+7. WS: auth in first message; unauthenticated connections dropped after 1 s.
+8. API answers carry `Cache-Control: no-store`.
+9. URLs that web pages supply (`pageUrl`, `mediaUrl`, and what yt-dlp resolves them to) must resolve to public addresses: loopback, private, link-local and unique-local ranges are refused with `MEDIA_UNREACHABLE` unless `config.allowPrivateNetworks` ([ADR-0024](../architecture/decisions/0024-web-supplied-urls-and-handoffs.md)).
+10. The unauthenticated relay serves media only: an upstream that isn't `audio/*` or `video/*` goes out as `application/octet-stream` with `Content-Security-Policy: sandbox`, so nothing renders on the engine's origin.
 
 ## 4. WS event envelope
 
@@ -164,7 +168,7 @@ queued → running → done
 { "error": { "code": "JOB_FAILED", "message": "…", "retryable": false, "details": {} } }
 ```
 
-Codes: `UNAUTHORIZED`, `BAD_ORIGIN`, `MODEL_NOT_INSTALLED`, `MODEL_INSTALL_FAILED`, `MEDIA_TOO_LARGE`, `AUDIO_EMPTY`, `AUDIO_UNSUPPORTED`, `JOB_NOT_FOUND`, `JOB_INVALID`, `JOB_FAILED`, `WORKER_UNAVAILABLE`, `GPU_OOM`, `INTERNAL`.
+Codes: `UNAUTHORIZED`, `BAD_ORIGIN`, `MODEL_NOT_INSTALLED`, `MODEL_INSTALL_FAILED`, `MEDIA_TOO_LARGE`, `AUDIO_EMPTY`, `AUDIO_UNSUPPORTED`, `JOB_NOT_FOUND`, `JOB_INVALID`, `JOB_FAILED`, `WORKER_UNAVAILABLE`, `GPU_OOM`, `INTERNAL`, `MEDIA_UNRESOLVABLE`, `MEDIA_UNREACHABLE`, `MEDIA_PROTECTED`, `DISK_FULL`, `MODEL_IN_USE`, `NOT_FOUND`, `BODY_TOO_LARGE`.
 
 ## 7. Limits (v1 defaults)
 
@@ -175,6 +179,8 @@ Codes: `UNAUTHORIZED`, `BAD_ORIGIN`, `MODEL_NOT_INSTALLED`, `MODEL_INSTALL_FAILE
 | In-flight GPU jobs                                  | 1 ASR + 1 translation **share** one GPU slot | no (policy)  |
 | Concurrent non-GPU jobs (translation chunk fetches) | 4                                            | yes          |
 | WS message rate                                     | 20 msg/s per client                          | internal     |
+| Videos being prepared for the Player (relay)        | 2 at once, 45 min and 8 GB each              | internal     |
+| Finished jobs kept                                  | 30 days (then dropped at the next start)     | internal     |
 
 ## 8. Conventions
 

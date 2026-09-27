@@ -26,7 +26,7 @@ updated: 2026-09-27
 - [x] **M06.4** — Autostart instructions + installer integration (L1: docs; L2: actual setup). `sublight-engine autostart enable|disable|status` (systemd user unit, macOS LaunchAgent; Windows L1 steps) and [INSTALL.md](../../../INSTALL.md). macOS not yet tried on hardware (Beta-1 checkpoint row).
 - [x] **M06.5** — Release pipeline: version bump, changelog, CI artifact build. `scripts/release.mjs` (bump / `--check` / `--notes`), [CHANGELOG.md](../../../CHANGELOG.md) at 0.1.0, and a tag workflow publishing the engine bundle, the extension zip and `SHA256SUMS`. The engine serves the Player ([ADR-0023](../../architecture/decisions/0023-engine-serves-the-player.md)), and the release ships them together as `sublight-<version>.tar.gz`.
 - [ ] **M06.6** — Checkpoint Beta-1 executed (template): test matrix rows checked on both browsers; corpus numbers; bugs triaged; missing features logged as issues that produce new spec/plan items.
-- [ ] **M06.7** — Security baseline audit pass 1: findings recorded + fixes tracked ([audits](../../audits/README.md)).
+- [x] **M06.7** — Security baseline audit pass 1: findings recorded + fixes tracked ([audits](../../audits/README.md)). [Pass 1](../../audits/2026-09-Security-Baseline.md): 22 findings, no P0/P1, all 12 P2 fixed, P3s fixed or scheduled for M07 ([ADR-0024](../../architecture/decisions/0024-web-supplied-urls-and-handoffs.md)).
 - [x] **M06.8** — Model store UI: installed size, remove models, disk budget warning. Player Models tab and Library section; engine refuses installs that don't fit (`DISK_FULL`, 1 GB headroom) and removals in use (`MODEL_IN_USE`), and stops a resident worker before removing.
 
 ## Acceptance criteria

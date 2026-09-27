@@ -28,10 +28,11 @@ _Every now and then we do a security, code, or quality audit and record it here 
 
 ## Index
 
-| Audit                                                       | Type         | Status                                                          | Opened | Summary                                                                                                               |
-| ----------------------------------------------------------- | ------------ | --------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------- |
-| [Security baseline plan](Security-Baseline-Plan.md)         | Security     | `planned` (run at [M06](../plan/milestones/06-Beta-Release.md)) | —      | First full pass over the engine boundary, extension permissions, prompt injection, model supply chain, privacy claim. |
-| [Code quality baseline plan](Code-Quality-Baseline-Plan.md) | Code quality | `planned`                                                       | —      | Gates to enforce from M02: lint/typecheck, test coverage floors, error-handling review, dependency hygiene.           |
+| Audit                                                       | Type         | Status                               | Opened     | Summary                                                                                                                 |
+| ----------------------------------------------------------- | ------------ | ------------------------------------ | ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| [Security baseline plan](Security-Baseline-Plan.md)         | Security     | criteria (re-run each major release) | —          | The checklist: engine boundary, extension permissions, prompt injection, model supply chain, privacy claim.             |
+| [Security baseline, pass 1](2026-09-Security-Baseline.md)   | Security     | `closed`                             | 2026-09-27 | 22 findings, no P0/P1; all 12 P2 fixed (relay, worker servers, extension messages, hand-over, SSRF, prompt injection…). |
+| [Code quality baseline plan](Code-Quality-Baseline-Plan.md) | Code quality | `planned`                            | —          | Gates to enforce from M02: lint/typecheck, test coverage floors, error-handling review, dependency hygiene.             |
 
 > The two plans above are **criteria, not results** — they're the checklist the first audits will execute. Results get recorded under this index as the audits run.
 

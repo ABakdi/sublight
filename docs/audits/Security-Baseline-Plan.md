@@ -1,12 +1,12 @@
 ---
 tags: [audits, security]
-status: planned
-updated: 2026-09-23
+status: active
+updated: 2026-09-27
 ---
 
 # Security baseline plan
 
-_The first full security audit, executed at **[M06 — Beta release](../plan/milestones/06-Beta-Release.md)** and re-run (with diffs) at each major release. This file defines criteria to check; results get recorded as a findings table when the audit runs._
+_Pass 1 ran on 2026-09-27: [results](2026-09-Security-Baseline.md). The first full security audit, executed at **[M06 — Beta release](../plan/milestones/06-Beta-Release.md)** and re-run (with diffs) at each major release. This file defines criteria to check; results get recorded as a findings table when the audit runs._
 
 ## Why this audit exists
 

@@ -29,6 +29,7 @@ In the extension, the service worker runs the flow, because a popup closes when 
 
 - Pairing is two clicks with no terminal. The e2e test "pairs in one click" covers it: request, same code on both sides, approve, claim, online.
 - **The trust boundary is unchanged.** Anyone who can drive the local browser can already approve, just as anyone who can run `pnpm engine:token` can read the token. Another _website_ can't: it can neither request (origin not allowed), approve (not the engine's origin) nor claim (not the origin that asked).
+- Another user on the same computer can reach loopback too and forge origins, so on a shared machine they could pair without the viewer noticing. Loopback TCP can't tell users apart; multi-user hosts are out of scope for Beta 1 ([security baseline F17](../../audits/2026-09-Security-Baseline.md)).
 - A malicious extension with a copied ID is out of scope, as it already was: the allowlist is by extension ID, and store builds get their own ID.
 - Revoking is a token rotation: **Unpair every app** in Options, or `sublight-engine token --rotate`. Every client pairs again. There are no per-client tokens yet.
 

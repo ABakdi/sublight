@@ -82,6 +82,14 @@ The first caption asks to install the speech model; the Player's **Models**
 tab lists all of them with their size and the free disk space, and removes
 the ones you don't use.
 
+## Privacy and local servers
+
+Everything stays on your computer. Cached audio can be cleared from the
+Player's **Models** tab, and finished jobs are forgotten after 30 days. For
+safety the engine only fetches videos from the internet: to caption one from a
+media server on your own network, set `"allowPrivateNetworks": true` in
+`~/.sublight/config.json` and restart the engine.
+
 ## Releases
 
 Tagged releases on GitHub carry `sublight-<version>.tar.gz` (the engine,

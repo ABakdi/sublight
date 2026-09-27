@@ -45,6 +45,7 @@ action: { default_popup: "popup.html" }
 - State kept in `chrome.storage.session` (job ids per tab, engine status, active requests); nothing heavy, survives SW restarts.
 - **Engine calls happen only here** (content scripts can't fetch localhost with our auth+origin model reliably, and pages shouldn't see the token): a small `engineFetch` wrapper with token from `chrome.storage.local`, auto-retry on `ECONNREFUSED` (engine cold start), and WS reconnect with backoff.
 - Authorization is the **token + Host/Origin checks** from [Protocol §3](03-Protocol.md#3-auth--hardening); content scripts never hold the token.
+- **Who may ask what** (security baseline B4): content scripts run inside web pages, so the SW takes popup and Options requests (`tab.status`, `engine.pair`, `engine.status`, `captions.start/stop/status/download`, `player.open`, `live.start/stop/status`, `demo.toggle`) only from extension pages (`sender.url` on the extension's origin; keyboard commands speak as the SW itself). Pages may report their video, seeks, navigation, a target language, live audio and anchors, and only for their own tab's session.
 
 ## 4. Content script (all frames)
 
@@ -107,7 +108,7 @@ Known gaps, for M05: the caption can sit on top of the host player's control bar
 
 ### 4.8 Short-form feeds (ADR-0021)
 
-- **Follow:** after "Caption this video" the page keeps captions on until they are stopped (`following`). When another video starts playing (checked on `play` and every 2 s), the content script sends `captions.next` with that video's state and the SW starts a new `url` job for it (quiet restart: the page keeps its controls). A pending "Download SRT" of the previous video is finished first.
+- **Follow:** after "Caption this video" the page keeps captions on until they are stopped (`following`). When another video starts playing (checked on `play` and every 2 s), the content script sends `captions.next` with that video's state and the SW starts a new `url` job for it (quiet restart: the page keeps its controls). The SW accepts it only for a tab whose viewer turned captions on, and only on the site where they did (`storage.session.captionsFollow:<tabId>`, cleared by stopping or leaving): a page can't start captioning, or engine fetches, by itself. A pending "Download SRT" of the previous video is finished first.
 - **The video's own URL** (`videoPageUrl`): on TikTok, Instagram and Facebook feeds, the nearest link to a single video (`/@user/video/<id>`, `/reel/<id>`, `/p/<id>`), searching upward from the `<video>` but not past a container holding other videos. It goes to the engine as `pageUrl`.
 - **Vertical video** (width < 0.8 × height): text scales by the shorter side ([05](05-Overlay-Rendering.md)), lines wrap at 24 characters (`cuesForMode(…, { maxLineChars: 24 })`), captions sit 22 % up.
 

@@ -44,6 +44,7 @@ _Every significant decision about sublight lives here. **If changing something w
 | [0021](decisions/0021-quick-controls-and-short-video-feeds.md) | Quick controls on the video; short-form feeds         | 2026-09-26 | `accepted` | A CC button on the video (on/off, translate, delay ±100 ms, any corner) with Alt+Shift shortcuts; captions follow feed scrolls, size for vertical video, and can use the browser login (opt-in). |
 | [0022](decisions/0022-one-click-pairing.md)                    | One-click pairing through the engine's approval page  | 2026-09-27 | `accepted` | Client asks, the engine's own page shows who and a code, the user approves there, the token is claimed once by the origin that asked; replaces the planned `sublight://` link.                   |
 | [0023](decisions/0023-engine-serves-the-player.md)             | The engine serves the Player, on an origin of its own | 2026-09-27 | `accepted` | `sublight-engine start` also serves the built Player on `127.0.0.1:17420`: static files only, its own origin so it pairs like any client and can't approve pairings.                             |
+| [0024](decisions/0024-web-supplied-urls-and-handoffs.md)       | What web pages may make sublight do                   | 2026-09-27 | `accepted` | Page-supplied URLs reach only the internet (`allowPrivateNetworks` opts in), extension-page-only SW requests, and the Player asks before a hand-over.                                            |
 
 ## The process for changing a decision
 

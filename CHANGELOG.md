@@ -6,6 +6,15 @@ moves **Unreleased** under a new version.
 
 ## [Unreleased]
 
+### Security (baseline pass 1)
+
+- Page-supplied URLs reach only the internet (`allowPrivateNetworks` opts in); the relay serves media only; ffmpeg reads remote inputs over network protocols only; request bodies and Player downloads are bounded.
+- Worker servers need a per-launch secret; their binaries are checked against recorded checksums at startup.
+- Web pages can't drive sublight through its content script; the Player asks before opening a handed-over video.
+- Translation is hardened against instructions in the audio.
+- Private data directory; finished jobs are forgotten after 30 days; cached audio can be cleared from the Player.
+- The Vite dev Player is trusted only when developing (`SUBLIGHT_DEV=1`).
+
 ## [0.1.0] — Beta 1
 
 The first installable sublight: see [INSTALL.md](INSTALL.md).

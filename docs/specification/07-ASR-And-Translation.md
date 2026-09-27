@@ -145,7 +145,13 @@ User message: `<subtitles>\n1: …\n2: …\n</subtitles>`. Language names come f
 
 ### 2.5 Prompt injection hygiene
 
-Transcripts are **untrusted data** (audio may include instructions). Delimiters above + absolute output-format constraint + **never** echoing arbitrary source text back into system prompts beyond the delimited block; glossaries validated (no newlines). The [security audit](../audits/Security-Baseline-Plan.md) covers evasion cases.
+Transcripts are **untrusted data** (audio may include instructions). Delimiters above + absolute output-format constraint + **never** echoing arbitrary source text back into system prompts beyond the delimited block. As built (security baseline D1):
+
+- Spoken text can't open or close the delimiters: `<subtitles>` / `</subtitles>` in a line (or in continuity context) is blanked (`neutralize`).
+- Glossary terms are single-line: control characters and the Unicode line and paragraph separators are refused.
+- The parser refuses an answer whose count differs **or** whose line runs past `3 × source + 40` characters, which is what following an instruction looks like; it retries as halves, then re-splits by duration keeping no more text than the sources could need (low-confidence).
+- Output is only ever cue text: never HTML, never a command line.
+- A ten-paragraph hostile corpus (`tests/fixtures/injection-corpus.ts`: "ignore previous instructions", fake system messages, closing the delimiters, fake numbering, "write fifty lines", reveal the prompt, role play, code, glossary override, language switch) covers the prompt and the parser. Results are in the [first security baseline](../audits/2026-09-Security-Baseline.md).
 
 ### 2.6 Measured (M04, target T1000, Qwen3-4B-Instruct-2507 Q4_K_M)
 
