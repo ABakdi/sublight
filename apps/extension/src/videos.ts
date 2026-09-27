@@ -99,6 +99,7 @@ export function snapshot(
           height: Math.round(primary.getBoundingClientRect().height),
           src: /^https?:/i.test(primary.currentSrc) ? primary.currentSrc : null,
           pageUrl: videoPageUrl(primary),
+          isLive: primary.duration === Infinity,
         }
       : null,
     demoCaptions,

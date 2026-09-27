@@ -16,6 +16,7 @@ const state = (src: string | null, durationMs: number | null = 60_000): VideoSta
     height: 360,
     src,
     pageUrl: 'https://site.test/watch?v=1',
+    isLive: durationMs === Infinity,
   },
   demoCaptions: false,
   reportedAt: 0,
@@ -34,6 +35,8 @@ describe('what the page video is, for the Player', () => {
       kind: 'engine-fetchable',
       url: 'https://site.test/watch?v=1',
     })
-    expect(classifySources(state(null, null))[0]!.kind).toBe('live')
+    expect(classifySources(state(null, Infinity))[0]!.kind).toBe('live')
+    // Not loaded yet is not live: an HLS page whose length isn't known yet.
+    expect(classifySources(state('https://cdn.test/master.m3u8', null))[0]!.kind).toBe('hls')
   })
 })

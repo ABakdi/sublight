@@ -16,7 +16,7 @@ export const DEFAULT_PLAYER_URL = 'http://localhost:5173/'
 export function classifySources(state: VideoState): OpenInPlayerSource[] {
   const p = state.primary
   const pageUrl = p?.pageUrl ?? state.url
-  if (p?.durationMs === null) return [{ kind: 'live', url: pageUrl }]
+  if (p?.isLive) return [{ kind: 'live', url: pageUrl }]
   const src = p?.src
   if (src) {
     const path = src.split(/[?#]/)[0]!.toLowerCase()
@@ -47,7 +47,7 @@ export function buildPayload(
     media: {
       ...(title ? { title } : {}),
       ...(p.durationMs !== null ? { durationMs: p.durationMs } : {}),
-      isLive: p.durationMs === null,
+      isLive: p.isLive,
       sources: classifySources(state),
     },
     resumeAtMs: Math.round(playhead(state)),
@@ -68,7 +68,7 @@ export async function openInPlayer(
   owner: { frameId: number; state: VideoState },
 ): Promise<{ ok: boolean; error?: string }> {
   if (!owner.state.primary) return { ok: false, error: 'No video on this page.' }
-  if (owner.state.primary.durationMs === null)
+  if (owner.state.primary.isLive)
     return { ok: false, error: 'This is a live stream: it can only be captioned on its page.' }
   const prefs = await browser.storage.local.get([PLAYER_URL_KEY, COOKIES_KEY])
   const base = ((prefs[PLAYER_URL_KEY] as string | undefined) || DEFAULT_PLAYER_URL).replace(

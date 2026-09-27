@@ -26,6 +26,8 @@ export interface VideoState {
     src: string | null
     /** This video's own page when the page is a feed of many (TikTok, Reels), else the page URL. */
     pageUrl: string
+    /** A live stream (its duration is infinite), not just one whose length isn't known yet. */
+    isLive: boolean
   } | null
   demoCaptions: boolean
   /** Epoch ms of this snapshot; with playbackRate it extrapolates the playhead. */
