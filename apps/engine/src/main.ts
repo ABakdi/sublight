@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, openSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { HealthResponse } from '@sublight/protocol'
+import { autostart, currentLaunch } from './autostart'
 import { loadConfig, sublightHome } from './config'
 import { ENGINE_VERSION } from './health'
 import { enginePaths } from './paths'
@@ -15,6 +16,8 @@ usage: sublight-engine <command>
   start [--detach]   run the engine (in the foreground, or in the background)
   stop               stop a running engine, letting jobs wind down
   status             is it running? version, uptime and jobs
+  autostart <enable|disable|status>
+                     start the engine when you log in
   token              print the pairing token (for pasting by hand)
   transcribe <file>  caption one file without a server (--help for options)
 
@@ -136,6 +139,8 @@ async function main(argv: string[]): Promise<number | null> {
       return stop()
     case 'status':
       return status()
+    case 'autostart':
+      return autostart(args, currentLaunch(join(enginePaths().logs, 'engine.out')))
     case 'token':
       console.log(loadConfig().token)
       console.error(`(from ${sublightHome()}/config.json)`)
