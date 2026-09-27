@@ -12,6 +12,7 @@ import type { EngineConfig } from './config'
 import { EventBus } from './events'
 import { JobQueue } from './jobs/queue'
 import { JobStore } from './jobs/store'
+import { RelayStore } from './media/relay'
 import { findYtDlp } from './media/remote'
 import { MediaStore } from './media/store'
 import { ModelManager } from './models/manager'
@@ -28,6 +29,10 @@ export interface EngineServices {
   live: LiveHub
   /** `url` jobs: captions made ahead of playback (ADR-0020). */
   ahead: AheadRunner
+  /** Page videos relayed to the Player (M05b). */
+  relays: RelayStore
+  /** yt-dlp, when installed. */
+  ytDlp: string | null
   paths: EnginePaths
 }
 
@@ -97,5 +102,7 @@ export function createServices(config: EngineConfig, paths: EnginePaths): Engine
     ytDlp: findYtDlp(paths.bin),
   })
   jobs.register(ahead)
-  return { bus, models, media, jobs, whisper, llama, gpu, live, ahead, paths }
+  const relays = new RelayStore(join(paths.mediaCache, 'relay'))
+  const ytDlp = findYtDlp(paths.bin)
+  return { bus, models, media, jobs, whisper, llama, gpu, live, ahead, relays, ytDlp, paths }
 }

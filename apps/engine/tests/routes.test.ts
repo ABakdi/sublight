@@ -3,15 +3,18 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createServer } from 'node:http'
 import { beforeAll, describe, expect, it } from 'vitest'
 import type {
   JobResult,
   JobSummary,
+  MediaResolveResponse,
   ModelsResponse,
   TranscribeJob,
   UploadResult,
 } from '@sublight/protocol'
 import { createApp } from '../src/app'
+import { RelayStore } from '../src/media/relay'
 import { transcribeRunner } from '../src/asr/transcribe'
 import { WhisperWorker } from '../src/asr/whisper'
 import { LlamaWorker } from '../src/llm/llama'
@@ -69,7 +72,8 @@ function services(runner?: JobRunner): EngineServices {
   const gpu = new GpuResidency({ asr: whisper, llm: llama })
   const live = new LiveHub(join(paths.jobs, 'live'))
   const ahead = aheadRunner({ models, whisper, ffmpeg: SYSTEM_FFMPEG, ytDlp: null })
-  return { bus, models, media, jobs, whisper, llama, gpu, live, ahead, paths }
+  const relays = new RelayStore()
+  return { bus, models, media, jobs, whisper, llama, gpu, live, ahead, relays, ytDlp: null, paths }
 }
 
 /** Stand-in for whisper: instant, deterministic output. */
@@ -268,4 +272,61 @@ describe('engine routes (Protocol §2)', () => {
       gpu: { name: 'Test GPU' },
     })
   })
+})
+
+describe('page videos for the Player (M05b)', () => {
+  it.skipIf(!hasFfmpeg)(
+    'resolves a direct video and relays byte ranges without a token',
+    async () => {
+      const bytes = readFileSync(join(import.meta.dirname, 'fixtures', 'jfk.wav'))
+      const server = createServer((req, res) => {
+        const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '')
+        const start = m ? Number(m[1]) : 0
+        const end = m?.[2] ? Number(m[2]) : bytes.length - 1
+        res.writeHead(m ? 206 : 200, {
+          'content-type': 'audio/wav',
+          'accept-ranges': 'bytes',
+          'content-length': end - start + 1,
+          ...(m ? { 'content-range': `bytes ${start}-${end}/${bytes.length}` } : {}),
+        })
+        res.end(bytes.subarray(start, end + 1))
+      })
+      await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+      const port = (server.address() as { port: number }).port
+      try {
+        const app = createApp(config, { services: services() })
+        const refused = await app.request('/v1/media/resolve', {
+          method: 'POST',
+          headers: { host: H.host, 'content-type': 'application/json' },
+          body: JSON.stringify({ pageUrl: 'https://example.test/watch' }),
+        })
+        expect(refused.status).toBe(401)
+        const res = await app.request('/v1/media/resolve', {
+          method: 'POST',
+          headers: { ...H, 'content-type': 'application/json' },
+          body: JSON.stringify({
+            pageUrl: 'https://example.test/watch',
+            mediaUrl: `http://127.0.0.1:${port}/clip.wav`,
+          }),
+        })
+        expect(res.status).toBe(200)
+        const resolved = await json<MediaResolveResponse>(res)
+        expect(resolved.via).toBe('direct')
+        expect(resolved.durationMs).toBeGreaterThan(10_000)
+        // A <video> asks for ranges and sends no token.
+        const part = await app.request(resolved.relayPath, {
+          headers: { host: H.host, range: 'bytes=0-99' },
+        })
+        expect(part.status).toBe(206)
+        expect(part.headers.get('content-range')).toBe(`bytes 0-99/${bytes.length}`)
+        expect(Buffer.from(await part.arrayBuffer()).equals(bytes.subarray(0, 100))).toBe(true)
+        const unknown = await app.request('/v1/relay/0123456789abcdef0123456789abcdef', {
+          headers: { host: H.host },
+        })
+        expect(unknown.status).toBe(404)
+      } finally {
+        server.close()
+      }
+    },
+  )
 })

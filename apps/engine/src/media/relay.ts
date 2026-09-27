@@ -1,0 +1,251 @@
+import { spawn } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
+import { createReadStream, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { Readable } from 'node:stream'
+import type { RemoteMedia } from './remote'
+
+/** How long a relay handle works: longer than a film, shorter than a signed CDN URL. */
+export const RELAY_TTL_MS = 6 * 60 * 60 * 1000
+
+/**
+ * yt-dlp format for a pass-through relay: one file with both video and audio
+ * over plain HTTP, mp4 first. YouTube lists one (format 18) but no longer
+ * serves it, so sites like it fall back to downloading (`DOWNLOAD_FORMAT`).
+ */
+export const PLAYABLE_FORMAT =
+  'best[vcodec!=none][acodec!=none][protocol^=http][ext=mp4]/best[vcodec!=none][acodec!=none][protocol^=http]'
+
+/** Separate video (≤ 720p) + audio, merged into one mp4 the `<video>` can seek. */
+export const DOWNLOAD_FORMAT =
+  'bv*[height<=720][ext=mp4]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]/b'
+
+export type Relay =
+  | { kind: 'stream'; media: RemoteMedia; expiresAt: number }
+  | {
+      kind: 'file'
+      path: string
+      state: 'downloading' | 'ready' | 'failed'
+      /** 0..1 while downloading. */
+      progress: number
+      error?: string
+      title: string | null
+      durationMs: number | null
+      expiresAt: number
+    }
+
+export interface RelayStatus {
+  state: 'ready' | 'downloading' | 'failed'
+  progress: number
+  error?: string
+}
+
+/**
+ * Relayed page videos for the Player (Spec 06 §4.1, M05b). A `<video>` can't
+ * send the bearer token, so each resolved stream gets an unguessable id
+ * (128 random bits) that expires; there is no way to relay an arbitrary URL.
+ * Direct files are streamed through; sites that only serve separate video
+ * and audio (YouTube) are downloaded and merged first ("Preparing media…").
+ */
+export class RelayStore {
+  private relays = new Map<string, Relay>()
+
+  constructor(private readonly dir?: string) {
+    if (dir) {
+      mkdirSync(dir, { recursive: true })
+      // Files from a previous run: their ids died with it.
+      for (const f of readdirSync(dir)) rmSync(join(dir, f), { force: true, recursive: true })
+    }
+  }
+
+  add(media: RemoteMedia, now = Date.now()): string {
+    this.prune(now)
+    const id = randomBytes(16).toString('hex')
+    this.relays.set(id, { kind: 'stream', media, expiresAt: now + RELAY_TTL_MS })
+    return id
+  }
+
+  /** Download and merge with yt-dlp; the relay serves the file once it's ready. */
+  download(
+    pageUrl: string,
+    opts: {
+      ytDlp: string
+      ffmpeg: string
+      cookiesFromBrowser?: string
+      title: string | null
+      durationMs: number | null
+    },
+    now = Date.now(),
+  ): string {
+    if (!this.dir) throw new Error('relay downloads need a cache directory')
+    this.prune(now)
+    const id = randomBytes(16).toString('hex')
+    const path = join(this.dir, `${id}.mp4`)
+    const relay: Relay = {
+      kind: 'file',
+      path,
+      state: 'downloading',
+      progress: 0,
+      title: opts.title,
+      durationMs: opts.durationMs,
+      expiresAt: now + RELAY_TTL_MS,
+    }
+    this.relays.set(id, relay)
+    const args = [
+      '--no-playlist',
+      '--no-warnings',
+      '--newline',
+      '--js-runtimes',
+      `node:${process.execPath}`,
+      // A bare name ("ffmpeg") would be taken as a directory: let yt-dlp use PATH then.
+      ...(opts.ffmpeg.includes('/') ? ['--ffmpeg-location', opts.ffmpeg] : []),
+      '-f',
+      DOWNLOAD_FORMAT,
+      '--merge-output-format',
+      'mp4',
+      // moov first, so playback can start without reading the whole file.
+      '--postprocessor-args',
+      'Merger+ffmpeg:-movflags +faststart',
+      ...(opts.cookiesFromBrowser ? ['--cookies-from-browser', opts.cookiesFromBrowser] : []),
+      '-o',
+      path,
+      pageUrl,
+    ]
+    const child = spawn(opts.ytDlp, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    // Two downloads (video, then audio): count them as halves of the whole.
+    let part = 0
+    let last = 0
+    let stderr = ''
+    child.stdout.on('data', (d: Buffer) => {
+      for (const line of d.toString().split('\n')) {
+        if (/Destination:/.test(line) && last > 0) part = Math.min(1, part + 1)
+        const m = /\[download\]\s+([\d.]+)%/.exec(line)
+        if (m) {
+          last = Number(m[1]) / 100
+          relay.progress = Math.min(0.99, (part + last) / 2)
+        }
+      }
+    })
+    child.stderr.on('data', (d: Buffer) => {
+      stderr = (stderr + d.toString()).slice(-4000)
+    })
+    child.on('close', (code) => {
+      // yt-dlp can exit 0 without merging (no ffmpeg): only a real file is ready.
+      if (code === 0 && existsSync(path)) {
+        relay.state = 'ready'
+        relay.progress = 1
+      } else if (code === 0) {
+        relay.state = 'failed'
+        relay.error =
+          'the video and audio were downloaded but could not be merged (is ffmpeg installed?)'
+      } else {
+        relay.state = 'failed'
+        relay.error =
+          stderr
+            .trim()
+            .split('\n')
+            .pop()
+            ?.replace(/^ERROR:\s*/, '') ?? `yt-dlp exited ${code}`
+      }
+    })
+    return id
+  }
+
+  get(id: string, now = Date.now()): Relay | null {
+    const r = this.relays.get(id)
+    if (!r) return null
+    if (r.expiresAt <= now) {
+      this.drop(id, r)
+      return null
+    }
+    return r
+  }
+
+  status(id: string): RelayStatus | null {
+    const r = this.get(id)
+    if (!r) return null
+    if (r.kind === 'stream') return { state: 'ready', progress: 1 }
+    return { state: r.state, progress: r.progress, ...(r.error ? { error: r.error } : {}) }
+  }
+
+  private drop(id: string, r: Relay): void {
+    this.relays.delete(id)
+    if (!r.kind || r.kind !== 'file' || !this.dir) return
+    // The merged file and any parts yt-dlp left (id.f140.m4a, …).
+    for (const f of readdirSync(this.dir))
+      if (f.startsWith(id)) rmSync(join(this.dir, f), { force: true })
+  }
+
+  private prune(now: number): void {
+    for (const [id, r] of this.relays) if (r.expiresAt <= now) this.drop(id, r)
+  }
+}
+
+/** Response headers passed through from the upstream media server. */
+export const RELAY_HEADERS = [
+  'content-type',
+  'content-length',
+  'content-range',
+  'accept-ranges',
+  'last-modified',
+  'etag',
+] as const
+
+/** Serve a downloaded file with Range support (seeking). */
+function fileResponse(path: string, request: Request): Response {
+  const size = statSync(path).size
+  const m = /bytes=(\d*)-(\d*)/.exec(request.headers.get('range') ?? '')
+  const headers = new Headers({
+    'content-type': 'video/mp4',
+    'accept-ranges': 'bytes',
+    'cache-control': 'no-store',
+  })
+  if (!m || (m[1] === '' && m[2] === '')) {
+    headers.set('content-length', String(size))
+    const body =
+      request.method === 'HEAD' ? null : (Readable.toWeb(createReadStream(path)) as ReadableStream)
+    return new Response(body, { status: 200, headers })
+  }
+  // "bytes=-N" is the last N bytes.
+  const start = m[1] === '' ? Math.max(0, size - Number(m[2])) : Number(m[1])
+  const end = m[1] !== '' && m[2] !== '' ? Math.min(Number(m[2]), size - 1) : size - 1
+  if (start >= size || start > end) {
+    headers.set('content-range', `bytes */${size}`)
+    return new Response(null, { status: 416, headers })
+  }
+  headers.set('content-range', `bytes ${start}-${end}/${size}`)
+  headers.set('content-length', String(end - start + 1))
+  const body =
+    request.method === 'HEAD'
+      ? null
+      : (Readable.toWeb(createReadStream(path, { start, end })) as ReadableStream)
+  return new Response(body, { status: 206, headers })
+}
+
+/** Stream the relayed media, honoring the player's Range request (seeking). */
+export async function relayResponse(relay: Relay, request: Request): Promise<Response> {
+  if (relay.kind === 'file') {
+    if (relay.state !== 'ready')
+      return new Response(null, { status: 503, headers: { 'retry-after': '2' } })
+    return fileResponse(relay.path, request)
+  }
+  const headers: Record<string, string> = { ...relay.media.headers }
+  const range = request.headers.get('range')
+  if (range) headers.Range = range
+  const upstream = await fetch(relay.media.input, {
+    method: request.method === 'HEAD' ? 'HEAD' : 'GET',
+    headers,
+    signal: request.signal,
+  })
+  const out = new Headers()
+  for (const name of RELAY_HEADERS) {
+    const v = upstream.headers.get(name)
+    if (v) out.set(name, v)
+  }
+  if (!out.has('accept-ranges')) out.set('accept-ranges', 'bytes')
+  out.set('cache-control', 'no-store')
+  return new Response(request.method === 'HEAD' ? null : upstream.body, {
+    status: upstream.status,
+    headers: out,
+  })
+}

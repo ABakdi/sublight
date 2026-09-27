@@ -1,8 +1,17 @@
+import { PLAYABLE_FORMAT, relayResponse } from './media/relay'
+import { resolveRemote } from './media/remote'
 import { Readable } from 'node:stream'
 import type { ReadableStream as NodeWebStream } from 'node:stream/web'
 import { Hono, type Context } from 'hono'
-import type { JobCreation, LiveAnchor, LiveStatus } from '@sublight/protocol'
-import { IDEMPOTENCY_KEY_HEADER } from '@sublight/protocol'
+import type {
+  JobCreation,
+  LiveAnchor,
+  LiveStatus,
+  MediaResolveRequest,
+  MediaResolveResponse,
+  RelayStatusResponse,
+} from '@sublight/protocol'
+import { COOKIE_BROWSERS, IDEMPOTENCY_KEY_HEADER } from '@sublight/protocol'
 import type { EngineConfig } from './config'
 import { allowedOrigins, bearerAuth, corsAllowlist, hostOriginGuard, jsonError } from './auth'
 import { probeGpu } from './gpu'
@@ -67,6 +76,8 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
 
   app.use('/v1/*', async (c, next) => {
     if (c.req.path === '/v1/pair/info') return next()
+    // A <video> can't send the token: relay ids are unguessable and expire (M05b).
+    if (c.req.path.startsWith('/v1/relay/') && ['GET', 'HEAD'].includes(c.req.method)) return next()
     return bearerAuth(config.token)(c, next)
   })
 
@@ -232,6 +243,81 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
       s.live.get(c.req.param('id')).stopping = true
       return c.json(s.jobs.get(c.req.param('id')), 202)
     })
+    // --- page videos in the Player (M05b) ---
+    app.post('/v1/media/resolve', async (c) => {
+      const body = await c.req.json<Partial<MediaResolveRequest>>().catch(() => null)
+      if (!body?.pageUrl || !/^https?:\/\//i.test(body.pageUrl))
+        return jsonError(c, 'JOB_INVALID', 'pageUrl must be an http(s) URL', 400)
+      if (
+        body.cookiesFromBrowser &&
+        !(COOKIE_BROWSERS as readonly string[]).includes(body.cookiesFromBrowser)
+      )
+        return jsonError(c, 'JOB_INVALID', 'unsupported cookiesFromBrowser', 400)
+      const deps = { ffmpeg: config.ffmpeg, ytDlp: s.ytDlp }
+      const reply = (mediaId: string, r: Omit<MediaResolveResponse, 'mediaId' | 'relayPath'>) =>
+        c.json({ mediaId, relayPath: `/v1/relay/${mediaId}`, ...r } satisfies MediaResolveResponse)
+      try {
+        // One file with video and audio: stream it straight through.
+        const media = await resolveRemote(
+          deps,
+          body.pageUrl,
+          body.mediaUrl,
+          body.userAgent,
+          body.cookiesFromBrowser,
+          PLAYABLE_FORMAT,
+        )
+        return reply(s.relays.add(media), {
+          durationMs: media.durationMs,
+          title: media.title,
+          via: media.via,
+          state: 'ready',
+        })
+      } catch (err) {
+        const noSingleFile = err instanceof Error && /format is not available/i.test(err.message)
+        if (!noSingleFile || !s.ytDlp) return toResponse(c, err)
+      }
+      try {
+        // Separate video + audio only (YouTube): check it can be fetched at
+        // all (DRM, live, login), then download and merge in the background.
+        const audio = await resolveRemote(
+          deps,
+          body.pageUrl,
+          undefined,
+          body.userAgent,
+          body.cookiesFromBrowser,
+        )
+        const mediaId = s.relays.download(body.pageUrl, {
+          ytDlp: s.ytDlp!,
+          ffmpeg: config.ffmpeg.ffmpeg,
+          ...(body.cookiesFromBrowser ? { cookiesFromBrowser: body.cookiesFromBrowser } : {}),
+          title: audio.title,
+          durationMs: audio.durationMs,
+        })
+        return reply(mediaId, {
+          durationMs: audio.durationMs,
+          title: audio.title,
+          via: 'yt-dlp',
+          state: 'downloading',
+        })
+      } catch (err) {
+        return toResponse(c, err)
+      }
+    })
+    app.get('/v1/media/relay/:id', (c) => {
+      const status = s.relays.status(c.req.param('id'))
+      if (!status) return jsonError(c, 'NOT_FOUND', 'unknown or expired relay', 404)
+      return c.json(status satisfies RelayStatusResponse)
+    })
+    app.on(['GET', 'HEAD'], '/v1/relay/:id', async (c) => {
+      const relay = s.relays.get(c.req.param('id'))
+      if (!relay) return jsonError(c, 'NOT_FOUND', 'unknown or expired relay', 404)
+      try {
+        return await relayResponse(relay, c.req.raw)
+      } catch (err) {
+        return jsonError(c, 'MEDIA_UNREACHABLE', `relay failed: ${String(err)}`, 502)
+      }
+    })
+
     // --- captions ahead of playback (ADR-0020) ---
     app.post('/v1/url/:id/focus', async (c) => {
       const job = s.jobs.get(c.req.param('id'))

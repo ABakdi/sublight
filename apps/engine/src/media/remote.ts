@@ -111,6 +111,8 @@ export async function resolveRemote(
   mediaUrl?: string,
   userAgent?: string,
   cookiesFromBrowser?: string,
+  /** yt-dlp format: the best audio by default (captions); `PLAYABLE_FORMAT` for the Player. */
+  format = 'bestaudio/best',
 ): Promise<RemoteMedia> {
   if (isHttp(mediaUrl)) {
     const headers: Record<string, string> = { Referer: pageUrl }
@@ -133,7 +135,7 @@ export async function resolveRemote(
       '--no-playlist',
       '--no-warnings',
       '-f',
-      'bestaudio/best',
+      format,
       // YouTube needs a JavaScript runtime for its signatures; use ours.
       '--js-runtimes',
       `node:${process.execPath}`,
