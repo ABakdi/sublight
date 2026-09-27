@@ -1,7 +1,7 @@
 ---
 tags: [plan, milestone]
-status: in-progress
-updated: 2026-09-25
+status: done
+updated: 2026-09-27
 ---
 
 # M05 — Extension overlay (any site, live captioning)
@@ -26,10 +26,10 @@ updated: 2026-09-25
 - [x] **M05.3** — Overlay integration (shared component) with live cue scheduler; pause/seek handling.
 - [x] **M05.4** — Capture: same-origin captureStream; tabCapture fallback with permission flow UX; stream chunks + anchor to engine; capture lifecycle tied to page visibility.
 - [x] **M05.5** — Live captioning loop (rolling window) with draft cues; progress in popup.
-- [ ] **M05.6** — Post-capture refinement + translation wiring; track stored in `chrome.storage.session` (transient) + optional save to project (player import).
-- [ ] **M05.7** — Popup + options UIs (style controls bound to overlay schema; language picker; pairing; model picker).
-- [ ] **M05.8** — yt-dlp toggle (power feature): engine-side fetch + transcribe without watching.
-- [ ] **M05.9** — Site matrix harness: YouTube, Vimeo, embedded iframe players, generic `<video>` pages — automated smoke + manual checklist ([checkpoint contacts](../../checkpoints/Beta-1-Checklist.md)).
+- [x] **M05.6** — Post-capture refinement + translation wiring; track stored in `chrome.storage.session` (transient) + optional save to project (player import). Refinement on Stop; English live through Whisper `translate`; the refined track translates to any language from the quick controls (LLM, from the playhead on) and "Download SRT" saves what's shown. Into a Player project: **Open in Sublight Player** plus "Caption this video" there, which reuses the engine's cached result for the page (M05b), or SRT import.
+- [x] **M05.7** — Popup + options UIs (style controls bound to overlay schema; language picker; pairing; model picker). Options → **Caption style** (colors, background, font, weight, edge, letters, align, opacity) with a live preview drawn by the shared overlay, applied to open pages at once; size and position in the popup; "Translate to" on the video; spoken language and models in Options; one-click pairing.
+- [x] **M05.8** — yt-dlp toggle (power feature): engine-side fetch + transcribe without watching. Superseded by [ADR-0020](../../architecture/decisions/0020-caption-ahead-of-playback.md): engine fetching is the default, not a toggle ("Caption this video", "Download SRT" without watching), and M05b's relay reuses it.
+- [x] **M05.9** — Site matrix harness: YouTube, Vimeo, embedded iframe players, generic `<video>` pages — automated smoke + manual checklist ([checkpoint contacts](../../checkpoints/Beta-1-Checklist.md)). Automated: `pnpm e2e:extension` (generic, same-origin, cross-origin, iframe, feed, HLS fixtures; real ASR with `E2E_REAL_ASR=1`) and `e2e/checkpoint/real-sites.mjs` (real YouTube: first caption, sync against the SRT, seek, speed, next video, memory). Manual: rows T1–T6 of the Beta-1 checklist.
 
 ## Progress (pulled forward, 2026-09-25)
 
@@ -93,7 +93,7 @@ Live capture can't be exact: it only hears audio once it has played (~2–3 s be
 - [x] Popup redesign: video card, captions card with timeline, display, download, "More" (live, test captions).
 - [x] Measured on YouTube: first captions ~10 s after start (held), words shown a median 23–28 ms after their timestamps, 15-min SRT in 94 s. Direct file (JFK): within 25–35 ms of the speech.
 - [x] e2e: "Caption this video" missing-model error; direct-URL captions + sentence SRT (real ASR). Not yet run in CI: they need port 17421 free.
-- [ ] Login-walled sites (yt-dlp cookies), per-site yt-dlp failures in the real-browser matrix, Firefox.
+- [x] Login-walled sites: the opt-in browser login (fourth round). Per-site yt-dlp failures go to the [Beta-1 checkpoint](../../checkpoints/Beta-1-Checklist.md) matrix; Firefox is [M08](08-Firefox.md).
 
 ### Fourth round (2026-09-26): quick controls and short-form feeds ([ADR-0021](../../architecture/decisions/0021-quick-controls-and-short-video-feeds.md))
 
@@ -107,14 +107,20 @@ Live capture can't be exact: it only hears audio once it has played (~2–3 s be
 - [x] Jobs end with their tab: close/reload/leave cancels; engine leases with keep-alive for `url` and `translate` jobs.
 - [x] English translation quality: an Options choice, Fast (Whisper, ahead) or Better (LLM on the transcript: accurate, 1:1 with the original, ~0.8× real time on the T1000).
 - [x] "Better" English translates from the playhead first (`fromMs` on translate jobs): first lines ~19 s after the transcript.
-- [ ] Start "Better" English before the whole transcript is done (interleaving whisper and the LLM on 4 GB costs a model swap per switch).
-- [ ] Instagram with the login setting on (needs the user's session); translation speed in fast feeds (LLM ↔ Whisper swap on 4 GB).
+- Moved to [M07](07-Polish-Editing.md) (M07.7): start "Better" English before the whole transcript is done (interleaving whisper and the LLM on 4 GB costs a model swap per switch), and translation speed in fast feeds (the same swap).
+- Moved to the [Beta-1 checkpoint](../../checkpoints/Beta-1-Checklist.md): Instagram with the login setting on (needs a real user session).
 
 ### Still open
 
-- [ ] M05.8 yt-dlp toggle: folded into M05b's engine relay.
+- [x] M05.8 yt-dlp toggle: superseded by ADR-0020, reused by M05b's engine relay.
 - [x] Vimeo checked (2026-09-26): yt-dlp resolves it, but the audio is FairPlay-encrypted HLS; now refused up front as `MEDIA_PROTECTED` with a clear message instead of a decode error.
 - [x] Hide the site's own captions while ours are on (text tracks + known player caption layers; restored after).
+
+## Closed (2026-09-27)
+
+- Refined live captions translate from the quick controls (M05.6); Options → Caption style with a live preview (M05.7).
+- Gaps found early, now settled: captions over the control bar (fixed: margin 14 % of the video height); live drafts marked as provisional (⧗ and a lighter look, [Spec 05 §6](../../specification/05-Overlay-Rendering.md#6-draft-vs-final-rendering)). The content script still bundles React and the overlay into every frame (268 kB, 85 kB gzipped): lazy loading moves to M07.7.
+- Acceptance criteria, checked on the way (details in the rounds above): 1 YouTube ✅ (live ~3 s behind, exact ahead of playback; seek, pause, new video); 2 generic page and iframe ✅, Vimeo refused up front as DRM ✅; 3 popup size/position and Options style apply at once and persist ✅; 4 DRM explained, never silent ✅ (tab-capture silence notice, `MEDIA_PROTECTED`); 5 captions render on the video in every flow ✅; 6 one overlay per video, the Player page refuses a second one ✅. They are re-run on both browsers at the [Beta-1 checkpoint](../../checkpoints/Beta-1-Checklist.md).
 
 ## Acceptance criteria
 
@@ -133,7 +139,7 @@ Live capture can't be exact: it only hears audio once it has played (~2–3 s be
 ## Open questions
 
 - YouTube fullscreen behavior (video container resize, `document.fullscreenElement`) — resolved in M05.2/M05.9 with a dedicated fixture.
-- Whether live drafts should appear with a "draft" tint so users know refinement is coming (nice; do it).
+- ~~Whether live drafts should appear with a "draft" tint~~: done (⧗ badge and lighter text, Spec 05 §6).
 
 ## Related
 

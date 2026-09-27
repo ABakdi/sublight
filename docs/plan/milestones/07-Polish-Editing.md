@@ -1,7 +1,7 @@
 ---
 tags: [plan, milestone]
 status: not-started
-updated: 2026-09-23
+updated: 2026-09-27
 ---
 
 # M07 — Editor & polish
@@ -12,7 +12,7 @@ updated: 2026-09-23
 
 - **Subtitle editor** (in player + basic in extension popup): seek-to-cue, edit text, split/merge cues, word-level adjust (kicks in word timestamps), delete/insert; undo/redo history.
 - **Sync fine-tuning**: per-track nudge, per-cue offset, "shift all after here"; visual waveform/word bar (audio in the player is local so we can draw it — powered by engine-returned word timings, not a wheel).
-- Prefs surface: style schema editor, default model picks, default target language, glossary management, cache/disk management, engine health & logs view.
+- Prefs surface: style schema editor (the extension's Options has one since M05.7; the Player's Style panel since M01), default model picks, default target language, glossary management, cache/disk management, engine health & logs view.
 - Keyboard shortcuts everywhere relevant; small-screen/fullscreen behavior for the overlay.
 - Performance + reliability hardening per [Spec 10](../../specification/10-Non-Goals-And-Failure-Modes.md): memory bounds, long-video chunking, queue UX (nested/interactive), retry semantics.
 - Beta-1 checkpoint findings triaged into this milestone (the checkpoint is the backlog source).
@@ -25,6 +25,7 @@ updated: 2026-09-23
 - [ ] **M07.4** — Prefs app: style editor (live preview pane), defaults, glossary CRUD, cache eviction UI, engine status/logs viewer.
 - [ ] **M07.5** — Perf pass: long-video memory, overlay render throttling (rAF scheduling), WS backpressure, service-worker wake budget.
 - [ ] **M07.6** — Triage Beta-1 checkpoint: every finding either fixed here or routed to a later milestone/ADR with owner.
+- [ ] **M07.7** — Carried from [M05](05-Extension-Overlay.md): load the overlay lazily instead of bundling React into every frame (content script 268 kB, 85 kB gzipped); start "Better" English (LLM) before the whole transcript is done, and speed up translation in fast feeds, both limited by the whisper ↔ LLM swap on 4 GB.
 
 ## Acceptance criteria
 

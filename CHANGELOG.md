@@ -6,6 +6,11 @@ moves **Unreleased** under a new version.
 
 ## [Unreleased]
 
+### Extension
+
+- Refined live captions translate to any language from the quick controls, with "Show both" and SRT download of the translation.
+- Options → Caption style: text and background colors, font, weight, edge, letters, alignment and opacity, with a live preview; open pages restyle at once.
+
 ### Security (baseline pass 1)
 
 - Page-supplied URLs reach only the internet (`allowPrivateNetworks` opts in); the relay serves media only; ffmpeg reads remote inputs over network protocols only; request bodies and Player downloads are bounded.

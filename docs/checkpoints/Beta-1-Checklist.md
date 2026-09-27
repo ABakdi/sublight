@@ -57,6 +57,7 @@ updated: 2026-09-23
 - First-run model download UX (network needed, can be slow) — flag if > 3 min without feedback.
 - Firefox parity — NOT in Beta 1 (that's M08).
 - Editor polish — deliberately minimal at Beta 1 (M07 ships it); only text-fix in popup.
+- Carried from M05: per-site yt-dlp failures on real sites (T1–T6), Instagram with the browser-login setting on (needs a real session), and translating refined live captions (T1 + T8).
 
 ## Triage routing reminder (from [README](README.md))
 
