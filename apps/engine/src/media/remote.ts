@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { JobError } from '../jobs/queue'
+import { assertPublicUrl } from './net'
 import { run, type FfmpegBinaries } from './ffmpeg'
 
 /**
@@ -21,6 +22,8 @@ export interface RemoteDeps {
   ffmpeg: FfmpegBinaries
   /** yt-dlp executable, or null when not installed. */
   ytDlp: string | null
+  /** Fetch from this computer and the local network too (`config.allowPrivateNetworks`). */
+  allowPrivateNetworks?: boolean
 }
 
 /** The installed yt-dlp: `~/.sublight/bin/yt-dlp` (pnpm engine:setup-ytdlp), else none. */
@@ -34,9 +37,15 @@ const isHttp = (url: string | undefined): url is string => !!url && /^https?:\/\
 export function headerArgs(headers: Record<string, string>): string[] {
   const lines = Object.entries(headers)
     .filter(([k]) => !/^(accept-encoding|cookie)$/i.test(k))
-    .map(([k, v]) => `${k}: ${v}\r\n`)
+    // A value can't start a header of its own (security baseline A8).
+    .map(([k, v]) => `${k.replace(/[^\w-]/g, '')}: ${v.replace(/[\r\n]+/g, ' ')}\r\n`)
     .join('')
-  return lines ? ['-headers', lines] : []
+  return [
+    // Remote inputs stay remote: a manifest can't point ffmpeg at local files.
+    '-protocol_whitelist',
+    'http,https,tls,tcp,crypto,data,httpproxy',
+    ...(lines ? ['-headers', lines] : []),
+  ]
 }
 
 /** Duration of a remote input, ms, or null when ffprobe can't read it. */
@@ -126,7 +135,10 @@ export async function resolveRemote(
   /** yt-dlp format: the best audio by default (captions); `PLAYABLE_FORMAT` for the Player. */
   format = 'bestaudio/best',
 ): Promise<RemoteMedia> {
+  const allowPrivate = deps.allowPrivateNetworks ?? false
+  await assertPublicUrl(pageUrl, allowPrivate)
   if (isHttp(mediaUrl)) {
+    await assertPublicUrl(mediaUrl, allowPrivate)
     const headers: Record<string, string> = { Referer: pageUrl }
     if (userAgent) headers['User-Agent'] = userAgent
     const durationMs = await probeDuration(deps.ffmpeg, mediaUrl, headers)
@@ -153,6 +165,7 @@ export async function resolveRemote(
       `node:${process.execPath}`,
       // Opt-in, for sites that need a login (Instagram): the user's own browser cookies.
       ...(cookiesFromBrowser ? ['--cookies-from-browser', cookiesFromBrowser] : []),
+      '--',
       pageUrl,
     ],
     60_000,
@@ -191,6 +204,7 @@ export async function resolveRemote(
   const headers = info.http_headers ?? audio?.http_headers ?? {}
   if (!isHttp(input))
     throw new JobError('MEDIA_UNREACHABLE', 'yt-dlp found no audio URL', false, 422)
+  await assertPublicUrl(input, allowPrivate)
   if (info.protocol?.includes('m3u8') || /m3u8/i.test(input))
     await assertNotProtected(input, headers)
   const durationMs =

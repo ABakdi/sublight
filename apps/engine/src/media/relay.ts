@@ -3,10 +3,16 @@ import { randomBytes } from 'node:crypto'
 import { createReadStream, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
+import { JobError } from '../jobs/queue'
 import { headerArgs, type RemoteMedia } from './remote'
 
 /** How long a relay handle works: longer than a film, shorter than a signed CDN URL. */
 export const RELAY_TTL_MS = 6 * 60 * 60 * 1000
+
+/** Bounds on preparing videos for the Player (baseline: relay jobs were unbounded). */
+export const MAX_ACTIVE_DOWNLOADS = 2
+const DOWNLOAD_TIMEOUT_MS = 45 * 60 * 1000
+const MAX_DOWNLOAD_BYTES = 8 * 1024 ** 3
 
 /**
  * yt-dlp format for a pass-through relay: one file with both video and audio
@@ -79,6 +85,7 @@ export class RelayStore {
   ): string {
     if (!this.dir) throw new Error('relay downloads need a cache directory')
     this.prune(now)
+    this.assertRoom()
     const id = randomBytes(16).toString('hex')
     const path = join(this.dir, `${id}.mp4`)
     const relay: Relay = {
@@ -107,11 +114,15 @@ export class RelayStore {
       '--postprocessor-args',
       'Merger+ffmpeg:-movflags +faststart',
       ...(opts.cookiesFromBrowser ? ['--cookies-from-browser', opts.cookiesFromBrowser] : []),
+      '--max-filesize',
+      String(MAX_DOWNLOAD_BYTES),
       '-o',
       path,
+      '--',
       pageUrl,
     ]
     const child = spawn(opts.ytDlp, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const timedOut = this.deadline(child)
     // Two downloads (video, then audio): count them as halves of the whole.
     let part = 0
     let last = 0
@@ -130,8 +141,12 @@ export class RelayStore {
       stderr = (stderr + d.toString()).slice(-4000)
     })
     child.on('close', (code) => {
+      clearTimeout(timedOut.timer)
       // yt-dlp can exit 0 without merging (no ffmpeg): only a real file is ready.
-      if (code === 0 && existsSync(path)) {
+      if (timedOut.fired) {
+        relay.state = 'failed'
+        relay.error = 'preparing this video took too long'
+      } else if (code === 0 && existsSync(path)) {
         relay.state = 'ready'
         relay.progress = 1
       } else if (code === 0) {
@@ -158,6 +173,7 @@ export class RelayStore {
   remux(media: RemoteMedia, ffmpeg: string, now = Date.now()): string {
     if (!this.dir) throw new Error('relay downloads need a cache directory')
     this.prune(now)
+    this.assertRoom()
     const id = randomBytes(16).toString('hex')
     const path = join(this.dir, `${id}.mp4`)
     const relay: Relay = {
@@ -186,10 +202,13 @@ export class RelayStore {
         'copy',
         '-movflags',
         '+faststart',
+        '-fs',
+        String(MAX_DOWNLOAD_BYTES),
         path,
       ],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     )
+    const timedOut = this.deadline(child)
     let stderr = ''
     child.stdout.on('data', (d: Buffer) => {
       const m = /out_time_us=(\d+)/.exec(d.toString())
@@ -200,7 +219,11 @@ export class RelayStore {
       stderr = (stderr + d.toString()).slice(-4000)
     })
     child.on('close', (code) => {
-      if (code === 0 && existsSync(path)) {
+      clearTimeout(timedOut.timer)
+      if (timedOut.fired) {
+        relay.state = 'failed'
+        relay.error = 'preparing this video took too long'
+      } else if (code === 0 && existsSync(path)) {
         relay.state = 'ready'
         relay.progress = 1
       } else {
@@ -209,6 +232,31 @@ export class RelayStore {
       }
     })
     return id
+  }
+
+  /** At most `MAX_ACTIVE_DOWNLOADS` videos being prepared at once. */
+  private assertRoom(): void {
+    const active = [...this.relays.values()].filter(
+      (r) => r.kind === 'file' && r.state === 'downloading',
+    ).length
+    if (active >= MAX_ACTIVE_DOWNLOADS)
+      throw new JobError(
+        'MEDIA_UNREACHABLE',
+        `${active} videos are already being prepared for the Player: try again when one is ready`,
+        true,
+        429,
+      )
+  }
+
+  /** Kill a download that runs past `DOWNLOAD_TIMEOUT_MS`. */
+  private deadline(child: ReturnType<typeof spawn>): { timer: NodeJS.Timeout; fired: boolean } {
+    const d = { fired: false, timer: undefined as unknown as NodeJS.Timeout }
+    d.timer = setTimeout(() => {
+      d.fired = true
+      child.kill('SIGKILL')
+    }, DOWNLOAD_TIMEOUT_MS)
+    d.timer.unref()
+    return d
   }
 
   get(id: string, now = Date.now()): Relay | null {
@@ -304,6 +352,10 @@ export async function relayResponse(relay: Relay, request: Request): Promise<Res
   }
   if (!out.has('accept-ranges')) out.set('accept-ranges', 'bytes')
   out.set('cache-control', 'no-store')
+  // Media, never a page: the relay shares the origin that approves pairings (baseline A5).
+  if (!/^(video|audio)\//i.test(out.get('content-type') ?? ''))
+    out.set('content-type', 'application/octet-stream') // downloaded, never rendered
+  out.set('content-security-policy', 'sandbox')
   return new Response(request.method === 'HEAD' ? null : upstream.body, {
     status: upstream.status,
     headers: out,
