@@ -43,6 +43,8 @@ const config: EngineConfig = {
   llama: { port: 17998, gpu: 'off', threads: 2, contextTokens: 4096 },
   ffmpeg: SYSTEM_FFMPEG,
   player: { port: 0 },
+  devOrigins: true,
+  allowPrivateNetworks: true,
 }
 const H = { host: '127.0.0.1:17421', authorization: `Bearer ${config.token}` }
 

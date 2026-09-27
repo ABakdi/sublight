@@ -25,6 +25,9 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
         autoRetry: true,
         cacheLimits: { mediaBytes: 20 * 1024 ** 3 },
         player: { port: E2E_SERVED_PLAYER_PORT },
+        // The dev Player (:5173) and the local fixture sites.
+        devOrigins: true,
+        allowPrivateNetworks: true,
       },
       null,
       2,

@@ -14,6 +14,8 @@ const config: EngineConfig = {
   llama: { port: 17423, gpu: 'off', threads: 4, contextTokens: 4096 },
   ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
   player: { port: 17420 },
+  devOrigins: true,
+  allowPrivateNetworks: true,
 }
 
 const HOST = { host: '127.0.0.1:17421' } as const
@@ -26,6 +28,13 @@ describe('engine auth + health (Protocol §2-§3)', () => {
     expect(res.status).toBe(401)
     const body = (await res.json()) as { error: { code: string } }
     expect(body.error.code).toBe('UNAUTHORIZED')
+  })
+
+  it('marks API answers as not cacheable', async () => {
+    const res = await app.request('/v1/health', {
+      headers: { ...HOST, authorization: 'Bearer ' + config.token },
+    })
+    expect(res.headers.get('cache-control')).toBe('no-store')
   })
 
   it('rejects a wrong token', async () => {

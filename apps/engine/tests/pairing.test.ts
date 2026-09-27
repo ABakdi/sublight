@@ -10,6 +10,7 @@ const config = {
   port: 17421,
   allowedOrigins: [],
   player: { port: 17420 },
+  devOrigins: true,
 } as unknown as EngineConfig
 const EXT = `chrome-extension://${DEV_EXTENSION_ID}`
 const SELF = 'http://127.0.0.1:17421'
