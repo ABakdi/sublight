@@ -91,7 +91,7 @@ export function describeError(err: unknown): CaptionError {
   const messages: Record<string, string> = {
     OFFLINE: 'The engine isn’t running. Start it with `sublight-engine start`, then try again.',
     UNAUTHORIZED:
-      'The engine rejected the saved token. Paste the current one (`pnpm engine:token`).',
+      'The engine no longer accepts this Player (its token was replaced): pair again from the Caption tab.',
     AUDIO_EMPTY: 'This video’s audio is silent, so there is nothing to transcribe.',
     AUDIO_UNSUPPORTED: 'The engine found no audio track it can read in this file.',
     MEDIA_TOO_LARGE: 'The file is larger than the engine’s upload limit.',

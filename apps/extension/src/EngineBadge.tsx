@@ -14,9 +14,9 @@ export function engineHint(status: EngineStatus): string {
     case 'online':
       return `v${status.version} · protocol ${status.protocol}`
     case 'no-token':
-      return 'Paste the engine token in Options (run `pnpm engine:token`).'
+      return 'Not paired yet: click “Pair with the engine”.'
     case 'unauthorized':
-      return 'The saved token does not match the engine. Paste it again in Options.'
+      return 'The engine no longer accepts this browser (its token was replaced): pair again.'
     case 'refused':
       return status.detail
     case 'offline':

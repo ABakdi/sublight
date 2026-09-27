@@ -27,8 +27,53 @@ import type { EngineStatus } from '../../src/messages'
 import { button, colors, primaryButton } from '../../src/ui'
 
 /**
+ * "Unpair every app" (M06.3): the engine makes a new token, so this browser,
+ * the Player and anything else paired must pair again. Asks first.
+ */
+function UnpairAll({ onDone }: { onDone: () => void }) {
+  const [confirming, setConfirming] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const unpair = async () => {
+    setError(null)
+    try {
+      await engineRequest('/v1/token/rotate', { method: 'POST' })
+      await setToken('')
+      setConfirming(false)
+      onDone()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+  return (
+    <div style={{ marginTop: 14, fontSize: 12, color: colors.muted, lineHeight: 1.5 }}>
+      {confirming ? (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ color: colors.text }}>
+            Every browser and Player paired with this engine will have to pair again.
+          </span>
+          <button data-testid="unpair-all-yes" style={button} onClick={() => void unpair()}>
+            Unpair all
+          </button>
+          <button style={button} onClick={() => setConfirming(false)}>
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <>
+          Lost a device, or shared the token by mistake?{' '}
+          <button data-testid="unpair-all" style={button} onClick={() => setConfirming(true)}>
+            Unpair every app
+          </button>
+        </>
+      )}
+      {error && <div style={{ color: colors.bad, marginTop: 6 }}>{error}</div>}
+    </div>
+  )
+}
+
+/**
  * Options (Spec 09 §7): engine pairing (one click, ADR-0022, or paste the
- * token from `pnpm engine:token`), captions, fetching, translation, shortcuts.
+ * token from `sublight-engine token`), captions, fetching, translation, shortcuts.
  */
 export function OptionsApp() {
   const [token, setTokenInput] = useState('')
@@ -92,7 +137,7 @@ export function OptionsApp() {
           }
         />
         <p style={{ fontSize: 12, color: colors.muted, margin: '14px 0 8px' }}>
-          Or paste the token printed by <code>pnpm engine:token</code>:
+          Or paste the token printed by <code>sublight-engine token</code>:
         </p>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
           Engine token
@@ -124,6 +169,14 @@ export function OptionsApp() {
         <div style={{ marginTop: 14 }}>
           <EngineBadge status={status} />
         </div>
+        {status?.state === 'online' && (
+          <UnpairAll
+            onDone={() => {
+              setTokenInput('')
+              void probeEngine().then(setStatus)
+            }}
+          />
+        )}
       </section>
 
       <LiveSettings online={status?.state === 'online'} />

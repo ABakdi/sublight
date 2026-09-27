@@ -532,4 +532,30 @@ test.describe('extension in Chromium (Spec 09)', () => {
       })
     await expect.poll(box).toBe('flex-start') // top
   })
+
+  test('Unpair every app asks first, then forgets the token (M06.3)', async () => {
+    await assertEngineAlive()
+    const options = await context.newPage()
+    // The engine's side is unit-tested; a real rotation would unpair the tests running beside this one.
+    let rotated = 0
+    await options.route('**/v1/token/rotate', (route) => {
+      rotated++
+      return route.fulfill({ json: { ok: true } })
+    })
+    await options.goto(`${EXT}/options.html`)
+    await options.getByTestId('token-input').fill(E2E_TOKEN)
+    await options.getByTestId('token-save').click()
+    await expect(options.getByTestId('engine-status')).toHaveAttribute('data-state', 'online')
+    await options.getByTestId('unpair-all').click()
+    expect(rotated).toBe(0)
+    await options.getByTestId('unpair-all-yes').click()
+    await expect(options.getByTestId('engine-status')).toHaveAttribute('data-state', 'no-token')
+    expect(rotated).toBe(1)
+    await expect(options.getByTestId('token-input')).toHaveValue('')
+    // Paired again for the tests that follow in this worker's browser.
+    await options.getByTestId('token-input').fill(E2E_TOKEN)
+    await options.getByTestId('token-save').click()
+    await expect(options.getByTestId('engine-status')).toHaveAttribute('data-state', 'online')
+    await options.close()
+  })
 })
