@@ -6,6 +6,7 @@ import { autostart, currentLaunch } from './autostart'
 import { loadConfig, sublightHome } from './config'
 import { ENGINE_VERSION } from './health'
 import { enginePaths } from './paths'
+import { findPlayerDir } from './player-server'
 import { enginePidFile, runServer } from './server'
 import { transcribe } from './transcribe-cli'
 
@@ -38,6 +39,14 @@ async function health(): Promise<HealthResponse | null> {
 }
 
 const url = () => `http://127.0.0.1:${loadConfig().port}`
+
+/** " · Player at …" when this engine serves one. */
+function playerNote(): string {
+  const { player } = loadConfig()
+  return player.port > 0 && findPlayerDir(player.dir)
+    ? ` · Player at http://127.0.0.1:${player.port}/`
+    : ''
+}
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 function alive(pid: number): boolean {
@@ -60,12 +69,14 @@ function readPid(): number | null {
 
 async function start(args: string[]): Promise<number | null> {
   if (await health()) {
-    console.log(`the engine is already running at ${url()}`)
+    console.log(`the engine is already running at ${url()}${playerNote()}`)
     return 0
   }
   if (!args.includes('--detach')) {
     const { port } = await runServer()
-    console.log(`sublight engine ${ENGINE_VERSION} at http://127.0.0.1:${port} (Ctrl+C stops it)`)
+    console.log(
+      `sublight engine ${ENGINE_VERSION} at http://127.0.0.1:${port}${playerNote()} (Ctrl+C stops it)`,
+    )
     return null // keep running
   }
   // Same program, same runtime flags (tsx in development), in its own session.
@@ -81,7 +92,7 @@ async function start(args: string[]): Promise<number | null> {
   for (let i = 0; i < 60; i++) {
     await sleep(250)
     if (await health()) {
-      console.log(`sublight engine started at ${url()} (pid ${child.pid})`)
+      console.log(`sublight engine started at ${url()}${playerNote()} (pid ${child.pid})`)
       return 0
     }
     if (child.exitCode !== null) break

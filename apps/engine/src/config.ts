@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { randomBytes } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { ENGINE_DEFAULT_PORT } from '@sublight/protocol'
+import { ENGINE_DEFAULT_PORT, PLAYER_DEFAULT_PORT } from '@sublight/protocol'
 
 /**
  * Engine config (Spec 06 §1, Spec 02 §5): `~/.sublight/config.json`
@@ -42,6 +42,12 @@ export interface EngineConfig {
     contextTokens: number
   }
   ffmpeg: { ffmpeg: string; ffprobe: string }
+  /** The built Player, served on its own origin (`0` turns it off; Spec 06 §1). */
+  player: {
+    port: number
+    /** The Player's build; default: `player/` next to the engine, or the repo's `apps/player/dist`. */
+    dir?: string
+  }
 }
 
 const DEFAULTS: Omit<EngineConfig, 'token'> = {
@@ -56,6 +62,7 @@ const DEFAULTS: Omit<EngineConfig, 'token'> = {
   whisper: { port: 17422, gpu: 'auto', threads: 4 },
   llama: { port: 17423, gpu: 'auto', threads: 4, contextTokens: 4096 },
   ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
+  player: { port: PLAYER_DEFAULT_PORT },
 }
 
 export function sublightHome(): string {
@@ -88,6 +95,7 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
     whisper: { ...DEFAULTS.whisper, ...(raw?.whisper ?? {}) },
     llama: { ...DEFAULTS.llama, ...(raw?.llama ?? {}) },
     ffmpeg: { ...DEFAULTS.ffmpeg, ...(raw?.ffmpeg ?? {}) },
+    player: { ...DEFAULTS.player, ...(raw?.player ?? {}) },
   }
   // A freshly generated token must survive restarts, or every paired client breaks.
   if (!hasToken) writeFileSync(file, JSON.stringify(base, null, 2) + '\n', 'utf8')
@@ -101,8 +109,13 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
     whisper: { ...base.whisper, ...(overrides?.whisper ?? {}) },
     llama: { ...base.llama, ...(overrides?.llama ?? {}) },
     ffmpeg: { ...base.ffmpeg, ...(overrides?.ffmpeg ?? {}) },
+    player: { ...base.player, ...(overrides?.player ?? {}) },
   }
   const port = Number(envPort)
   if (envPort && Number.isInteger(port) && port > 0 && port < 65536) merged.port = port
+  const envPlayerPort = process.env.SUBLIGHT_PLAYER_PORT
+  const playerPort = Number(envPlayerPort)
+  if (envPlayerPort && Number.isInteger(playerPort) && playerPort >= 0 && playerPort < 65536)
+    merged.player = { ...merged.player, port: playerPort }
   return merged
 }

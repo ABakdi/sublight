@@ -9,6 +9,7 @@ const config = {
   token: 'p'.repeat(64),
   port: 17421,
   allowedOrigins: [],
+  player: { port: 17420 },
 } as unknown as EngineConfig
 const EXT = `chrome-extension://${DEV_EXTENSION_ID}`
 const SELF = 'http://127.0.0.1:17421'
@@ -77,5 +78,16 @@ describe('one-click pairing (ADR-0022)', () => {
     const r = store.request(EXT, 0)
     expect(store.get(r.id, 4 * 60 * 1000)).not.toBeNull()
     expect(store.get(r.id, 6 * 60 * 1000)).toBeNull()
+  })
+
+  it('lets the Player the engine serves pair, from its own origin', async () => {
+    const app = createApp(config)
+    const res = await post(app, '/v1/pair/request', 'http://127.0.0.1:17420', {})
+    expect(res.status).toBe(200)
+    const { requestId } = (await res.json()) as { requestId: string }
+    const page = await app.request(`/pair?request=${requestId}`, {
+      headers: { host: '127.0.0.1:17421' },
+    })
+    expect(await page.text()).toContain('The Sublight Player')
   })
 })

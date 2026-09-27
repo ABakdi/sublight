@@ -4,7 +4,8 @@ import { join } from 'node:path'
 import { serve } from '@hono/node-server'
 import { loadConfig } from './config'
 import { createApp } from './app'
-import { allowedOrigins } from './auth'
+import { allowedOrigins, playerOrigins } from './auth'
+import { findPlayerDir, servePlayer } from './player-server'
 import { Logger } from './logger'
 import { enginePaths } from './paths'
 import { createServices } from './services'
@@ -66,10 +67,26 @@ export function runServer(): Promise<{ port: number }> {
   attachWebSocket(server, {
     port: config.port,
     token: config.token,
-    origins: allowedOrigins(config.allowedOrigins),
+    origins: allowedOrigins([...config.allowedOrigins, ...playerOrigins(config.player.port)]),
     bus: services.bus,
   })
   services.jobs.start()
+
+  // The Player, when it's built (Spec 06 §1): a missing build or a busy port
+  // costs the Player only, never the engine.
+  let player: Server | null = null
+  const playerDir = config.player.port > 0 ? findPlayerDir(config.player.dir) : null
+  if (config.player.port > 0 && !playerDir)
+    log.info('no Player build found (pnpm build, or player.dir in config.json)')
+  if (playerDir)
+    void servePlayer(playerDir, config.player.port).then(
+      (s) => {
+        player = s
+        log.info(`Player at http://127.0.0.1:${config.player.port}/`, { dir: playerDir })
+      },
+      (err: NodeJS.ErrnoException) =>
+        log.error(`the Player can't use port ${config.player.port}: ${err.code ?? err.message}`),
+    )
 
   let shuttingDown = false
   async function shutdown(signal: string) {
@@ -82,6 +99,7 @@ export function runServer(): Promise<{ port: number }> {
     await services.whisper.stop()
     await services.llama.stop()
     rmSync(pidFile, { force: true })
+    player?.close()
     server.close(() => process.exit(0))
   }
 

@@ -16,7 +16,14 @@ import type {
 } from '@sublight/protocol'
 import { COOKIE_BROWSERS, IDEMPOTENCY_KEY_HEADER } from '@sublight/protocol'
 import type { EngineConfig } from './config'
-import { allowedOrigins, bearerAuth, corsAllowlist, hostOriginGuard, jsonError } from './auth'
+import {
+  allowedOrigins,
+  bearerAuth,
+  playerOrigins,
+  corsAllowlist,
+  hostOriginGuard,
+  jsonError,
+} from './auth'
 import { probeGpu } from './gpu'
 import { buildHealth, buildVersion } from './health'
 import { JobError } from './jobs/queue'
@@ -80,7 +87,11 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
   const bootedAt = Date.now()
   // The engine's own pages (the pairing page) talk to it from its own origin.
   const selfOrigins = [`http://127.0.0.1:${config.port}`, `http://localhost:${config.port}`]
-  const origins = allowedOrigins([...config.allowedOrigins, ...selfOrigins])
+  const origins = allowedOrigins([
+    ...config.allowedOrigins,
+    ...playerOrigins(config.player.port),
+    ...selfOrigins,
+  ])
   const pairing = new PairingStore()
   const gpu = opts.gpu ?? probeGpu
   const s = opts.services

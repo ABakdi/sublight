@@ -21,6 +21,11 @@ export const DEFAULT_ORIGINS: readonly string[] = [
   `chrome-extension://${DEV_EXTENSION_ID}`,
 ]
 
+/** The Player the engine serves (`player.port`, 0 = off). */
+export function playerOrigins(playerPort: number): string[] {
+  return playerPort > 0 ? [`http://127.0.0.1:${playerPort}`, `http://localhost:${playerPort}`] : []
+}
+
 /** Built-ins plus `config.allowedOrigins` (packaged/store extension IDs). */
 export function allowedOrigins(extra: readonly string[] = []): Set<string> {
   return new Set([...DEFAULT_ORIGINS, ...extra])

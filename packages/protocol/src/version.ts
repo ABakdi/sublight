@@ -1,6 +1,8 @@
 /** Protocol constants (Spec 03 §1). */
 export const PROTOCOL_VERSION = 1 as const
 export const ENGINE_DEFAULT_PORT = 17421
+/** The engine serves the built Player here, on an origin of its own (not the engine's). */
+export const PLAYER_DEFAULT_PORT = 17420
 export const ENGINE_BASE_URL = `http://127.0.0.1:${ENGINE_DEFAULT_PORT}` as const
 export const WS_BASE_URL = `ws://127.0.0.1:${ENGINE_DEFAULT_PORT}` as const
 

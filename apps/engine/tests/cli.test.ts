@@ -32,6 +32,7 @@ describe('sublight-engine command (M06.2)', () => {
         port,
         whisper: { port: whisper, gpu: 'off', threads: 1 },
         llama: { port: llama, gpu: 'off', threads: 1, contextTokens: 1024 },
+        player: { port: 0 },
       }),
     )
     expect(run('status').status).toBe(3)

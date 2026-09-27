@@ -81,10 +81,10 @@ const escape = (s: string) =>
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
   )
 
-/** Who's asking, in words. */
+/** Who's asking, in words (a loopback web origin on the allowlist is a Player). */
 export function describeOrigin(origin: string): string {
   if (origin.startsWith('chrome-extension://')) return 'The sublight browser extension'
-  if (/^https?:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin)) return 'The Sublight Player'
+  if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return 'The Sublight Player'
   return origin
 }
 

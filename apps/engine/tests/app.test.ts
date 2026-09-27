@@ -13,6 +13,7 @@ const config: EngineConfig = {
   whisper: { port: 17422, gpu: 'off', threads: 4 },
   llama: { port: 17423, gpu: 'off', threads: 4, contextTokens: 4096 },
   ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
+  player: { port: 17420 },
 }
 
 const HOST = { host: '127.0.0.1:17421' } as const
