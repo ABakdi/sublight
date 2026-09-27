@@ -2,10 +2,10 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { JobCreation, OpenInPlayerPayload } from '@sublight/protocol'
-import { engine } from '../lib/engine'
+import { engine, EngineError } from '../lib/engine'
 import { DB_NAME, __resetDbForTests } from '../lib/idb'
 import { useCaptionStore } from './caption'
-import { usePlayerStore } from './player'
+import { pageVideoError, usePlayerStore } from './player'
 
 const payload = (sources: OpenInPlayerPayload['media']['sources']): OpenInPlayerPayload => ({
   version: 1,
@@ -107,5 +107,45 @@ describe('open in Sublight Player (M05b)', () => {
       model: 'whisper-small',
     })
     expect(usePlayerStore.getState().project!.tracks).toHaveLength(1)
+  })
+
+  it('plays an HLS page as a stream, and falls back to the engine if it can’t', async () => {
+    const resolve = vi.spyOn(engine, 'resolveMedia').mockResolvedValue({
+      mediaId: 'r2',
+      relayPath: '/v1/relay/r2',
+      durationMs: 60_000,
+      title: null,
+      via: 'direct',
+      state: 'ready',
+    })
+    await usePlayerStore
+      .getState()
+      .openFromPage(payload([{ kind: 'hls', url: 'https://cdn.test/master.m3u8' }]))
+    let s = usePlayerStore.getState()
+    expect(s.stream).toEqual({ kind: 'hls', url: 'https://cdn.test/master.m3u8' })
+    expect(s.project!.media.transport).toBe('hls')
+    expect(resolve).not.toHaveBeenCalled()
+    // hls.js gave up (no CORS on the CDN): the engine fetches the manifest.
+    await s.playbackFailed()
+    s = usePlayerStore.getState()
+    expect(resolve).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaUrl: 'https://cdn.test/master.m3u8' }),
+    )
+    expect(s.stream).toBeNull()
+    expect(s.videoObjectUrl).toBe(engine.relayUrl('/v1/relay/r2'))
+  })
+
+  it('explains why a page video can’t play, and what to do', async () => {
+    vi.spyOn(engine, 'resolveMedia').mockRejectedValue(
+      new EngineError('MEDIA_UNREACHABLE', 'yt-dlp is not installed', 422),
+    )
+    await usePlayerStore
+      .getState()
+      .openFromPage(payload([{ kind: 'engine-fetchable', url: 'https://site.test/watch?v=1' }]))
+    const err = usePlayerStore.getState().pageError!
+    expect(err.code).toBe('MEDIA_UNREACHABLE')
+    expect(err.captionOnPage).toBe(true)
+    expect(pageVideoError(new EngineError('OFFLINE', 'x')).message).toMatch(/engine isn’t running/)
+    expect(pageVideoError(new EngineError('MEDIA_PROTECTED', 'x', 422)).captionOnPage).toBe(false)
   })
 })

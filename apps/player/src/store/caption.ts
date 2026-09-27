@@ -59,7 +59,10 @@ function urlJob(
   language: string | null,
   task: AsrTask,
 ): JobCreation {
-  const direct = project.media.sources?.find((x) => x.kind === 'https-direct')
+  // The page's own file or manifest: ffmpeg reads either (HLS/DASH too).
+  const direct = project.media.sources?.find(
+    (x) => x.kind === 'https-direct' || x.kind === 'hls' || x.kind === 'dash',
+  )
   return {
     type: 'url',
     pageUrl: project.media.pageUrl!,

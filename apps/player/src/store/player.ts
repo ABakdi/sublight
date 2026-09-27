@@ -14,7 +14,8 @@ import {
   type SubtitleTrack,
 } from '@sublight/core'
 import type { OpenInPlayerPayload } from '@sublight/protocol'
-import { engine } from '../lib/engine'
+import { engine, EngineError } from '../lib/engine'
+import type { StreamKind } from '../lib/streaming'
 import { getSetting, loadProject, saveProject, saveProjectRow, setSetting } from '../lib/idb'
 import {
   mediaHandleKey,
@@ -42,6 +43,10 @@ export interface PlayerState {
   videoObjectUrl: string | null
   /** A page video the engine is fetching ("Preparing media…", 0..1), else null. */
   preparing: { progress: number } | null
+  /** A page video's HLS/DASH manifest, played with hls.js / dash.js (M05b.4). */
+  stream: { kind: StreamKind; url: string } | null
+  /** Why a page video can't play here, with what to do instead (M05b.6). */
+  pageError: PageVideoError | null
   /** The opened file itself, needed to upload it for captioning (null after a reload until re-attached). */
   videoFile: File | null
   error: string | null
@@ -57,6 +62,8 @@ export interface PlayerState {
   openFromPage: (payload: OpenInPlayerPayload) => Promise<void>
   /** The page's own URL wouldn't play here: fetch it through the engine instead. */
   playbackFailed: () => Promise<void>
+  /** Try a page video again (after starting the engine, say). */
+  retryPageVideo: () => Promise<void>
   backToLibrary: () => Promise<void>
   setError: (message: string | null) => void
   setActiveTrack: (trackId: string) => Promise<void>
@@ -75,6 +82,47 @@ export interface PlayerState {
     pair: { sourceTrackId: string; translationTrackId: string } | null,
   ) => Promise<void>
   setGlossary: (glossary: { source: string; target: string }[]) => Promise<void>
+}
+
+/** Why a page video can't play in the Player, and the way forward (M05b.6, Spec 10). */
+export interface PageVideoError {
+  code: string
+  message: string
+  /** Captioning it on its own page (the extension) is still possible. */
+  captionOnPage: boolean
+}
+
+export function pageVideoError(err: unknown): PageVideoError {
+  const code = err instanceof EngineError ? err.code : 'INTERNAL'
+  const detail = err instanceof Error ? err.message : String(err)
+  switch (code) {
+    case 'OFFLINE':
+      return {
+        code,
+        message:
+          'This video can only play here through the engine, and the engine isn’t running. Start it (pnpm dev:engine), then try again.',
+        captionOnPage: true,
+      }
+    case 'UNAUTHORIZED':
+      return {
+        code,
+        message: 'The engine rejected the Player’s token. Pair the Player again, then try again.',
+        captionOnPage: true,
+      }
+    case 'MEDIA_PROTECTED':
+      return {
+        code,
+        message:
+          'This video is DRM-protected: it can’t be played or captioned outside its own player.',
+        captionOnPage: false,
+      }
+    default:
+      return {
+        code,
+        message: `The engine couldn’t get this video (${detail}). Captioning it on its own page still works.`,
+        captionOnPage: true,
+      }
+  }
 }
 
 function msg(err: unknown): string {
@@ -155,20 +203,28 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
    */
   const resolvePlayback = async (project: SubtitleProject, skipDirect = false): Promise<void> => {
     const media = project.media
-    const direct = media.sources?.find((x) => x.kind === 'https-direct')
-    if (direct && !skipDirect) {
-      set({ videoObjectUrl: direct.url, preparing: null })
+    const own = media.sources?.find(
+      (x) => x.kind === 'https-direct' || x.kind === 'hls' || x.kind === 'dash',
+    )
+    if (own && !skipDirect) {
+      const transport = own.kind === 'https-direct' ? 'direct' : own.kind
+      set({
+        videoObjectUrl: own.kind === 'https-direct' ? own.url : null,
+        stream: own.kind === 'hls' || own.kind === 'dash' ? { kind: own.kind, url: own.url } : null,
+        preparing: null,
+        pageError: null,
+      })
       await commit((p) => {
-        p.media.transport = 'direct'
-        p.media.directUrl = direct.url
+        p.media.transport = transport as 'direct' | 'hls' | 'dash'
+        p.media.directUrl = own.url
       })
       return
     }
-    set({ videoObjectUrl: null, preparing: { progress: 0 }, error: null })
+    set({ videoObjectUrl: null, stream: null, preparing: { progress: 0 }, pageError: null })
     try {
       const resolved = await engine.resolveMedia({
         pageUrl: media.pageUrl!,
-        ...(direct ? { mediaUrl: direct.url } : {}),
+        ...(own ? { mediaUrl: own.url } : {}),
         ...(pageHints?.userAgent ? { userAgent: pageHints.userAgent } : {}),
         ...(pageHints?.cookiesFromBrowser
           ? { cookiesFromBrowser: pageHints.cookiesFromBrowser }
@@ -181,7 +237,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         const status = await engine.relayStatus(resolved.mediaId)
         state = status.state
         set({ preparing: { progress: status.progress } })
-        if (status.state === 'failed') throw new Error(status.error ?? 'the download failed')
+        if (status.state === 'failed')
+          throw new EngineError('MEDIA_UNREACHABLE', status.error ?? 'the download failed')
       }
       const url = engine.relayUrl(resolved.relayPath)
       if (get().project?.id !== project.id) return
@@ -193,10 +250,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         if (resolved.durationMs) p.media.durationMs = resolved.durationMs
       })
     } catch (err) {
-      set({
-        preparing: null,
-        error: `Couldn’t open this video here: ${msg(err)}. You can still caption it on its page with the sublight extension.`,
-      })
+      set({ preparing: null, pageError: pageVideoError(err) })
     }
   }
 
@@ -205,6 +259,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     project: null,
     videoObjectUrl: null,
     preparing: null,
+    stream: null,
+    pageError: null,
     videoFile: null,
     error: null,
 
@@ -256,8 +312,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     playbackFailed: async () => {
       const project = get().project
-      if (project?.media.kind !== 'page-video' || project.media.transport !== 'direct') return
+      const t = project?.media.transport
+      if (project?.media.kind !== 'page-video' || (t !== 'direct' && t !== 'hls' && t !== 'dash'))
+        return
       await resolvePlayback(project, true)
+    },
+
+    retryPageVideo: async () => {
+      const project = get().project
+      if (project?.media.kind === 'page-video') await resolvePlayback(project)
     },
 
     pickVideo: async () => {
@@ -318,6 +381,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         project: null,
         videoObjectUrl: null,
         preparing: null,
+        stream: null,
+        pageError: null,
         videoFile: null,
         error: null,
       })

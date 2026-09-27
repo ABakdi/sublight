@@ -3,6 +3,7 @@ import { SubtitleOverlay } from '@sublight/overlay'
 import { cuesForMode, type CaptionMode } from '@sublight/core'
 import { activeTrackOf, usePlayerStore } from '../store/player'
 import { hasFileSystemAccess } from '../lib/fileOpen'
+import { attachStream } from '../lib/streaming'
 import { TracksPanel } from './TracksPanel'
 import { StylePanel } from './StylePanel'
 import { CaptionPanel } from './CaptionPanel'
@@ -30,9 +31,37 @@ export function PlayerView() {
   const attachFile = usePlayerStore((s) => s.attachFile)
   const preparing = usePlayerStore((s) => s.preparing)
   const playbackFailed = usePlayerStore((s) => s.playbackFailed)
+  const stream = usePlayerStore((s) => s.stream)
+  const pageError = usePlayerStore((s) => s.pageError)
+  const retryPageVideo = usePlayerStore((s) => s.retryPageVideo)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
+
+  // HLS/DASH from a page (M05b.4): hls.js / dash.js drive the <video>; if the
+  // stream can't be played here, the engine fetches it instead.
+  useEffect(() => {
+    const video = videoRef.current
+    if (!stream || !video) return
+    const ctl = new AbortController()
+    let detach: (() => void) | null = null
+    void attachStream(
+      video,
+      stream.url,
+      stream.kind,
+      () => {
+        if (!ctl.signal.aborted) void playbackFailed()
+      },
+      ctl.signal,
+    ).then((d) => {
+      if (ctl.signal.aborted) d()
+      else detach = d
+    })
+    return () => {
+      ctl.abort()
+      detach?.()
+    }
+  }, [stream, playbackFailed])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [currentTime, setCurrentTime] = useState(0)
@@ -267,12 +296,12 @@ export function PlayerView() {
           ref={containerRef}
           className="relative min-w-0 flex-1 overflow-hidden rounded-xl border border-zinc-800 bg-black"
         >
-          {videoObjectUrl ? (
+          {videoObjectUrl || stream ? (
             <>
               <video
                 ref={videoRef}
                 data-testid="video"
-                src={videoObjectUrl}
+                src={videoObjectUrl ?? undefined}
                 className="h-full w-full object-contain"
                 playsInline
                 onClick={togglePlay}
@@ -330,8 +359,32 @@ export function PlayerView() {
                     />
                   </div>
                 </>
+              ) : pageError ? (
+                <>
+                  <p
+                    data-testid="page-video-error"
+                    data-code={pageError.code}
+                    className="max-w-md text-sm text-zinc-300"
+                  >
+                    {pageError.message}
+                  </p>
+                  {pageError.captionOnPage && (
+                    <p className="max-w-md text-xs text-zinc-500">
+                      On its page: sublight’s popup → Caption this video.
+                    </p>
+                  )}
+                  {pageError.code !== 'MEDIA_PROTECTED' && (
+                    <button
+                      type="button"
+                      className={ICON_BTN}
+                      onClick={() => void retryPageVideo()}
+                    >
+                      Try again
+                    </button>
+                  )}
+                </>
               ) : (
-                <p className="text-sm text-zinc-400">This video couldn&apos;t be opened here.</p>
+                <p className="text-sm text-zinc-400">Opening the video…</p>
               )}
               {project.media.pageUrl && (
                 <a

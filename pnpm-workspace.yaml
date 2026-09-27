@@ -34,6 +34,9 @@ catalog:
 
   # App state / data fetching
   zustand: ^5.0.15
+  # Player: HLS/DASH streams from pages opened in the Player (M05b.4), loaded on demand
+  hls.js: ^1.7.3
+  dashjs: ^5.2.1
 
   # Testing
   vitest: ^5.0.1
