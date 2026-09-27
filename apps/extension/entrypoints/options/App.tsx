@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { resolveStyle, type SubtitleCue } from '@sublight/core'
+import { SubtitleOverlay } from '@sublight/overlay'
 import { ENGINE_BASE_URL } from '@sublight/protocol'
 import { browser } from 'wxt/browser'
 import {
@@ -12,6 +14,12 @@ import {
 import { EngineBadge } from '../../src/EngineBadge'
 import { PairButton } from '../../src/PairButton'
 import { HIDE_SITE_CAPTIONS_KEY } from '../../src/siteCaptions'
+import {
+  appearanceFrom,
+  CAPTION_STYLE_KEY,
+  FONT_CHOICES,
+  type CaptionAppearance,
+} from '../../src/captionStyle'
 import { DEFAULT_PLAYER_URL, PLAYER_URL_KEY } from '../../src/openInPlayer'
 import { engineRequest, getToken, probeEngine, setToken } from '../../src/engine'
 import {
@@ -73,7 +81,8 @@ function UnpairAll({ onDone }: { onDone: () => void }) {
 
 /**
  * Options (Spec 09 §7): engine pairing (one click, ADR-0022, or paste the
- * token from `sublight-engine token`), captions, fetching, translation, shortcuts.
+ * token from `sublight-engine token`), captions, caption style, fetching,
+ * translation, shortcuts.
  */
 export function OptionsApp() {
   const [token, setTokenInput] = useState('')
@@ -180,6 +189,7 @@ export function OptionsApp() {
       </section>
 
       <LiveSettings online={status?.state === 'online'} />
+      <CaptionStyleSettings />
       <FetchSettings />
       <TranslationModel online={status?.state === 'online'} />
       <Shortcuts />
@@ -347,6 +357,184 @@ function LiveSettings({ online }: { online: boolean }) {
           </select>
         </label>
       </div>
+    </section>
+  )
+}
+
+const PREVIEW_CUES: SubtitleCue[] = [
+  { id: 'preview', startMs: 0, endMs: 60_000, text: 'Ask not what your country can do for you' },
+]
+
+function StyleRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        fontSize: 13,
+      }}
+    >
+      <span>{label}</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{children}</span>
+    </label>
+  )
+}
+
+/**
+ * How captions look on every site (M05.7, Spec 09 §7): the appearance half of
+ * the style schema, with a live preview drawn by the same overlay the pages
+ * use. Open pages update at once.
+ */
+function CaptionStyleSettings() {
+  const [look, setLook] = useState<CaptionAppearance>({})
+  useEffect(() => {
+    void browser.storage.local
+      .get(CAPTION_STYLE_KEY)
+      .then((got) => setLook(appearanceFrom(got[CAPTION_STYLE_KEY])))
+  }, [])
+  const update = (patch: CaptionAppearance) => {
+    const next = appearanceFrom({ ...look, ...patch })
+    setLook(next)
+    void browser.storage.local.set({ [CAPTION_STYLE_KEY]: next })
+  }
+  const reset = () => {
+    setLook({})
+    void browser.storage.local.remove(CAPTION_STYLE_KEY)
+  }
+  const s = resolveStyle(look)
+  const field = {
+    padding: '4px 6px',
+    borderRadius: 6,
+    border: `1px solid ${colors.border}`,
+    fontSize: 13,
+  }
+  return (
+    <section style={sectionStyle} data-testid="caption-style">
+      <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>Caption style</h2>
+      <p style={hint}>
+        How captions look on every site. Size and position are in the popup (Display), and follow
+        the video’s shape.
+      </p>
+      <div
+        data-testid="style-preview"
+        style={{
+          position: 'relative',
+          aspectRatio: '16 / 9',
+          borderRadius: 6,
+          overflow: 'hidden',
+          marginBottom: 12,
+          background: 'linear-gradient(135deg, #3b4252 0%, #88a0b8 55%, #e5e9f0 100%)',
+        }}
+      >
+        <SubtitleOverlay cues={PREVIEW_CUES} currentMs={1000} style={look} />
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <StyleRow label="Text color">
+          <input
+            type="color"
+            data-testid="style-color"
+            value={s.color}
+            onChange={(e) => update({ color: e.target.value })}
+          />
+        </StyleRow>
+        <StyleRow label="Background">
+          <input
+            type="color"
+            data-testid="style-bg-color"
+            value={s.bgColor}
+            onChange={(e) => update({ bgColor: e.target.value })}
+          />
+          <input
+            type="range"
+            aria-label="Background opacity"
+            data-testid="style-bg-opacity"
+            min={0}
+            max={1}
+            step={0.05}
+            value={s.bgOpacity}
+            onChange={(e) => update({ bgOpacity: Number(e.target.value) })}
+          />
+        </StyleRow>
+        <StyleRow label="Font">
+          <select
+            data-testid="style-font"
+            style={field}
+            value={
+              FONT_CHOICES.some(([v]) => v === s.fontFamily) ? s.fontFamily : FONT_CHOICES[0]![0]
+            }
+            onChange={(e) => update({ fontFamily: e.target.value })}
+          >
+            {FONT_CHOICES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            data-testid="style-weight"
+            style={field}
+            value={s.fontWeight === 'bold' || Number(s.fontWeight) >= 600 ? 'bold' : 'normal'}
+            onChange={(e) => update({ fontWeight: e.target.value as 'normal' | 'bold' })}
+          >
+            <option value="normal">Regular</option>
+            <option value="bold">Bold</option>
+          </select>
+        </StyleRow>
+        <StyleRow label="Edge">
+          <select
+            data-testid="style-edge"
+            style={field}
+            value={s.edgeStyle}
+            onChange={(e) => update({ edgeStyle: e.target.value as typeof s.edgeStyle })}
+          >
+            <option value="none">None</option>
+            <option value="outline">Outline</option>
+            <option value="shadow">Drop shadow</option>
+            <option value="raised">Raised</option>
+          </select>
+        </StyleRow>
+        <StyleRow label="Letters">
+          <select
+            data-testid="style-casing"
+            style={field}
+            value={s.casing}
+            onChange={(e) => update({ casing: e.target.value as typeof s.casing })}
+          >
+            <option value="normal">As spoken</option>
+            <option value="uppercase">UPPERCASE</option>
+            <option value="title">Title Case</option>
+          </select>
+        </StyleRow>
+        <StyleRow label="Align">
+          <select
+            data-testid="style-align"
+            style={field}
+            value={s.align}
+            onChange={(e) => update({ align: e.target.value as typeof s.align })}
+          >
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+            <option value="right">Right</option>
+          </select>
+        </StyleRow>
+        <StyleRow label={`Opacity ${Math.round(s.opacity * 100)} %`}>
+          <input
+            type="range"
+            aria-label="Caption opacity"
+            data-testid="style-opacity"
+            min={0.3}
+            max={1}
+            step={0.05}
+            value={s.opacity}
+            onChange={(e) => update({ opacity: Number(e.target.value) })}
+          />
+        </StyleRow>
+      </div>
+      <button data-testid="style-reset" style={{ ...button, marginTop: 12 }} onClick={reset}>
+        Reset to default
+      </button>
     </section>
   )
 }

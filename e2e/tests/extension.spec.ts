@@ -645,6 +645,33 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await expect.poll(box).toBe('flex-start') // top
   })
 
+  test('the caption style from Options restyles open pages, with a preview (M05.7)', async () => {
+    const site = context.pages()[0] ?? (await context.newPage())
+    await site.goto(`${SITE}/watch`)
+    const popup = await openPopupFor(site)
+    await popup.getByTestId('demo-toggle').click()
+    const options = await context.newPage()
+    await options.goto(`${EXT}/options.html`)
+    await options.getByTestId('style-color').fill('#ffee00')
+    await options.getByTestId('style-casing').selectOption('uppercase')
+    // The preview is drawn by the same overlay as the pages.
+    await expect(options.getByTestId('style-preview').locator('.sl-cue')).toHaveCSS(
+      'color',
+      'rgb(255, 238, 0)',
+    )
+    const cueColor = () =>
+      site.evaluate(() => {
+        const cue = document
+          .querySelector('[data-sublight-frame] [data-sublight-host]')
+          ?.shadowRoot?.querySelector('.sl-cue') as HTMLElement | null
+        return cue ? getComputedStyle(cue).color : null
+      })
+    await expect.poll(cueColor).toBe('rgb(255, 238, 0)')
+    await options.getByTestId('style-reset').click()
+    await expect.poll(cueColor).toBe('rgb(255, 255, 255)')
+    await options.close()
+  })
+
   test('Unpair every app asks first, then forgets the token (M06.3)', async () => {
     await assertEngineAlive()
     const options = await context.newPage()

@@ -2,6 +2,7 @@ import { createElement, Fragment } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { cuesForMode, type CaptionMode, type SubtitleCue, type SubtitleStyle } from '@sublight/core'
 import { SubtitleOverlay } from '@sublight/overlay'
+import { appearanceFrom, CAPTION_STYLE_KEY, type CaptionAppearance } from './captionStyle'
 import { QuickControls, type ControlsActions, type ControlsModel } from './quickControls'
 import { browser } from 'wxt/browser'
 
@@ -22,14 +23,19 @@ export function modeOf(style: QuickStyle): CaptionMode {
 
 const frames = new Set<OverlayFrame>()
 let quickStyle: QuickStyle = {}
-void browser.storage.local.get(OVERLAY_STYLE_KEY).then((got) => {
+/** How captions look (Options → Caption style). */
+let appearance: CaptionAppearance = {}
+void browser.storage.local.get([OVERLAY_STYLE_KEY, CAPTION_STYLE_KEY]).then((got) => {
   quickStyle = (got[OVERLAY_STYLE_KEY] as QuickStyle | undefined) ?? {}
+  appearance = appearanceFrom(got[CAPTION_STYLE_KEY])
   for (const f of frames) f.refresh()
 })
 browser.storage.onChanged.addListener((changes, area) => {
-  if (area !== 'local' || !changes[OVERLAY_STYLE_KEY]) return
-  quickStyle = (changes[OVERLAY_STYLE_KEY].newValue as QuickStyle | undefined) ?? {}
-  for (const f of frames) f.refresh()
+  if (area !== 'local') return
+  if (changes[OVERLAY_STYLE_KEY])
+    quickStyle = (changes[OVERLAY_STYLE_KEY].newValue as QuickStyle | undefined) ?? {}
+  if (changes[CAPTION_STYLE_KEY]) appearance = appearanceFrom(changes[CAPTION_STYLE_KEY].newValue)
+  if (changes[OVERLAY_STYLE_KEY] || changes[CAPTION_STYLE_KEY]) for (const f of frames) f.refresh()
 })
 
 /** Keep captions above player control bars (YouTube's is ~50 px + progress bar). */
@@ -262,6 +268,7 @@ export class OverlayFrame {
 
   private render(): void {
     const style: Partial<SubtitleStyle> = {
+      ...appearance,
       ...(quickStyle.fontSize ? { fontSize: quickStyle.fontSize } : {}),
       position: { anchor: quickStyle.anchor ?? 'bottom', marginPx: this.margin },
     }
