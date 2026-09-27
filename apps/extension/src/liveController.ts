@@ -351,7 +351,12 @@ export async function onLiveMessage(
   message: Message,
   sender: { tab?: { id?: number } },
 ): Promise<unknown> {
-  const find = (jobId: string) => [...controllers.values()].find((c) => c.jobId === jobId)
+  // From a page, only its own tab's session (the offscreen document has no tab).
+  const tabId = sender.tab?.id
+  const find = (jobId: string) =>
+    [...controllers.values()].find(
+      (c) => c.jobId === jobId && (tabId === undefined || c.tabId === tabId),
+    )
   switch (message.type) {
     case 'live.audio':
       find(message.jobId)?.audio(message.wallMs, message.pcm)

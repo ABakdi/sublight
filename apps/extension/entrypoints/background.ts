@@ -31,7 +31,39 @@ async function tabStatus(tabId: number): Promise<TabStatus> {
   return { tabId, frames }
 }
 
-async function handle(message: Message, sender: { tab?: { id?: number }; frameId?: number }) {
+/**
+ * What the popup, Options and the offscreen document ask for. Content scripts
+ * run inside web pages, so these are refused from them (baseline B4): a page
+ * can't start jobs, pair, or read other tabs through sublight.
+ */
+const EXTENSION_PAGES_ONLY = new Set<Message['type']>([
+  'tab.status',
+  'engine.pair',
+  'engine.status',
+  'captions.start',
+  'captions.stop',
+  'captions.status',
+  'captions.download',
+  'player.open',
+  'live.start',
+  'live.stop',
+  'live.status',
+  'demo.toggle',
+])
+
+/** Keyboard commands run in the service worker itself: they speak as the extension. */
+const SELF = { url: `chrome-extension://${browser.runtime.id}/background` }
+
+function fromExtensionPage(sender: { url?: string }): boolean {
+  return !!sender.url && sender.url.startsWith(`chrome-extension://${browser.runtime.id}/`)
+}
+
+async function handle(
+  message: Message,
+  sender: { tab?: { id?: number }; frameId?: number; url?: string },
+) {
+  if (EXTENSION_PAGES_ONLY.has(message.type) && !fromExtensionPage(sender))
+    return { ok: false, error: 'not allowed from a web page' }
   switch (message.type) {
     case 'ping':
       return { ok: true, version: browser.runtime.getManifest().version, build: BUILD_ID }
@@ -150,7 +182,7 @@ export default defineBackground(() => {
       const tabId = tab.id
       void captionsStatus(tabId).then((state) => {
         const active = state?.phase === 'starting' || state?.phase === 'captioning'
-        return handle({ type: active ? 'captions.stop' : 'captions.start', tabId }, {})
+        return handle({ type: active ? 'captions.stop' : 'captions.start', tabId }, SELF)
       })
       return
     }
@@ -158,7 +190,7 @@ export default defineBackground(() => {
     const tabId = tab.id
     void liveStatus(tabId).then((state) => {
       const active = state?.phase === 'starting' || state?.phase === 'listening'
-      return handle({ type: active ? 'live.stop' : 'live.start', tabId }, {})
+      return handle({ type: active ? 'live.stop' : 'live.start', tabId }, SELF)
     })
   })
 

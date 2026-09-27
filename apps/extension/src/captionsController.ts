@@ -466,11 +466,28 @@ function playhead(v: VideoState): number {
  * `quiet`: replacing the tab's captions (next video in a feed, another
  * language), so the page keeps its session instead of being told to stop.
  */
+/**
+ * Tabs whose viewer turned captions on, and on which site: only these may ask
+ * to caption the next video of a feed (`captions.next`), and only on that site.
+ * A page can't start captioning (and engine fetches) on its own (baseline B4).
+ */
+const followKey = (tabId: number) => `captionsFollow:${tabId}`
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return null
+  }
+}
+
 export async function startCaptions(
   tabId: number,
   owner: { frameId: number; state: VideoState },
   opts: { pendingDownload?: CaptionMode; quiet?: boolean; target?: string } = {},
 ): Promise<CaptionsState> {
+  // The viewer asked (not a feed scroll): this tab follows its feed, on this site.
+  if (!opts.quiet)
+    await browser.storage.session.set({ [followKey(tabId)]: hostOf(owner.state.url) })
   await stopCaptions(tabId, { quiet: opts.quiet ?? false })
   await stopLive(tabId)
   await browser.storage.session.remove([captionsTrackKey(tabId), translatedKey(tabId)])
@@ -559,6 +576,7 @@ export async function stopCaptions(
   tabId: number,
   opts: { quiet?: boolean } = {},
 ): Promise<CaptionsState | null> {
+  if (!opts.quiet) await browser.storage.session.remove(followKey(tabId))
   const c = controllers.get(tabId)
   if (!c) return captionsStatus(tabId)
   if (!opts.quiet) c.toPage({ type: 'captions.end' })
@@ -597,6 +615,7 @@ export async function cancelCaptionsForTab(tabId: number): Promise<void> {
     stateKey(tabId),
     captionsTrackKey(tabId),
     translatedKey(tabId),
+    followKey(tabId),
   ])
 }
 
@@ -653,6 +672,9 @@ export async function onCaptionsMessage(
   const tabId = sender.tab?.id
   if (tabId === undefined) return { ok: false }
   if (message.type === 'captions.next') {
+    const followed = (await browser.storage.session.get(followKey(tabId)))[followKey(tabId)]
+    if (!followed || followed !== hostOf(message.state.url))
+      return { ok: false, reason: 'not-following' }
     const current = controllers.get(tabId)
     // A download of the previous video is still running: finish it first.
     if (current?.state.pendingDownload) return { ok: false, reason: 'download' }
