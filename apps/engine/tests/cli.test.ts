@@ -46,6 +46,12 @@ describe('sublight-engine command (M06.2)', () => {
     expect(status.stdout).toMatch(/running at .* version \d/)
     expect(run('start', '--detach').stdout).toContain('already running')
     expect(run('token').stdout.trim()).toBe('a'.repeat(64))
+    // Rotating through the running engine: the old token stops working.
+    expect(run('token', '--rotate').stdout).toContain('pair again')
+    const next = run('token').stdout.trim()
+    expect(next).toMatch(/^[0-9a-f]{64}$/)
+    expect(next).not.toBe('a'.repeat(64))
+    expect(run('status').status).toBe(0) // status reads the new token
 
     expect(run('stop').stdout).toContain('stopped')
     expect(existsSync(join(home, 'run', 'engine.pid'))).toBe(false)

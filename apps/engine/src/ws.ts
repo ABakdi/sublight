@@ -17,7 +17,8 @@ const MAX_MSGS_PER_SEC = 20
 
 export interface WsOptions {
   port: number
-  token: string
+  /** Read on every auth: a rotated token applies at once (M06.3). */
+  token: () => string
   origins: Set<string>
   bus: EventBus
 }
@@ -91,7 +92,7 @@ export function attachWebSocket(server: Server, opts: WsOptions): WebSocketServe
         if (
           msg.type !== 'auth' ||
           typeof msg.token !== 'string' ||
-          !safeEqual(msg.token, opts.token)
+          !safeEqual(msg.token, opts.token())
         ) {
           return deny('UNAUTHORIZED', 'invalid token')
         }

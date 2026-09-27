@@ -25,6 +25,10 @@ export function runServer(): Promise<{ port: number }> {
     services,
     onPairingRequest: (req, url) =>
       log.info(`pairing request from ${req.origin}, code ${req.code}: approve at ${url}`),
+    onTokenRotated: () => {
+      log.info('token rotated: every client must pair again')
+      for (const client of wss.clients) client.close(4401, 'UNAUTHORIZED')
+    },
   })
 
   // Job lifecycle and model installs go to the JSONL log (Spec 06 §8).
@@ -64,9 +68,10 @@ export function runServer(): Promise<{ port: number }> {
     rejectListening(new Error(message))
   })
 
-  attachWebSocket(server, {
+  // onTokenRotated (above) only runs once this exists.
+  const wss = attachWebSocket(server, {
     port: config.port,
-    token: config.token,
+    token: () => config.token,
     origins: allowedOrigins([...config.allowedOrigins, ...playerOrigins(config.player.port)]),
     bus: services.bus,
   })

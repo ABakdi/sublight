@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, openSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { HealthResponse } from '@sublight/protocol'
 import { autostart, currentLaunch } from './autostart'
-import { loadConfig, sublightHome } from './config'
+import { loadConfig, rotateToken, sublightHome } from './config'
 import { ENGINE_VERSION } from './health'
 import { enginePaths } from './paths'
 import { findPlayerDir } from './player-server'
@@ -19,7 +19,8 @@ usage: sublight-engine <command>
   status             is it running? version, uptime and jobs
   autostart <enable|disable|status>
                      start the engine when you log in
-  token              print the pairing token (for pasting by hand)
+  token [--rotate]   print the pairing token (for pasting by hand), or
+                     replace it: every app must pair again
   transcribe <file>  caption one file without a server (--help for options)
 
 Data lives in ${sublightHome()} (SUBLIGHT_HOME overrides).`
@@ -122,6 +123,23 @@ async function stop(): Promise<number> {
   return 0
 }
 
+/** A new token, through the running engine if there is one (it drops old connections). */
+async function rotate(): Promise<number> {
+  const config = loadConfig()
+  if (await health()) {
+    const res = await fetch(`http://127.0.0.1:${config.port}/v1/token/rotate`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${config.token}` },
+    })
+    if (!res.ok) {
+      console.error(`the engine refused: HTTP ${res.status}`)
+      return 1
+    }
+  } else rotateToken(config)
+  console.log('new token saved: the extension and the Player must pair again')
+  return 0
+}
+
 async function status(): Promise<number> {
   const h = await health()
   if (!h) {
@@ -153,6 +171,7 @@ async function main(argv: string[]): Promise<number | null> {
     case 'autostart':
       return autostart(args, currentLaunch(join(enginePaths().logs, 'engine.out')))
     case 'token':
+      if (args.includes('--rotate')) return rotate()
       console.log(loadConfig().token)
       console.error(`(from ${sublightHome()}/config.json)`)
       return 0

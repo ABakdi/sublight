@@ -14,7 +14,12 @@ beforeAll(async () => {
   server = createServer((_req, res) => res.writeHead(404).end())
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   port = (server.address() as AddressInfo).port
-  attachWebSocket(server, { port, token: TOKEN, origins: new Set(['http://localhost:5173']), bus })
+  attachWebSocket(server, {
+    port,
+    token: () => TOKEN,
+    origins: new Set(['http://localhost:5173']),
+    bus,
+  })
 })
 afterAll(() => new Promise<void>((r) => server.close(() => r())))
 

@@ -15,7 +15,7 @@ import type {
   RelayStatusResponse,
 } from '@sublight/protocol'
 import { COOKIE_BROWSERS, IDEMPOTENCY_KEY_HEADER } from '@sublight/protocol'
-import type { EngineConfig } from './config'
+import { rotateToken, type EngineConfig } from './config'
 import {
   allowedOrigins,
   bearerAuth,
@@ -38,6 +38,10 @@ export interface AppOptions {
   gpu?: typeof probeGpu
   /** A pairing request arrived (the engine prints where to approve it). */
   onPairingRequest?: (req: PairingRequest, approveUrl: string) => void
+  /** Makes and saves a new token (default: config.json); tests pass their own. */
+  rotateToken?: () => string
+  /** The token changed: drop connections made with the old one. */
+  onTokenRotated?: () => void
 }
 
 const STATUS: Record<string, number> = {
@@ -148,6 +152,13 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
 
   app.get('/v1/health', async (c) => c.json(buildHealth(bootedAt, s, s ? await gpu() : undefined)))
   app.get('/v1/version', (c) => c.json(buildVersion()))
+
+  // "Unpair everything" (M06.3): a new token; every client, the caller too, pairs again.
+  app.post('/v1/token/rotate', (c) => {
+    ;(opts.rotateToken ?? (() => rotateToken(config)))()
+    opts.onTokenRotated?.()
+    return c.json({ ok: true })
+  })
 
   if (s) {
     // --- models (Spec 06 §3) ---

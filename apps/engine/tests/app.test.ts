@@ -150,3 +150,27 @@ describe('extension origins (Protocol §3.4)', () => {
     expect(allowed.status).toBe(200)
   })
 })
+
+describe('token rotation (M06.3)', () => {
+  it('replaces the token: the old one stops working at once', async () => {
+    const cfg = { ...config }
+    let rotated = 0
+    const app = createApp(cfg, {
+      rotateToken: () => (cfg.token = 'n'.repeat(64)),
+      onTokenRotated: () => rotated++,
+    })
+    const auth = (t: string) => ({ ...HOST, authorization: `Bearer ${t}` })
+    expect((await app.request('/v1/token/rotate', { method: 'POST', headers: HOST })).status).toBe(
+      401,
+    )
+    const res = await app.request('/v1/token/rotate', {
+      method: 'POST',
+      headers: auth(config.token),
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true }) // the new token isn't handed out
+    expect(rotated).toBe(1)
+    expect((await app.request('/v1/health', { headers: auth(config.token) })).status).toBe(401)
+    expect((await app.request('/v1/health', { headers: auth('n'.repeat(64)) })).status).toBe(200)
+  })
+})
