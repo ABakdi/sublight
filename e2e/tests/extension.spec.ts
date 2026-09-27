@@ -12,7 +12,7 @@ import {
   type Route,
 } from '@playwright/test'
 import { DEV_EXTENSION_ID } from '@sublight/protocol'
-import { E2E_PLAYER_URL, E2E_TOKEN } from '../constants'
+import { E2E_ENGINE_HEALTH_URL, E2E_PLAYER_URL, E2E_TOKEN } from '../constants'
 
 /**
  * The unpacked MV3 build in a real Chromium: stable ID, engine pairing,
@@ -394,6 +394,30 @@ test.describe('extension in Chromium (Spec 09)', () => {
     expect(await site.evaluate(() => document.querySelector('video')!.paused)).toBe(true)
   })
 
+  /**
+   * Fail with the engine's own output if it's gone: CI logs aren't public,
+   * but a test failure's message is (as an annotation).
+   */
+  async function assertEngineAlive(): Promise<void> {
+    const ok = await fetch(E2E_ENGINE_HEALTH_URL, {
+      headers: { authorization: `Bearer ${E2E_TOKEN}` },
+    }).then(
+      (r) => r.ok,
+      () => false,
+    )
+    if (ok) return
+    let tail = '(no output file)'
+    try {
+      tail = readFileSync(join(process.env.E2E_ENGINE_HOME ?? '', 'engine-output.txt'), 'utf8')
+        .split('\n')
+        .slice(-25)
+        .join('\n')
+    } catch {
+      // keep the placeholder
+    }
+    throw new Error(`the e2e engine is unreachable. Its last output:\n${tail}`)
+  }
+
   /** Point the extension at the e2e Player, paired with the e2e engine. */
   async function usePlayer(): Promise<void> {
     const options = await context.newPage()
@@ -457,14 +481,17 @@ test.describe('extension in Chromium (Spec 09)', () => {
     // The stream is gone, and the engine can't reach this made-up host
     // either: an honest message and a way forward, never a hang.
     hlsMode = 'missing'
+    await assertEngineAlive()
     const player = await openHlsPage()
     const error = player.getByTestId('page-video-error')
     await expect(error).toBeVisible({ timeout: 30_000 })
+    await assertEngineAlive()
     await expect(error).toHaveAttribute('data-code', 'MEDIA_UNREACHABLE')
     await expect(player.getByRole('button', { name: 'Try again' })).toBeVisible()
   })
 
   test('pairs in one click: approve on the engine’s page (ADR-0022)', async () => {
+    await assertEngineAlive()
     const options = await context.newPage()
     await options.goto(`${EXT}/options.html`)
     await expect(options.getByTestId('engine-status')).toHaveAttribute('data-state', 'no-token')

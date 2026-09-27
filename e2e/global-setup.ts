@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
@@ -41,8 +41,20 @@ export default async function globalSetup(): Promise<() => void> {
     env: { ...process.env, SUBLIGHT_HOME: home },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
-  engine.stdout?.on('data', (d) => process.stdout.write(`[e2e:engine] ${d}`))
-  engine.stderr?.on('data', (d) => process.stderr.write(`[e2e:engine] ${d}`))
+  // Also kept in a file: tests quote its tail when the engine is gone (CI logs aren't public).
+  process.env.E2E_ENGINE_HOME = home
+  const output = join(home, 'engine-output.txt')
+  engine.stdout?.on('data', (d) => {
+    process.stdout.write(`[e2e:engine] ${d}`)
+    appendFileSync(output, d)
+  })
+  engine.stderr?.on('data', (d) => {
+    process.stderr.write(`[e2e:engine] ${d}`)
+    appendFileSync(output, d)
+  })
+  engine.on('exit', (code, signal) =>
+    appendFileSync(output, `\n[engine exited: code ${code}, signal ${signal}]\n`),
+  )
 
   const deadline = Date.now() + 15_000
   let ok = false
