@@ -24,12 +24,20 @@ import { segmentsFromVerbose, wordsFromVerbose } from './words'
 /** The first piece after a (re)start is short, so captions are there within seconds. */
 export const FIRST_PIECE_MS = 30_000
 export const PIECE_MS = 120_000
-/** Audio fetched around a piece for context; its words belong to the neighbours. */
-const CONTEXT_MS = 1000
+/**
+ * Audio fetched around a piece for context. Neighbouring pieces hear the same
+ * words there, which is how they are joined (`composeWords`).
+ */
+export const CONTEXT_MS = 3000
+/** How far a cut may move, forward and back, to land in a pause. */
+const SNAP_MS = 5000
+const SNAP_BACK_MS = 3000
+/** Audio kept around a cut made in a pause (whisper likes a little lead-in). */
+const PAUSE_LEAD_MS = 200
 /** Don't leave a sliver this short to a later piece. */
 const MIN_REST_MS = 10_000
 /** Bump when output changes for the same input, so stale cache entries miss. */
-const PIPELINE_VERSION = 3
+const PIPELINE_VERSION = 6
 
 export interface Range {
   startMs: number
@@ -37,7 +45,12 @@ export interface Range {
 }
 
 export interface Piece extends Range {
+  /** It ends in a pause the runner chose, so its neighbour can start cleanly there. */
+  atPause?: boolean
+  /** The piece's own words: those starting inside it. */
   words: SpeechWord[]
+  /** Everything heard, context included (media time), for joining neighbours by text. */
+  heard?: SpeechWord[]
 }
 
 /** The stretch not yet transcribed at or after `focusMs` (else the first one before it). */
@@ -67,19 +80,106 @@ export function nextRange(
   return { startMs: start, endMs: end }
 }
 
+const normWord = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+
 /**
- * All words in media order. Where a piece starts right where another ended,
- * words the earlier one already has (heard in its context audio) are dropped.
+ * Where the words already kept (`kept`, ending at the boundary) and a
+ * neighbour's context words (`next`) say the same thing: the longest run at
+ * the end of `kept` that also appears in `next`, near the boundary. Returns the
+ * index in `next` just after that run, or -1.
+ */
+export function overlapEnd(kept: SpeechWord[], next: SpeechWord[], boundaryMs: number): number {
+  const tail = kept.filter((w) => w.startMs >= boundaryMs - 2 * CONTEXT_MS)
+  const head = next.filter((w) => w.startMs < boundaryMs + 2 * CONTEXT_MS)
+  let best = { len: 0, end: -1 }
+  for (let j = 0; j < head.length; j++) {
+    // A run in `head` ending at j that equals the end of `tail`.
+    let len = 0
+    while (
+      len < tail.length &&
+      j - len >= 0 &&
+      normWord(tail[tail.length - 1 - len]!.word) === normWord(head[j - len]!.word) &&
+      normWord(head[j - len]!.word) !== ''
+    )
+      len++
+    if (len === 0) continue
+    const last = tail[tail.length - 1]!
+    // One matching word is only trusted when it was heard at about the same time.
+    const near = Math.abs(head[j]!.startMs - last.startMs) < 1200
+    if ((len >= 2 || near) && len > best.len) best = { len, end: j + 1 }
+  }
+  return best.end === -1 ? -1 : next.indexOf(head[best.end - 1]!) + 1
+}
+
+/**
+ * All words in media order. Pieces that touch are joined where their context
+ * audio overlaps: the later piece continues after the words both heard, so a
+ * word at the cut is neither doubled nor lost (the two passes time it a little
+ * differently). Without a match, what the later piece heard after the last
+ * word kept follows, minus a repeat of that word.
  */
 export function composeWords(pieces: Piece[]): SpeechWord[] {
   const out: SpeechWord[] = []
   let prevEnd = -1
   for (const p of [...pieces].sort((a, b) => a.startMs - b.startMs)) {
-    const lastEnd = p.startMs === prevEnd ? (out[out.length - 1]?.endMs ?? -1) : -1
-    for (const w of p.words) if (w.startMs >= lastEnd - 50) out.push(w)
+    const touching = p.startMs === prevEnd && out.length > 0
+    let add = p.words
+    if (touching && p.heard?.length) {
+      const at = overlapEnd(out, p.heard, p.startMs)
+      if (at >= 0) add = p.heard.slice(at)
+    }
+    if (touching && add === p.words) {
+      // No shared words (whisper drops words at the very edge of a clip): take
+      // what this piece heard after the last word kept, even before its start.
+      const lastEnd = out[out.length - 1]!.endMs
+      add = (p.heard ?? p.words).filter((w) => w.startMs >= lastEnd - 50)
+      if (add[0] && normWord(add[0].word) === normWord(out[out.length - 1]!.word))
+        add = add.slice(1)
+    }
+    for (const w of add) {
+      const prev = out[out.length - 1]
+      // Keep media order: the two passes' clocks differ by a few hundred ms.
+      const startMs = prev ? Math.max(w.startMs, prev.startMs + 1) : w.startMs
+      out.push(
+        startMs === w.startMs ? w : { ...w, startMs, endMs: Math.max(w.endMs, startMs + 10) },
+      )
+    }
     prevEnd = p.endMs
   }
   return out
+}
+
+/**
+ * The quietest moment between `fromMs` and `toMs` of 10 ms frame levels (dB),
+ * over a 200 ms window; among near-ties (1.5 dB), the one closest to `preferMs`.
+ * Pieces are cut there: a clip that starts mid-sentence makes whisper skip that
+ * sentence and stamp the next one from 0 (seen 3.3 s early at a 30 s cut).
+ */
+export function quietestMs(
+  levels: Float32Array,
+  fromMs: number,
+  toMs: number,
+  preferMs: number,
+): number {
+  const win = 20
+  const a = Math.max(0, Math.floor(fromMs / 10))
+  const b = Math.min(levels.length - win, Math.floor(toMs / 10))
+  if (b <= a) return Math.max(fromMs, Math.min(toMs, preferMs))
+  const avg: number[] = []
+  let sum = 0
+  for (let i = a; i < a + win; i++) sum += levels[i]!
+  for (let i = a; i <= b; i++) {
+    avg.push(sum / win)
+    sum += (levels[i + win] ?? levels[i + win - 1]!) - levels[i]!
+  }
+  const min = Math.min(...avg)
+  let best = -1
+  for (let k = 0; k < avg.length; k++) {
+    if (avg[k]! > min + 1.5) continue
+    const ms = (a + k + win / 2) * 10
+    if (best < 0 || Math.abs(ms - preferMs) < Math.abs(best - preferMs)) best = ms
+  }
+  return best
 }
 
 /** Merge touching ranges, for `coverage`. */
@@ -278,11 +378,27 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
             done / total,
             `captioning ${Math.round(range.startMs / 1000)}–${Math.round(range.endMs / 1000)} s`,
           )
-          const from = Math.max(0, range.startMs - CONTEXT_MS)
-          const to = Math.min(total, range.endMs + CONTEXT_MS)
+          const before = pieces.find((p) => p.endMs === range.startMs)
+          const after = pieces.some((p) => p.startMs === range.endMs)
+          // Where nothing is transcribed yet, a cut can move to a pause instead of
+          // splitting a sentence; next to an existing piece it stays put.
+          const floor = Math.max(
+            0,
+            ...pieces.filter((p) => p.endMs <= range.startMs).map((p) => p.endMs),
+          )
+          const moveStart = !before && range.startMs > floor
+          const moveEnd = !after && range.endMs < total
+          const joinLead = before?.atPause ? PAUSE_LEAD_MS : CONTEXT_MS
+          const from = moveStart
+            ? Math.max(floor, range.startMs - SNAP_BACK_MS)
+            : Math.max(0, range.startMs - joinLead)
+          const to = Math.min(total, range.endMs + (moveEnd ? SNAP_MS : CONTEXT_MS))
           const file = join(ctx.chunkDir(), `${range.startMs}.wav`)
+          let cut: Range = { ...range }
           let words: SpeechWord[] = []
+          let heardWords: SpeechWord[] | undefined
           let originalWords: SpeechWord[] = []
+          let originalHeard: SpeechWord[] = []
           try {
             await slice(media, file, from, to - from)
             const pcm = pcmFromWav(file)
@@ -300,10 +416,33 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
                 422,
               )
             }
-            if (levelDb(pcm) >= SILENCE_DB) {
-              const lead = leadingSilenceMs(pcm)
-              const heard = lead > 0 ? pcm.subarray(Math.round((lead * SAMPLE_RATE) / 1000)) : pcm
-              const before = pieces.find((p) => p.endMs === range.startMs)
+            const levels = levelsFromPcm(pcm)
+            const rel = (ms: number) => ms - from
+            cut = {
+              startMs: moveStart
+                ? from + quietestMs(levels, 0, rel(range.startMs), rel(range.startMs))
+                : range.startMs,
+              endMs: moveEnd
+                ? from +
+                  quietestMs(
+                    levels,
+                    Math.max(rel(range.startMs) + 1000, rel(range.endMs) - SNAP_BACK_MS),
+                    Math.min(gotMs, rel(to)) - 300,
+                    rel(range.endMs),
+                  )
+                : range.endMs,
+            }
+            // What whisper hears: a little around cuts made in pauses, the join
+            // context around cuts next to other pieces.
+            const hearFrom = moveStart ? Math.max(from, cut.startMs - PAUSE_LEAD_MS) : from
+            const hearTo = moveEnd ? Math.min(to, cut.endMs + PAUSE_LEAD_MS) : to
+            const clip = pcm.subarray(
+              Math.round((rel(hearFrom) * SAMPLE_RATE) / 1000),
+              Math.round((rel(hearTo) * SAMPLE_RATE) / 1000),
+            )
+            if (levelDb(clip) >= SILENCE_DB) {
+              const lead = leadingSilenceMs(clip)
+              const heard = lead > 0 ? clip.subarray(Math.round((lead * SAMPLE_RATE) / 1000)) : clip
               const json = await deps.whisper.infer(wavBytes(heard), {
                 language,
                 translate: task === 'translate',
@@ -319,16 +458,22 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
                       endMs: s.endMs,
                     }))
                   : snapToOnsets(wordsFromVerbose(json), onsetsFromLevels(levelsFromPcm(heard)))
-              const offset = from + lead
-              const last = range.endMs >= total
-              const place = (list: SpeechWord[]) =>
+              const offset = hearFrom + lead
+              const last = cut.endMs >= total
+              // Media time, up to where the next piece begins; the context before
+              // the start is kept apart (`heard`) for joining the previous piece.
+              const placeAll = (list: SpeechWord[]) =>
                 list
                   .map((w) => ({ ...w, startMs: w.startMs + offset, endMs: w.endMs + offset }))
-                  .filter((w) => w.startMs >= range.startMs && (last || w.startMs < range.endMs))
+                  .filter((w) => last || w.startMs < cut.endMs)
+              const place = (list: SpeechWord[]) =>
+                placeAll(list).filter((w) => w.startMs >= cut.startMs)
               words = place(raw)
+              // Translations come as segments, too coarse to match: they keep the time rule.
+              if (task !== 'translate') heardWords = placeAll(raw)
               if (bilingual) {
                 // The English first (what the viewer is waiting for), then the original.
-                pieces.push({ ...range, words })
+                pieces.push({ ...cut, words })
                 ctx.partial(track(true), original(true))
                 pieces.pop()
                 // The same audio again, as a transcript: the words to learn from.
@@ -339,16 +484,20 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
                   prompt: promptFrom(prior?.words.map((w) => w.word) ?? []),
                   signal: ctx.signal,
                 })
-                originalWords = place(
-                  snapToOnsets(wordsFromVerbose(heardJson), onsetsFromLevels(levelsFromPcm(heard))),
+                const originalRaw = snapToOnsets(
+                  wordsFromVerbose(heardJson),
+                  onsetsFromLevels(levelsFromPcm(heard)),
                 )
+                originalWords = place(originalRaw)
+                originalHeard = placeAll(originalRaw)
               }
             }
           } finally {
             rmSync(file, { force: true })
           }
-          pieces.push({ ...range, words })
-          if (bilingual) originals.push({ ...range, words: originalWords })
+          const piece = { ...cut, atPause: moveEnd }
+          pieces.push({ ...piece, words, ...(heardWords ? { heard: heardWords } : {}) })
+          if (bilingual) originals.push({ ...piece, words: originalWords, heard: originalHeard })
           ctx.partial(track(true), bilingual ? original(true) : undefined)
         }
         ctx.progress(1, 'done')

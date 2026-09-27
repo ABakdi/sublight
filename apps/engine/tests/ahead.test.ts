@@ -8,6 +8,8 @@ import {
   aheadRunner,
   canonicalPageUrl,
   composeWords,
+  overlapEnd,
+  quietestMs,
   coverageOf,
   FIRST_PIECE_MS,
   nextRange,
@@ -297,5 +299,153 @@ describe('protected streams', () => {
       false,
     )
     expect(isDrmPlaylist('#EXTM3U\n#EXTINF:6,\nseg0.ts\n')).toBe(false)
+  })
+})
+
+describe('joining pieces at their boundary (Beta-1 checkpoint)', () => {
+  // Words as [text, startMs]; each lasts 300 ms.
+  const ws = (list: [string, number][]) =>
+    list.map(([word, startMs]) => ({ word, startMs, endMs: startMs + 300 }))
+  const text = (words: { word: string }[]) => words.map((w) => w.word).join(' ')
+
+  it('neither doubles nor loses a word the two passes time differently', () => {
+    // Seen on a German video at 30 s: "sehen," twice and "Licht" gone.
+    const first = {
+      startMs: 0,
+      endMs: 30_000,
+      words: ws([
+        ['nur', 28_000],
+        ['die', 28_300],
+        ['Teile', 28_600],
+        ['des', 28_900],
+        ['Universums', 29_200],
+        ['sehen,', 29_800],
+      ]),
+    }
+    const second = {
+      startMs: 30_000,
+      endMs: 60_000,
+      words: ws([
+        ['sehen,', 30_050],
+        ['deren', 30_400],
+        ['uns', 31_000],
+        ['erreicht', 31_400],
+      ]),
+      heard: ws([
+        ['Teile', 28_500],
+        ['des', 28_800],
+        ['Universums', 29_300],
+        ['sehen,', 30_050],
+        ['deren', 30_400],
+        ['Licht', 30_700],
+        ['uns', 31_000],
+        ['erreicht', 31_400],
+      ]),
+    }
+    const out = composeWords([second, first])
+    expect(text(out)).toBe('nur die Teile des Universums sehen, deren Licht uns erreicht')
+    for (let i = 1; i < out.length; i++)
+      expect(out[i]!.startMs).toBeGreaterThan(out[i - 1]!.startMs)
+  })
+
+  it('falls back to time without an overlap, still dropping a repeated word', () => {
+    const first = {
+      startMs: 0,
+      endMs: 30_000,
+      words: ws([
+        ['hello', 29_000],
+        ['there', 29_700],
+      ]),
+    }
+    const second = {
+      startMs: 30_000,
+      endMs: 60_000,
+      words: ws([
+        ['there', 30_010],
+        ['friend', 30_400],
+      ]),
+      heard: ws([
+        ['completely', 28_000],
+        ['different', 29_000],
+        ['there', 30_010],
+        ['friend', 30_400],
+      ]),
+    }
+    expect(text(composeWords([first, second]))).toBe('hello there friend')
+  })
+
+  it('keeps what only the later piece heard just before the cut', () => {
+    // The earlier pass dropped its last words; the later one heard them in its context.
+    const first = {
+      startMs: 0,
+      endMs: 30_000,
+      words: ws([
+        ['Jahren', 28_000],
+        ['erreicht', 28_400],
+      ]),
+    }
+    const second = {
+      startMs: 30_000,
+      endMs: 60_000,
+      words: ws([
+        ['Kugel', 30_200],
+        ['und', 30_700],
+      ]),
+      heard: ws([
+        ['Schauen', 29_000],
+        ['wir', 29_300],
+        ['eine', 29_800],
+        ['Kugel', 30_200],
+        ['und', 30_700],
+      ]),
+    }
+    expect(text(composeWords([first, second]))).toBe('Jahren erreicht Schauen wir eine Kugel und')
+  })
+
+  it('trusts a lone matching word only when it was heard at about the same time', () => {
+    const kept = ws([
+      ['a', 29_000],
+      ['yes', 29_800],
+    ])
+    expect(
+      overlapEnd(
+        kept,
+        ws([
+          ['yes', 30_100],
+          ['b', 30_500],
+        ]),
+        30_000,
+      ),
+    ).toBe(1)
+    expect(
+      overlapEnd(
+        kept,
+        ws([
+          ['yes', 33_000],
+          ['b', 33_500],
+        ]),
+        30_000,
+      ),
+    ).toBe(-1)
+  })
+})
+
+describe('cutting pieces at pauses', () => {
+  // 10 ms frames: speech (-20 dB) with pauses (-60 dB) at 2.0–2.5 s and 6.0–6.6 s.
+  const levels = new Float32Array(1000).fill(-20)
+  levels.fill(-60, 200, 250)
+  levels.fill(-60, 600, 660)
+
+  it('finds the pause nearest the planned cut', () => {
+    const at = quietestMs(levels, 0, 9000, 5500)
+    expect(at).toBeGreaterThanOrEqual(6000)
+    expect(at).toBeLessThanOrEqual(6600)
+    const early = quietestMs(levels, 0, 9000, 1000)
+    expect(early).toBeGreaterThanOrEqual(2000)
+    expect(early).toBeLessThanOrEqual(2500)
+  })
+
+  it('keeps the planned cut when the window is empty', () => {
+    expect(quietestMs(levels, 5000, 5000, 5000)).toBe(5000)
   })
 })
