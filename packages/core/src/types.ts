@@ -98,6 +98,12 @@ export interface SubtitleProjectMedia {
   relayId?: string
   /** Position migrated mid-play. */
   resumeAtMs?: number
+  /**
+   * How the engine should fetch the page again (from the extension's hand-over):
+   * the browser's user agent and, when the viewer opted in, which browser's login
+   * to use. Kept so re-opening from the library works after a reload (M05b.8).
+   */
+  fetchHints?: { userAgent?: string; cookiesFromBrowser?: string }
 }
 
 export interface SubtitleProject {

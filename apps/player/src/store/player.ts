@@ -207,7 +207,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
   }
 
   /** Engine hints for fetching the current page video (from the extension). */
-  let pageHints: OpenInPlayerPayload['engine'] = {}
 
   /**
    * Play a page video (Spec 04 §9): its own file URL when it has one (no
@@ -238,10 +237,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       const resolved = await engine.resolveMedia({
         pageUrl: media.pageUrl!,
         ...(own ? { mediaUrl: own.url } : {}),
-        ...(pageHints?.userAgent ? { userAgent: pageHints.userAgent } : {}),
-        ...(pageHints?.cookiesFromBrowser
-          ? { cookiesFromBrowser: pageHints.cookiesFromBrowser }
-          : {}),
+        ...safeHints(media.fetchHints as OpenInPlayerPayload['engine']),
       })
       let state = resolved.state
       while (state === 'downloading') {
@@ -294,7 +290,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     openFromPage: async (payload) => {
       await swapObjectUrl(null)
-      pageHints = safeHints(payload.engine)
+      const hints = safeHints(payload.engine)
       const title = payload.media.title || payload.source.pageTitle || 'Page video'
       const project: SubtitleProject = {
         id: newId(),
@@ -307,6 +303,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
           sources: payload.media.sources,
           ...(payload.media.durationMs ? { durationMs: payload.media.durationMs } : {}),
           ...(payload.resumeAtMs ? { resumeAtMs: payload.resumeAtMs } : {}),
+          ...(Object.keys(hints).length ? { fetchHints: hints } : {}),
         },
         tracks: [],
         settings: { style: structuredClone(DEFAULT_SUBTITLE_STYLE) },

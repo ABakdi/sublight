@@ -62,7 +62,8 @@ interface SubtitleProject {
     transport?: 'direct' | 'hls' | 'dash' | 'engine-relay' | 'none'
     directUrl?: string // effective playback URL (may be an engine relay URL)
     relayId?: string // engine media id when relayed (06 §4.1)
-    resumeAtMs?: number // position migrated mid-play
+    resumeAtMs?: number // position migrated mid-play; kept up to date while watching
+    fetchHints?: { userAgent?: string; cookiesFromBrowser?: string } // from the hand-over, reused when re-opening (M05b.8)
   }
   tracks: SubtitleTrack[]
   settings: {

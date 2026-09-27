@@ -27,7 +27,7 @@ Design lives in [ADR-0017](../../architecture/decisions/0017-open-in-player.md) 
 - [x] **M05b.5** — Resolution pipeline S3: `POST /v1/media/resolve {url, site?}` → play `GET /v1/relay/:id`; "Preparing media…" progress (engine v1 buffering); Range-aware seeking.
 - [x] **M05b.6** — Failure paths: resolve/relay errors map to [copy family](../../specification/10-Non-Goals-And-Failure-Modes.md); alternatives "caption this page in place instead" and "open the source page"; blob-MSE-without-engine-support explained, never silent.
 - [x] **M05b.7** — Captioning a migrated video: relayed → existing local-file transcription orchestration; direct/HLS → engine best-effort audio fetch; teeny gap → in-page live path handoff.
-- [ ] **M05b.8** — Project persistence + re-open: transport fields saved ([02 §1](../../specification/02-Data-Model.md#1-core-types-typescript-in-packagescore)); library re-open re-resolves (relay re-resolve after engine restart); resume position persisted.
+- [x] **M05b.8** — Project persistence + re-open: transport fields saved ([02 §1](../../specification/02-Data-Model.md#1-core-types-typescript-in-packagescore)); library re-open re-resolves (relay re-resolve after engine restart); resume position persisted. The hand-over's fetch hints (user agent, browser-login opt-in) are saved with the project, so a re-open after a reload fetches the same way; the position is restored whenever a new source loads.
 - [x] **M05b.9** — Fixtures + e2e (Chromium + Brave): direct `.mp4` page, HLS page, multi-source page, engine-mock "YouTube" (relay path), failure cases (blob-without-yt-dlp, live, DRM-styled).
 - [x] **M05b.10** — Popup UX + planned entry points: primary popup action; overlay chip & video context-menu item scoped as follow-ups.
 
@@ -36,7 +36,7 @@ Design lives in [ADR-0017](../../architecture/decisions/0017-open-in-player.md) 
 - Done: classifier, `#sl=` handoff (storage handoff not needed yet), `page-video` projects, direct playback with a relay fallback, engine resolve plus relay (pass-through or download-and-merge with progress), resume, `url`-job captions and Whisper English in the Player, re-resolve on reopen, the popup button and a Player-address option.
 - Verified in Brave: a direct mp4 page opens and plays at the page's position, and captions in the Player ("what your country can" at 6.5 s); YouTube opens through the relay in ~14 s at 240p and seeks. e2e: "Open in Sublight Player hands the page video over" (extension suite); unit tests for the store, classifier and relay.
 - Also done (same day): HLS/DASH in the Player (native, hls.js, dash.js; engine remux fallback), failure messages per error code with "Try again", e2e fixtures for an HLS page and a dead stream.
-- Open: M05b.8 (persisted transport polish: a relayed video's position after a relay expires), dash.js e2e fixture.
+- Open: dash.js e2e fixture.
 
 ## Acceptance criteria
 

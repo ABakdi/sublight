@@ -73,6 +73,33 @@ describe('open in Sublight Player (M05b)', () => {
     },
   )
 
+  it('re-opens from the library with the same fetch hints, after a reload (M05b.8)', async () => {
+    const ready = {
+      mediaId: 'r2',
+      relayPath: '/v1/relay/r2',
+      durationMs: 60_000,
+      title: 'A talk',
+      via: 'yt-dlp' as const,
+      state: 'ready' as const,
+    }
+    const resolve = vi.spyOn(engine, 'resolveMedia').mockResolvedValue(ready)
+    await usePlayerStore
+      .getState()
+      .openFromPage(payload([{ kind: 'engine-fetchable', url: 'https://site.test/watch?v=1' }]))
+    const id = usePlayerStore.getState().project!.id
+    await usePlayerStore.getState().backToLibrary()
+    resolve.mockClear()
+    // A fresh page load: only IndexedDB remembers the project.
+    __resetDbForTests()
+    await usePlayerStore.getState().loadProjectFromLibrary(id)
+    expect(resolve).toHaveBeenCalledWith({
+      pageUrl: 'https://site.test/watch?v=1',
+      userAgent: 'UA',
+      cookiesFromBrowser: 'brave',
+    })
+    expect(usePlayerStore.getState().project!.media.resumeAtMs).toBe(12_000)
+  })
+
   it('captions a page video with a url job (no file to upload)', async () => {
     vi.spyOn(engine, 'resolveMedia').mockRejectedValue(new Error('offline'))
     await usePlayerStore
