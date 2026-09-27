@@ -129,6 +129,22 @@ out of the box.
   `pnpm test`, and `pnpm build` green; CI enforces this.
 - Docs changes must not break the link checker (`pnpm lint:links`).
 
+## Releasing
+
+Every package shares one version, recorded in [CHANGELOG.md](CHANGELOG.md).
+Add notes under **Unreleased** as you go. To release:
+
+```sh
+node scripts/release.mjs 0.2.0   # bumps every package.json and ENGINE_VERSION, dates the changelog
+git commit -am "release: v0.2.0" && git tag v0.2.0 && git push --follow-tags
+```
+
+The tag runs `.github/workflows/release.yml`: it checks that the tag, versions
+and changelog agree, runs the unit tests, builds, and publishes a GitHub
+release with the engine bundle, the extension zip and `SHA256SUMS`. `0.x`
+releases are marked pre-release. CI runs `release.mjs --check` on every push,
+so a missed bump fails early.
+
 ## Docs
 
 - [Home](docs/Home.md) · [Plan](docs/plan/README.md) · [Roadmap](docs/plan/Roadmap.md)

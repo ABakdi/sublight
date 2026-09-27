@@ -53,17 +53,36 @@ Task Scheduler steps.
 ## 3. Load the extension
 
 Open `brave://extensions` (or `chrome://extensions`), switch on **Developer
-mode**, click **Load unpacked** and pick `apps/extension/.output/chrome-mv3`.
-Keep Developer mode on.
+mode**, click **Load unpacked** and pick `apps/extension/.output/chrome-mv3`
+(or the folder you unzipped `sublight-extension-<version>-chromium.zip` from a
+release into). Keep Developer mode on.
 
-## 4. Pair
+Why not a one-click install: Chromium only installs packed extensions (`.crx`)
+from its web store, so until sublight is published there, loading the folder is
+the way. The extension's ID stays the same either way, so pairing survives
+updates: load the new folder over the old one.
+
+## 4. Open the Player
+
+```sh
+pnpm dev:player   # http://localhost:5173
+```
+
+## 5. Pair
 
 Click the sublight toolbar icon → **Pair with the engine**. A tab from the
 engine opens with a 4-digit code: check it matches the one in the popup, and
 click **Approve**. The Player pairs the same way from its Caption tab.
 
-## 5. Models
+## 6. Models
 
 The first caption asks to install the speech model; the Player's **Models**
 tab lists all of them with their size and the free disk space, and removes
 the ones you don't use.
+
+## Releases
+
+Tagged releases on GitHub carry `sublight-engine-<version>.mjs`, the extension
+zip and `SHA256SUMS`; check a download with `sha256sum -c SHA256SUMS
+--ignore-missing`. You still need the repository for the setup scripts
+(whisper.cpp, yt-dlp) and the Player.
