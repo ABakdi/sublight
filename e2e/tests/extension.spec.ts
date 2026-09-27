@@ -29,6 +29,10 @@ type ChromeTabs = { tabs: { query(q: object): Promise<{ id?: number; url?: strin
 const fixtureVideo = readFileSync(resolve(process.cwd(), 'fixtures', 'video-4s.mp4'))
 /** What the stand-in site serves at /clip.mp4 (tests can swap in a speech clip). */
 let served: Buffer = fixtureVideo
+/** An HLS rendition of the fixture (made with ffmpeg when a test needs it). */
+let hlsDir: string | null = null
+/** 'missing': the playlist 404s (a dead or blocked stream). */
+let hlsMode: 'ok' | 'missing' = 'ok'
 
 /** Byte-range responses: without them the media element can't seek. */
 function fulfillVideo(range: string | undefined, route: Route) {
@@ -71,10 +75,22 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await context.route(`${SITE}/**`, (route) => {
       const url = new URL(route.request().url())
       if (url.pathname === '/clip.mp4') return fulfillVideo(route.request().headers().range, route)
+      if (url.pathname.startsWith('/hls/') && hlsDir) {
+        if (hlsMode === 'missing') return route.fulfill({ status: 404, body: 'gone' })
+        return route.fulfill({
+          body: readFileSync(join(hlsDir, url.pathname.slice(5))),
+          contentType: url.pathname.endsWith('.m3u8')
+            ? 'application/vnd.apple.mpegurl'
+            : 'video/mp2t',
+          // hls.js (browsers without native HLS) needs CORS; native playback doesn't.
+          headers: { 'access-control-allow-origin': '*' },
+        })
+      }
+      const src = url.pathname === '/watch-hls' ? '/hls/index.m3u8' : '/clip.mp4'
       return route.fulfill({
         contentType: 'text/html',
         body: `<!doctype html><title>site</title><style>body{margin:0}video{width:640px;height:360px}</style>
-          <video src="/clip.mp4" muted playsinline></video>`,
+          <video src="${src}" muted playsinline></video>`,
       })
     })
   })
@@ -376,6 +392,76 @@ test.describe('extension in Chromium (Spec 09)', () => {
       .toBeGreaterThan(1.5)
     // …and no longer on its page.
     expect(await site.evaluate(() => document.querySelector('video')!.paused)).toBe(true)
+  })
+
+  /** Point the extension at the e2e Player, paired with the e2e engine. */
+  async function usePlayer(): Promise<void> {
+    const options = await context.newPage()
+    await options.goto(`${EXT}/options.html`)
+    await options.evaluate(
+      (url) =>
+        (
+          globalThis as unknown as {
+            chrome: { storage: { local: { set(v: object): Promise<void> } } }
+          }
+        ).chrome.storage.local.set({ playerUrl: `${url}/` }),
+      E2E_PLAYER_URL,
+    )
+    await options.goto(E2E_PLAYER_URL)
+    await options.evaluate((t) => localStorage.setItem('sublight.token', t), E2E_TOKEN)
+    await options.close()
+  }
+
+  function makeHls(): void {
+    if (hlsDir) return
+    hlsDir = mkdtempSync(join(tmpdir(), 'sublight-e2e-hls-'))
+    execFileSync('ffmpeg', [
+      ...['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=10', '-f', 'lavfi'],
+      ...['-i', 'sine=frequency=440', '-t', '6', '-c:v', 'libx264', '-pix_fmt', 'yuv420p'],
+      ...['-c:a', 'aac', '-f', 'hls', '-hls_time', '2', '-hls_playlist_type', 'vod'],
+      join(hlsDir, 'index.m3u8'),
+    ])
+  }
+
+  async function openHlsPage(): Promise<Page> {
+    makeHls()
+    await usePlayer()
+    const site = context.pages()[0] ?? (await context.newPage())
+    await site.goto(`${SITE}/watch-hls`)
+    const popup = await openPopupFor(site)
+    await expect(popup.getByTestId('video-status')).not.toHaveAttribute('data-videos', '0')
+    const [player] = await Promise.all([
+      context.waitForEvent('page'),
+      popup.getByTestId('open-in-player').click(),
+    ])
+    await player.waitForLoadState()
+    return player
+  }
+
+  test('an HLS page plays in the Player (M05b.4)', async () => {
+    hlsMode = 'ok'
+    const player = await openHlsPage()
+    await expect(player.getByTestId('video')).toBeVisible()
+    // Natively where the browser can, else hls.js (a blob: MediaSource source).
+    await expect
+      .poll(() =>
+        player.evaluate(() => {
+          const v = document.querySelector('[data-testid=video]') as HTMLVideoElement
+          return v.readyState >= 2 && v.duration > 5
+        }),
+      )
+      .toBe(true)
+  })
+
+  test('a page video that can’t be reached explains itself (M05b.6)', async () => {
+    // The stream is gone, and the engine can't reach this made-up host
+    // either: an honest message and a way forward, never a hang.
+    hlsMode = 'missing'
+    const player = await openHlsPage()
+    const error = player.getByTestId('page-video-error')
+    await expect(error).toBeVisible({ timeout: 30_000 })
+    await expect(error).toHaveAttribute('data-code', 'MEDIA_UNREACHABLE')
+    await expect(player.getByRole('button', { name: 'Try again' })).toBeVisible()
   })
 
   test('caption size and position toggles apply to the overlay (M05.7)', async () => {
