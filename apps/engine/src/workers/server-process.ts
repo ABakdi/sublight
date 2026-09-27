@@ -1,5 +1,7 @@
+import { randomBytes } from 'node:crypto'
 import { spawn, type ChildProcess } from 'node:child_process'
 import {
+  chmodSync,
   createWriteStream,
   existsSync,
   mkdirSync,
@@ -21,6 +23,12 @@ export interface ServerProcessOptions {
   runDir?: string
   /** How long a model may take to load (large models on CPU are slow). */
   loadTimeoutMs?: number
+  /**
+   * How the server proves requests come from the engine (baseline A1): a secret
+   * path prefix (whisper-server, `--request-path`) or an API key (llama-server).
+   * Both send permissive CORS, so any web page could otherwise use them.
+   */
+  secret?: 'path' | 'api-key'
 }
 
 /**
@@ -34,6 +42,8 @@ export class ServerProcess {
   private child: ChildProcess | null = null
   private loaded: { key: string; id: string } | null = null
   private starting: Promise<void> | null = null
+  /** New for every spawn. */
+  private secret = randomBytes(16).toString('hex')
   readonly base: string
 
   constructor(private readonly opts: ServerProcessOptions) {
@@ -101,11 +111,32 @@ export class ServerProcess {
     return new JobError('WORKER_UNAVAILABLE', message, retryable, 503)
   }
 
+  /** Where a path lives on the server, and the headers that go with it. */
+  private target(path: string): { url: string; headers: Record<string, string> } {
+    if (this.opts.secret === 'path')
+      return { url: `${this.base}/${this.secret}${path}`, headers: {} }
+    if (this.opts.secret === 'api-key')
+      return { url: `${this.base}${path}`, headers: { authorization: `Bearer ${this.secret}` } }
+    return { url: `${this.base}${path}`, headers: {} }
+  }
+
   private async spawn(id: string, key: string, extra: string[]): Promise<void> {
-    const args = ['--host', this.host, '--port', String(this.opts.port), ...extra]
+    this.secret = randomBytes(16).toString('hex')
+    let guard: string[] = []
+    if (this.opts.secret === 'path') guard = ['--request-path', `/${this.secret}`]
+    else if (this.opts.secret === 'api-key') {
+      // From a private file, not the command line other users can list.
+      const keyFile = join(this.opts.runDir ?? this.opts.logDir, `${this.opts.name}.key`)
+      writeFileSync(keyFile, `${this.secret}\n`, { mode: 0o600 })
+      chmodSync(keyFile, 0o600)
+      guard = ['--api-key-file', keyFile]
+    }
+    const args = ['--host', this.host, '--port', String(this.opts.port), ...guard, ...extra]
     this.reapOrphan()
     const log = createWriteStream(this.logFile, { flags: 'a' })
-    log.write(`\n--- ${new Date().toISOString()} start ${args.join(' ')}\n`)
+    log.write(
+      `\n--- ${new Date().toISOString()} start ${args.join(' ').replaceAll(this.secret, '<secret>')}\n`,
+    )
     let child: ChildProcess
     try {
       child = spawn(this.opts.binary, args, { stdio: ['ignore', 'pipe', 'pipe'] })
@@ -138,7 +169,8 @@ export class ServerProcess {
       if (exited)
         throw this.unavailable(`${this.opts.name} exited while loading (see ${this.logFile})`, true)
       try {
-        const res = await fetch(`${this.base}/health`, { signal: AbortSignal.timeout(1000) })
+        const { url, headers } = this.target('/health')
+        const res = await fetch(url, { headers, signal: AbortSignal.timeout(1000) })
         if (res.ok) {
           this.loaded = { key, id }
           return
@@ -156,7 +188,11 @@ export class ServerProcess {
   async request(path: string, init: RequestInit): Promise<Response> {
     if (!this.running) throw this.unavailable(`${this.opts.name} is not running`, true)
     try {
-      return await fetch(`${this.base}${path}`, init)
+      const { url, headers } = this.target(path)
+      return await fetch(url, {
+        ...init,
+        headers: { ...headers, ...(init.headers as Record<string, string> | undefined) },
+      })
     } catch (err) {
       if (init.signal?.aborted) throw err
       await this.stop()

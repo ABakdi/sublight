@@ -33,7 +33,7 @@ export class LlamaWorker {
   private readonly server: ServerProcess
 
   constructor(private readonly opts: LlamaWorkerOptions) {
-    this.server = new ServerProcess({ name: 'llama-server', ...opts })
+    this.server = new ServerProcess({ name: 'llama-server', secret: 'api-key', ...opts })
   }
 
   get residentModel(): string | null {

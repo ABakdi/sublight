@@ -47,7 +47,7 @@ export class WhisperWorker {
   private readonly server: ServerProcess
 
   constructor(private readonly opts: WhisperWorkerOptions) {
-    this.server = new ServerProcess({ name: 'whisper-server', ...opts })
+    this.server = new ServerProcess({ name: 'whisper-server', secret: 'path', ...opts })
   }
 
   /** Id of the model currently loaded, for /v1/health. */
