@@ -122,7 +122,7 @@ export class MediaStore {
         normalizedBytes,
         sourceName: sourceName ?? prev?.sourceName ?? null,
         createdAt: prev?.createdAt ?? now,
-        lastUsedAt: now,
+        lastUsedAt: this.useStamp(),
       }
       this.writeMeta(meta)
       writeFileSync(join(this.ids, mediaId), mediaHash)
@@ -148,7 +148,7 @@ export class MediaStore {
   wavPath(mediaHash: string): string {
     const meta = this.meta(mediaHash)
     if (!meta) throw new MediaError('NOT_FOUND', `unknown media ${mediaHash}`, 404)
-    meta.lastUsedAt = Date.now()
+    meta.lastUsedAt = this.useStamp()
     this.writeMeta(meta)
     return join(this.dir, `${hexOf(mediaHash)}.wav`)
   }
@@ -159,6 +159,13 @@ export class MediaStore {
     const file = join(this.dir, `${m[1]}.json`)
     if (!existsSync(file) || !existsSync(join(this.dir, `${m[1]}.wav`))) return null
     return JSON.parse(readFileSync(file, 'utf8')) as MediaMeta
+  }
+
+  private lastStamp = 0
+  /** Now, but strictly after the previous use: two uses in one millisecond still order (LRU). */
+  private useStamp(): number {
+    this.lastStamp = Math.max(Date.now(), this.lastStamp + 1)
+    return this.lastStamp
   }
 
   private writeMeta(meta: MediaMeta): void {
