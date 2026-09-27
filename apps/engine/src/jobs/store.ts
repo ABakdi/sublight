@@ -38,6 +38,12 @@ type LogLine =
 const COMPACT_AFTER = 5000
 
 /**
+ * Finished jobs (and their transcripts) are kept this long, then forgotten at
+ * the next start: they record what you watched (security baseline C2).
+ */
+export const JOB_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+
+/**
  * Persistence for jobs (Spec 06 §5): `jobs.jsonl` is append-only — one `put`
  * per job, one `patch` per transition — and replays into memory on start.
  * Results are separate files (`<id>.result.json`); per-chunk checkpoints live
@@ -48,10 +54,29 @@ export class JobStore {
   private jobs = new Map<string, JobRecord>()
   private lines = 0
 
-  constructor(readonly dir: string) {
+  constructor(
+    readonly dir: string,
+    private readonly retentionMs = JOB_RETENTION_MS,
+  ) {
     mkdirSync(dir, { recursive: true })
     this.log = join(dir, 'jobs.jsonl')
     this.replay()
+  }
+
+  /** Drop jobs that ended longer than `retentionMs` ago, with their files (and jobs reusing them). */
+  private prune(now: number): void {
+    const old = new Set(
+      [...this.jobs.values()]
+        .filter((j) => j.state !== 'queued' && j.state !== 'running')
+        .filter((j) => now - j.updatedAt > this.retentionMs)
+        .map((j) => j.id),
+    )
+    for (const j of this.jobs.values()) if (j.resultOf && old.has(j.resultOf)) old.add(j.id)
+    for (const id of old) {
+      this.jobs.delete(id)
+      rmSync(this.resultFile(id), { force: true })
+      rmSync(join(this.dir, `${id}.chunks`), { recursive: true, force: true })
+    }
   }
 
   private replay(): void {
@@ -70,6 +95,7 @@ export class JobStore {
         if (job) Object.assign(job, line.patch)
       }
     }
+    this.prune(Date.now())
     this.compact()
   }
 
