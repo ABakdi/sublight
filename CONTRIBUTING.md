@@ -14,21 +14,22 @@ few simple conventions keep it coherent.
 
 ## Command reference
 
-| Command              | What it does                                                              |
-| -------------------- | ------------------------------------------------------------------------- |
-| `pnpm dev:player`    | Vite dev server for the player app (`:5173`)                              |
-| `pnpm dev:engine`    | Engine dev server (`:17421`, tsx watch)                                   |
-| `pnpm dev:extension` | WXT dev mode (load `apps/extension/.output/chrome-mv3` in Chromium/Brave) |
-| `pnpm ext:try [url]` | Build the extension and open Brave/Chromium with it loaded (see below)    |
-| `pnpm engine:token`  | Print the engine token to paste into the extension's Options page         |
-| `pnpm lint`          | ESLint (flat config)                                                      |
-| `pnpm lint:links`    | Docs link/anchor checker (must stay green)                                |
-| `pnpm typecheck`     | `tsc --noEmit` across all workspaces                                      |
-| `pnpm test`          | Vitest unit tests across all workspaces                                   |
-| `pnpm e2e`           | Playwright (Chromium; Brave when installed)                               |
-| `pnpm e2e:extension` | Extension e2e (builds the unpacked MV3 and loads it)                      |
-| `pnpm sync:run`      | Transcribe the sync corpus through a running engine                       |
-| `pnpm sync:measure`  | Sync-accuracy corpus report                                               |
+| Command              | What it does                                                                  |
+| -------------------- | ----------------------------------------------------------------------------- |
+| `pnpm dev:player`    | Vite dev server for the player app (`:5173`)                                  |
+| `pnpm dev:engine`    | Engine dev server (`:17421`, tsx watch)                                       |
+| `pnpm dev:extension` | WXT dev mode (load `apps/extension/.output/chrome-mv3` in Chromium/Brave)     |
+| `pnpm ext:try [url]` | Build the extension and open Brave/Chromium with it loaded (see below)        |
+| `pnpm engine:token`  | Print the engine token to paste into the extension's Options page             |
+| `pnpm engine <cmd>`  | The `sublight-engine` command from source: `start --detach`, `status`, `stop` |
+| `pnpm lint`          | ESLint (flat config)                                                          |
+| `pnpm lint:links`    | Docs link/anchor checker (must stay green)                                    |
+| `pnpm typecheck`     | `tsc --noEmit` across all workspaces                                          |
+| `pnpm test`          | Vitest unit tests across all workspaces                                       |
+| `pnpm e2e`           | Playwright (Chromium; Brave when installed)                                   |
+| `pnpm e2e:extension` | Extension e2e (builds the unpacked MV3 and loads it)                          |
+| `pnpm sync:run`      | Transcribe the sync corpus through a running engine                           |
+| `pnpm sync:measure`  | Sync-accuracy corpus report                                                   |
 
 ## Running the engine with speech recognition
 

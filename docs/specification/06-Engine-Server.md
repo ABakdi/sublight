@@ -11,9 +11,13 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
 ## 1. Process & lifecycle
 
 - Node 22, TypeScript, **Hono** (HTTP) + `ws` (WebSocket), bound to `127.0.0.1:17421`.
-- Config: `~/.sublight/config.json` — `{ token, port, defaults: { asrModel, translateModel }, autoRetry, allowedOrigins, cacheLimits: { mediaBytes, uploadBytes }, whisper: { binary?, port, gpu: "auto"|"off", threads }, ffmpeg: { ffmpeg, ffprobe } }`; missing fields take defaults, a generated token is always persisted, an unreadable file is renamed aside. `pnpm engine:token` prints the token for manual pairing until M06.
+- Config: `~/.sublight/config.json` — `{ token, port, defaults: { asrModel, translateModel }, autoRetry, allowedOrigins, cacheLimits: { mediaBytes, uploadBytes }, whisper: { binary?, port, gpu: "auto"|"off", threads }, ffmpeg: { ffmpeg, ffprobe } }`; missing fields take defaults, a generated token is always persisted, an unreadable file is renamed aside. `sublight-engine token` (`pnpm engine:token`) prints the token for pairing by hand; one-click pairing is [ADR-0022](../architecture/decisions/0022-one-click-pairing.md).
 - Start: read config → build services → serve HTTP + WS → recover jobs from the log. Workers spawn lazily **on the first job that needs them** (a missing whisper binary fails that job with `WORKER_UNAVAILABLE`, not the engine).
-- Graceful shutdown: SIGTERM/SIGINT → mark `running` jobs `interrupted` → compact `jobs.jsonl` → stop whisper-server. A hard kill leaves an orphaned whisper-server; its pid file (`~/.sublight/run/whisper-server.pid`) lets the next start reap it, after checking `/proc/<pid>/cmdline` really is whisper-server.
+- **Command** (M06.2): `sublight-engine <start [--detach] | stop | status | token | transcribe <file>>`. The build bundles the engine and its dependencies into one file, `apps/engine/dist/sublight-engine.mjs` (needs Node ≥ 22, plus ffmpeg and the worker binaries from the setup scripts); in the repo, `pnpm engine <command>` runs the same from source.
+  - `start` runs in the foreground; `--detach` starts it in its own session with output in `~/.sublight/logs/engine.out` and waits until `/v1/health` answers. It does nothing if an engine already answers, and a port in use fails with a clear message.
+  - A running engine writes `~/.sublight/run/engine.pid` and removes it on shutdown. `stop` sends SIGTERM to that pid and waits up to 10 s; a stale pid file is removed.
+  - `status` asks `/v1/health` with the configured token: exit 0 and a one-line summary (address, version, uptime, jobs, GPU), or exit 3 when nothing answers.
+- Graceful shutdown: SIGTERM/SIGINT → mark `running` jobs `interrupted` → compact `jobs.jsonl` → stop whisper-server → remove the engine pid file. A hard kill leaves an orphaned whisper-server; its pid file (`~/.sublight/run/whisper-server.pid`) lets the next start reap it, after checking `/proc/<pid>/cmdline` really is whisper-server.
 - Autostart via user unit/LaunchAgent at [M06](../plan/milestones/06-Beta-Release.md).
 
 ## 2. GPU scheduling (the 4 GB budget)

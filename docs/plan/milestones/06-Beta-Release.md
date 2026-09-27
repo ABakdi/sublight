@@ -21,7 +21,7 @@ updated: 2026-09-27
 ## Tasks
 
 - [ ] **M06.1** — Extension packaged build loads in clean Chromium and Brave profiles (no "developer mode" hackery for the test user — document the tradeoff).
-- [ ] **M06.2** — Engine packaging: single-launch binary/package; `sublight-engine start` + health URIs; graceful shutdown.
+- [x] **M06.2** — Engine packaging: single-launch binary/package; `sublight-engine start` + health URIs; graceful shutdown. A single bundled `sublight-engine.mjs` (Node ≥ 22) with `start [--detach] | stop | status | token | transcribe`, a pid file, and status via `/v1/health` ([Spec 06 §1](../../specification/06-Engine-Server.md#1-process--lifecycle)). Node SEA not pursued yet: the bundle plus Node is the documented-requirements edition.
 - [x] **M06.3** — Pairing UX: one-click pairing through the engine's approval page ([ADR-0022](../../architecture/decisions/0022-one-click-pairing.md)) in Options, the popup and the Player; paste field kept; persisted per profile. Rotation/revoke UI still to do.
 - [ ] **M06.4** — Autostart instructions + installer integration (L1: docs; L2: actual setup).
 - [ ] **M06.5** — Release pipeline: version bump, changelog, CI artifact build.
