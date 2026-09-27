@@ -100,6 +100,7 @@ export function createServices(config: EngineConfig, paths: EnginePaths): Engine
     gpu,
     ffmpeg: config.ffmpeg,
     ytDlp: findYtDlp(paths.bin),
+    allowPrivateNetworks: config.allowPrivateNetworks,
   })
   jobs.register(ahead)
   const relays = new RelayStore(join(paths.mediaCache, 'relay'))

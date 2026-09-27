@@ -120,6 +120,7 @@ export interface AheadDeps {
   gpu?: { use(kind: string): Promise<void> }
   ffmpeg: FfmpegBinaries
   ytDlp: string | null
+  allowPrivateNetworks?: boolean
   /** Tests: skip the network. */
   resolve?: (req: UrlJob) => Promise<RemoteMedia>
   slice?: (media: RemoteMedia, out: string, startMs: number, durationMs: number) => Promise<void>
@@ -202,7 +203,11 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
         ctx.progress(0, 'finding the audio')
         const media = await (deps.resolve?.(req) ??
           resolveRemote(
-            { ffmpeg: deps.ffmpeg, ytDlp: deps.ytDlp },
+            {
+              ffmpeg: deps.ffmpeg,
+              ytDlp: deps.ytDlp,
+              allowPrivateNetworks: deps.allowPrivateNetworks ?? false,
+            },
             req.pageUrl,
             req.mediaUrl,
             req.userAgent,
