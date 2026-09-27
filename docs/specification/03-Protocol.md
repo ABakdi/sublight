@@ -66,13 +66,14 @@ Job creation bodies (discriminated by `type`):
 
 ### Media upload & relay
 
-| Endpoint                                   | Notes                                                                                                                                                                                       |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PUT /v1/media/:mediaId`                   | streaming upload (octet-stream, `X-Source-Name`, `X-Source-MediaHash?`); engine normalizes to 16 kHz mono PCM, stores under `sha256`, responds `{ mediaHash, durationMs, normalizedBytes }` |
-| `GET /v1/media/:ref`                       | metadata for a media id or `sha256:` hash: `{ mediaHash, durationMs, normalizedBytes, sourceName, createdAt, lastUsedAt }`                                                                  |
-| `DELETE /v1/media/:mediaHash`              | free cache (and the id aliases pointing at it)                                                                                                                                              |
-| `POST /v1/media/resolve` _(M05b, planned)_ | `{ url, site? }` → engine fetches/probes the URL (fetch rules / yt-dlp) → `{ mediaId, durationMs, title, kind: "relay"                                                                      | "direct-url", directUrl? }`; used by "Open in Sublight Player" |
-| `GET /v1/relay/:mediaId` _(M05b, planned)_ | streaming byte proxy with `Range` support so the player can seek a relayed video; v1 buffers to disk before serving, v2 streams on the fly                                                  |
+| Endpoint                                | Notes                                                                                                                                                                                       |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUT /v1/media/:mediaId`                | streaming upload (octet-stream, `X-Source-Name`, `X-Source-MediaHash?`); engine normalizes to 16 kHz mono PCM, stores under `sha256`, responds `{ mediaHash, durationMs, normalizedBytes }` |
+| `GET /v1/media/:ref`                    | metadata for a media id or `sha256:` hash: `{ mediaHash, durationMs, normalizedBytes, sourceName, createdAt, lastUsedAt }`                                                                  |
+| `DELETE /v1/media/:mediaHash`           | free cache (and the id aliases pointing at it)                                                                                                                                              |
+| `POST /v1/media/resolve` _(M05b)_       | `{ pageUrl, mediaUrl?, userAgent?, cookiesFromBrowser? }` → `{ mediaId, relayPath, durationMs, title, via, state: "ready" \| "downloading" }`; used by "Open in Sublight Player"            |
+| `GET /v1/media/relay/:mediaId` _(M05b)_ | `{ state, progress, error? }` while a relayed video downloads ("Preparing media…")                                                                                                          |
+| `GET /v1/relay/:mediaId` _(M05b)_       | `Range`-aware byte stream for the Player's `<video>`; **no token** (the 128-bit id is the capability, 6 h expiry); `503` while downloading                                                  |
 
 ### Live capture (M05)
 

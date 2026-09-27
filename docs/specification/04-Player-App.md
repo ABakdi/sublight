@@ -77,6 +77,14 @@ Side panel **Caption** tab (`CaptionPanel`, state in `store/caption.ts`):
 
 Part of [M05b](../plan/milestones/05b-Open-in-Player.md). The extension detects the page's video and offers **"Open in Sublight Player"**; clicking it opens a new tab with the Player and the video plays there with every player feature (overlay, styling, captioning, translation, editing, export).
 
+> **As built (2026-09-27, M05b):**
+>
+> - **Handoff:** the extension opens the Player at its configured address (Options, default `http://localhost:5173/`) with `#sl=<payload>` (`encodeOpenPayload`). The Player consumes the hash once and removes it. The payload adds `engine: { userAgent, cookiesFromBrowser }`, so the engine fetches the way the extension would.
+> - **Project and playback:** `openFromPage` creates a `page-video` project titled after the video and plays the page's own file directly when it has one (`transport: "direct"`, no engine needed). Otherwise, or when that file won't play here (`<video>` error), it goes through the engine relay (`transport: "engine-relay"`), showing "Preparing media… N %" while the engine downloads. It resumes at `resumeAtMs`.
+> - **Library:** reopening a page video resolves it again (relay ids die with the engine run).
+> - **Captions:** "Caption this video" and Whisper English translation run a `url` job on the page (the engine fetches the audio), so no file is uploaded. LLM translation works on the resulting track as for files.
+> - **Not yet:** HLS/DASH playback in the Player (hls.js/dash.js); those pages go through the engine.
+
 ### 9.1 Entry & payload delivery
 
 | Delivery                                   | When                             | Mechanism                                             |

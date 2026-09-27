@@ -153,6 +153,8 @@ content script ◄─runtime.sendMessage─► SW ◄─fetch/WS─► engine
 
 Per [ADR-0017](../architecture/decisions/0017-open-in-player.md): detects the page's video and lets the user run it in the full Player. Spec'd on the player side in [04 §9](04-Player-App.md#9-opening-a-pages-video-open-in-player-adr-0017); this section is the extension's half.
 
+> **As built (2026-09-27, M05b):** the popup's **Open in Sublight Player** (`src/openInPlayer.ts`) classifies the playing video (`classifySources`): an http(s) src is `https-direct`, `.m3u8`/`.mpd` are `hls`/`dash`, no src (blob:/MSE) is `engine-fetchable` with the video's own page URL (feed-aware), and no duration is `live` (refused: live streams stay on their page). It pauses the page video and opens the Player with the payload in `#sl=`. The Player address is an Options setting.
+
 ### 8.1 Entry points
 
 1. **Popup action** (primary, M05b): shown whenever a video is detected; copy: _"Open in Sublight Player"_.

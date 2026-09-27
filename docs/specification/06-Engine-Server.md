@@ -41,6 +41,15 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
 
 ### 4.1 Media resolve & relay (open-in-player)
 
+> **As built (2026-09-27, M05b):**
+>
+> - `POST /v1/media/resolve { pageUrl, mediaUrl?, userAgent?, cookiesFromBrowser? }` → `{ mediaId, relayPath, durationMs, title, via, state }`, using the same resolver as captions ahead of playback (`media/remote.ts`).
+> - **Pass-through:** when the page's own file or a single yt-dlp format has both video and audio over HTTP, the relay streams it with upstream `Range` passthrough (`state: "ready"`).
+> - **Download:** when a site serves only separate video and audio (YouTube, which refuses its single file in some sessions), yt-dlp downloads ≤ 720p video plus audio and ffmpeg merges them (`+faststart`) into `media-cache/relay/<id>.mp4` (`state: "downloading"`). `GET /v1/media/relay/:id` reports progress; `GET /v1/relay/:id` answers `503` until the file is ready, then serves `Range` requests from disk.
+> - **Access:** relay ids are 128 random bits and expire after 6 h. `/v1/relay/*` needs no token, because a `<video>` can't send one; the id is the capability and there's no way to relay an arbitrary URL. Relay files are removed on expiry and at engine start.
+> - **YouTube quality:** without a login, YouTube only lets the engine have low resolutions (240p measured, 2026-09-27). The "Use my browser login" option may raise that. In-page captions on YouTube keep full quality.
+> - **Measured:** direct mp4 page → plays at once. YouTube (15 min) → ~14 s to playable, then seeking anywhere works.
+
 The "Open in Sublight Player" flow ([ADR-0017](../architecture/decisions/0017-open-in-player.md), milestone [M05b](../plan/milestones/05b-Open-in-Player.md)) lets a page's video migrate into the Player; when the direct/manifest transports don't apply, the **engine owns fetching** the media (it has network + yt-dlp where the site is supported).
 
 - `POST /v1/media/resolve { url, site? }` — probe/fetch a site URL:

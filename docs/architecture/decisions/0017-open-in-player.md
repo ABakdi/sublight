@@ -6,7 +6,7 @@ date: 2026-09-23
 
 # ADR-0017 — "Open in Sublight Player": migrating a page's video into the player
 
-**Status:** accepted
+**Status:** accepted. As built (2026-09-27): the relay streams straight through when the site serves one file (the planned "v2"), and falls back to the "v1" download-and-merge for sites that serve only separate video and audio (YouTube). YouTube gives the engine only low resolutions without a login, so in-page captions ([ADR-0020](0020-caption-ahead-of-playback.md)) remain the full-quality path there.
 
 ## Context
 
