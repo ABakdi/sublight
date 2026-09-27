@@ -1,3 +1,4 @@
+import { ModelsPanel } from './ModelsPanel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SubtitleProject } from '@sublight/core'
 import { listProjects } from '../lib/idb'
@@ -151,6 +152,18 @@ export function Library() {
           </ul>
         )}
       </section>
+
+      <details
+        className="mt-10 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4"
+        data-testid="library-models"
+      >
+        <summary className="cursor-pointer text-sm font-semibold tracking-wide text-zinc-400 uppercase">
+          Models
+        </summary>
+        <div className="mt-4 max-w-xl">
+          <ModelsPanel />
+        </div>
+      </details>
     </main>
   )
 }

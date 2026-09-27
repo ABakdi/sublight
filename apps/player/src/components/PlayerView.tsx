@@ -4,6 +4,7 @@ import { cuesForMode, type CaptionMode } from '@sublight/core'
 import { activeTrackOf, usePlayerStore } from '../store/player'
 import { hasFileSystemAccess } from '../lib/fileOpen'
 import { attachStream } from '../lib/streaming'
+import { ModelsPanel } from './ModelsPanel'
 import { TracksPanel } from './TracksPanel'
 import { StylePanel } from './StylePanel'
 import { CaptionPanel } from './CaptionPanel'
@@ -89,7 +90,7 @@ export function PlayerView() {
       return next
     })
   }, [])
-  const [panel, setPanel] = useState<'tracks' | 'caption' | 'style'>('tracks')
+  const [panel, setPanel] = useState<'tracks' | 'caption' | 'style' | 'models'>('tracks')
   const draft = useCaptionStore((s) => s.draft)
   const resetCaption = useCaptionStore((s) => s.reset)
   const projectId = project?.id
@@ -438,7 +439,7 @@ export function PlayerView() {
         {/* Side panel */}
         <aside className="flex w-72 shrink-0 flex-col rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
           <div className="mb-3 flex gap-1">
-            {(['tracks', 'caption', 'style'] as const).map((name) => (
+            {(['tracks', 'caption', 'style', 'models'] as const).map((name) => (
               <button
                 key={name}
                 type="button"
@@ -457,6 +458,8 @@ export function PlayerView() {
               <TracksPanel />
             ) : panel === 'caption' ? (
               <CaptionPanel />
+            ) : panel === 'models' ? (
+              <ModelsPanel />
             ) : (
               <StylePanel />
             )}

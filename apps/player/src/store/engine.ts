@@ -17,12 +17,17 @@ interface EngineState {
   lastError?: string
   hasToken: boolean
   models: ModelInfo[]
+  /** Disk used by models and free on their disk, bytes (M06.8). */
+  disk: { usedBytes: number; freeBytes: number | null } | null
+  /** Why the last model action failed (DISK_FULL, MODEL_IN_USE…), cleared by the next one. */
+  modelError: string | null
   /** Poll /v1/health once (used on load, visibilitychange and after pairing). */
   check: () => Promise<void>
   /** Save a pasted token and re-check. */
   pair: (token: string) => Promise<void>
   refreshModels: () => Promise<void>
   installModel: (id: string) => Promise<void>
+  removeModel: (id: string) => Promise<void>
 }
 
 /** One shared socket for the app; the caption flow subscribes to its job. */
@@ -49,6 +54,8 @@ export const useEngineStore = create<EngineState>((set, get) => {
     status: 'checking',
     hasToken: engineToken() !== null,
     models: [],
+    disk: null,
+    modelError: null,
 
     check: async () => {
       const result = await fetchEngineHealth()
@@ -72,7 +79,8 @@ export const useEngineStore = create<EngineState>((set, get) => {
 
     refreshModels: async () => {
       try {
-        set({ models: (await engine.models()).models })
+        const r = await engine.models()
+        set({ models: r.models, disk: { usedBytes: r.diskUsedBytes, freeBytes: r.diskFreeBytes } })
       } catch (err) {
         if (err instanceof EngineError && err.code === 'OFFLINE') set({ status: 'offline' })
       }
@@ -80,6 +88,7 @@ export const useEngineStore = create<EngineState>((set, get) => {
 
     installModel: async (id) => {
       set({
+        modelError: null,
         models: get().models.map((m) =>
           m.id === id ? { ...m, state: 'downloading', progress: 0 } : m,
         ),
@@ -87,9 +96,20 @@ export const useEngineStore = create<EngineState>((set, get) => {
       try {
         await engine.installModel(id)
       } catch (err) {
-        set({ lastError: err instanceof Error ? err.message : String(err) })
+        const message = err instanceof Error ? err.message : String(err)
+        set({ lastError: message, modelError: message })
         await get().refreshModels()
       }
+    },
+
+    removeModel: async (id) => {
+      set({ modelError: null })
+      try {
+        await engine.removeModel(id)
+      } catch (err) {
+        set({ modelError: err instanceof Error ? err.message : String(err) })
+      }
+      await get().refreshModels()
     },
   }
 })

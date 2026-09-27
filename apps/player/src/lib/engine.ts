@@ -119,6 +119,10 @@ export const engine = {
   /** Where the `<video>` plays a relay from (no token: the id is the capability). */
   relayUrl: (relayPath: string) => `${engineBaseUrl()}${relayPath}`,
   models: () => request<ModelsResponse>('/v1/models'),
+  removeModel: (id: string) =>
+    request<{ ok: boolean; freedBytes: number }>(`/v1/models/${encodeURIComponent(id)}/remove`, {
+      method: 'POST',
+    }),
   installModel: (id: string) =>
     request<{ ok: boolean; model: ModelInfo }>(`/v1/models/${encodeURIComponent(id)}/install`, {
       method: 'POST',
