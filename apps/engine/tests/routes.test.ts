@@ -260,6 +260,49 @@ describe('engine routes (Protocol §2)', () => {
     },
   )
 
+  it.skipIf(!hasFfmpeg)('clears the audio cache, except what a waiting job needs', async () => {
+    let release!: () => void
+    const blocked = new Promise<void>((r) => (release = r))
+    const holder: { s?: EngineServices } = {}
+    const s = (holder.s = services({
+      ...instantRunner(() => holder.s!.media),
+      run: async () => {
+        await blocked
+        return { tracks: [], language: 'en' }
+      },
+    }))
+    const app = createApp(config, { services: s })
+    const up = await app.request('/v1/media/clip-1', {
+      method: 'PUT',
+      headers: { ...H, 'x-source-name': 'tone.m4a' },
+      body: readFileSync(clip),
+    })
+    const { mediaHash } = await json<UploadResult>(up)
+    const job = await json<JobSummary>(
+      await app.request('/v1/jobs', {
+        method: 'POST',
+        headers: { ...H, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          type: 'transcribe',
+          mediaHash: 'clip-1',
+          model: 'whisper-small',
+          params: { language: null, maxCueDurationMs: 7000 },
+        }),
+      }),
+    )
+    const clear = async () =>
+      json<{ freedBytes: number }>(
+        await app.request('/v1/media/clear', { method: 'POST', headers: H }),
+      )
+    expect((await clear()).freedBytes).toBe(0) // the job still needs it
+    expect(s.media.resolve(mediaHash)).toBe(mediaHash)
+    release()
+    for (let i = 0; i < 100 && s.jobs.get(job.id)!.state !== 'done'; i++)
+      await new Promise((r) => setTimeout(r, 10))
+    expect((await clear()).freedBytes).toBeGreaterThan(0)
+    expect(s.media.resolve(mediaHash)).toBeNull()
+  })
+
   it.skipIf(!hasFfmpeg)('rejects uploads over the size cap from Content-Length', async () => {
     const app = createApp(
       { ...config, cacheLimits: { ...config.cacheLimits, uploadBytes: 10 } },

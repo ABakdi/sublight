@@ -256,6 +256,22 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
       const meta = hash ? s.media.meta(hash) : null
       return meta ? c.json(meta) : jsonError(c, 'NOT_FOUND', 'unknown media', 404)
     })
+    // "Clear the audio cache" (baseline C2): everything no queued or running job needs.
+    app.post('/v1/media/clear', (c) => {
+      const inUse = new Set(
+        s.jobs
+          .list()
+          .filter((j) => j.state === 'queued' || j.state === 'running')
+          .map((j) => s.jobs.request(j.id))
+          .flatMap((r) => (r && 'mediaHash' in r && r.mediaHash ? [r.mediaHash] : []))
+          // A job may name its media by upload id: compare hashes.
+          .map((ref) => s.media.resolve(ref) ?? ref),
+      )
+      let freedBytes = 0
+      for (const m of s.media.all())
+        if (!inUse.has(m.mediaHash) && s.media.delete(m.mediaHash)) freedBytes += m.normalizedBytes
+      return c.json({ ok: true, freedBytes })
+    })
     app.delete('/v1/media/:mediaHash', (c) =>
       s.media.delete(c.req.param('mediaHash'))
         ? c.json({ ok: true })
