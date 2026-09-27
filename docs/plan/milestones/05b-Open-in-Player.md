@@ -1,6 +1,6 @@
 ---
 tags: [plan, milestone]
-status: in-progress
+status: done
 updated: 2026-09-27
 ---
 
@@ -36,7 +36,21 @@ Design lives in [ADR-0017](../../architecture/decisions/0017-open-in-player.md) 
 - Done: classifier, `#sl=` handoff (storage handoff not needed yet), `page-video` projects, direct playback with a relay fallback, engine resolve plus relay (pass-through or download-and-merge with progress), resume, `url`-job captions and Whisper English in the Player, re-resolve on reopen, the popup button and a Player-address option.
 - Verified in Brave: a direct mp4 page opens and plays at the page's position, and captions in the Player ("what your country can" at 6.5 s); YouTube opens through the relay in ~14 s at 240p and seeks. e2e: "Open in Sublight Player hands the page video over" (extension suite); unit tests for the store, classifier and relay.
 - Also done (same day): HLS/DASH in the Player (native, hls.js, dash.js; engine remux fallback), failure messages per error code with "Try again", e2e fixtures for an HLS page and a dead stream.
-- Open: dash.js e2e fixture.
+- Also done (same day): dash.js e2e fixture.
+
+## Closed (2026-09-27)
+
+- **Captioning in the Player, end to end** (real ASR, `E2E_REAL_ASR=1 pnpm e2e:extension`): a direct `.mp4` page, an HLS page and a page whose `<video>` plays a `blob:` URL are each handed over, play in the Player and caption there, with "ask not what your country…" on screen at 6.5 s. The blob page names its file only in `og:video`, so the engine finds it with yt-dlp's generic extractor and relays it (download path, "Preparing media…"), the way YouTube goes; seeking works on the relayed file.
+- **Both browsers:** the whole extension suite (17 tests, real ASR and LLM included) passes in Chromium and in Brave 153 (`E2E_BRAVE=1`).
+- **Long videos on the v1 relay** (the open question below): an 80-min YouTube lecture resolved in 9 s and was downloaded, merged and playable 39 s after the click (720p + audio, 262 MB, no login); Range requests anywhere in the file answer in ~4 ms. v1 (download, then serve from disk) is enough; the v2 on-the-fly relay stays a fallback idea.
+- Acceptance criteria:
+  1. Direct `.mp4`: one click → Player → plays from the page's position, captions end to end ✅ (e2e, both browsers).
+  2. HLS: plays (native or hls.js) and captions through the engine reading the playlist ✅ (e2e); DASH plays through dash.js ✅ (e2e).
+  3. A page with no file of its own: "Preparing media…" → relayed playback with seeking → captions ✅ (e2e; sync is the ahead-of-playback pipeline's, [Spec 08 §6a](../../specification/08-Audio-Capture.md#6a-captions-ahead-of-playback-adr-0020)).
+  4. Resume at the migrated position ✅ (e2e).
+  5. Impossible cases explained, with a way forward ✅: unreachable (e2e), DRM (`MEDIA_PROTECTED`, engine and Player unit tests), live streams and pages without a video refused with the reason (unit tests).
+  6. No new permissions ✅ (manifest unchanged: `tabs.create` and the page's own frame only); the page's video pauses when it moves; the Player page refuses a second overlay ✅.
+- Still planned, outside M05b: the overlay chip and video context-menu entry points (M05b.10 follow-ups); a storage hand-off for a packaged Player (the `#sl=` hash covers the served and dev Players).
 
 ## Acceptance criteria
 
@@ -55,7 +69,8 @@ Design lives in [ADR-0017](../../architecture/decisions/0017-open-in-player.md) 
 
 ## Open questions
 
-- ~~Whether yt-dlp's formats stream well enough for long videos~~: answered by [ADR-0020](../../architecture/decisions/0020-caption-ahead-of-playback.md): ffmpeg reads any 30 s of a YouTube audio URL in ~1 s with Range requests; `media/remote.ts` is the resolver `media/resolve` can build on. Remaining question: whether the engine's v1 buffer-to-disk relay is streamable enough for long videos — validate with a 1 h YouTube fixture before committing to the v1 shape (v2 on-the-fly relay is the fallback).
+- ~~Whether yt-dlp's formats stream well enough for long videos~~: answered by [ADR-0020](../../architecture/decisions/0020-caption-ahead-of-playback.md): ffmpeg reads any 30 s of a YouTube audio URL in ~1 s with Range requests; `media/remote.ts` is the resolver `media/resolve` can build on.
+- ~~Whether the engine's v1 buffer-to-disk relay is streamable enough for long videos~~: yes. An 80-min YouTube video was playable 39 s after the click (see Closed above).
 - S2 (service-worker byte relay for referrer-protected direct files) stays out of M05b — only revisit when a real user hits a site the other paths can't cover.
 
 ## Related

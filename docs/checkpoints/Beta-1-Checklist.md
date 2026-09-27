@@ -33,23 +33,23 @@ updated: 2026-09-23
 
 ## Matrix (rows pre-filled from the template; run at M06)
 
-| #   | Flow                                                           | Ch  | Br  | Notes                                                                                                  |
-| --- | -------------------------------------------------------------- | --- | --- | ------------------------------------------------------------------------------------------------------ |
-| T1  | YouTube live captions                                          |     |     | tabCapture path (YouTube is EME → captureStream muted)                                                 |
-| T2  | YouTube refinement + timing                                    |     |     | corpus cross-check                                                                                     |
-| T3  | Seek / pause / speed mid-capture                               |     |     | re-anchor behavior                                                                                     |
-| T4  | SPA navigation YouTube→new video                               |     |     |                                                                                                        |
-| T5  | Vimeo                                                          |     |     | likely captureStream-clean path                                                                        |
-| T6  | Generic page + iframe player                                   |     |     |                                                                                                        |
-| T7  | Local file captioning                                          |     |     | player + engine                                                                                        |
-| T8  | Translation EN→DE/AR/JA spot check                             |     |     |                                                                                                        |
-| T9  | Bilingual render                                               |     |     |                                                                                                        |
-| T10 | Style live + persist                                           |     |     |                                                                                                        |
-| T11 | SRT export → re-import                                         |     |     |                                                                                                        |
-| T12 | Engine offline state                                           |     |     | cards + retry, no crash                                                                                |
-| T13 | DRM / mute / autoplay-block errors                             |     |     | no silent failure                                                                                      |
-| T14 | Corpus + perf numbers                                          |     |     | publish in §3                                                                                          |
-| T15 | Open in Sublight Player — direct `.mp4` + engine relay fixture |     |     | *only if M05b lands in Beta 1 (non-blocking); else carried to Beta 2. Resume + failure paths included. |
+| #   | Flow                                                           | Ch  | Br  | Notes                                                                                                       |
+| --- | -------------------------------------------------------------- | --- | --- | ----------------------------------------------------------------------------------------------------------- |
+| T1  | YouTube live captions                                          |     |     | tabCapture path (YouTube is EME → captureStream muted)                                                      |
+| T2  | YouTube refinement + timing                                    |     |     | corpus cross-check                                                                                          |
+| T3  | Seek / pause / speed mid-capture                               |     |     | re-anchor behavior                                                                                          |
+| T4  | SPA navigation YouTube→new video                               |     |     |                                                                                                             |
+| T5  | Vimeo                                                          |     |     | likely captureStream-clean path                                                                             |
+| T6  | Generic page + iframe player                                   |     |     |                                                                                                             |
+| T7  | Local file captioning                                          |     |     | player + engine                                                                                             |
+| T8  | Translation EN→DE/AR/JA spot check                             |     |     |                                                                                                             |
+| T9  | Bilingual render                                               |     |     |                                                                                                             |
+| T10 | Style live + persist                                           |     |     |                                                                                                             |
+| T11 | SRT export → re-import                                         |     |     |                                                                                                             |
+| T12 | Engine offline state                                           |     |     | cards + retry, no crash                                                                                     |
+| T13 | DRM / mute / autoplay-block errors                             |     |     | no silent failure                                                                                           |
+| T14 | Corpus + perf numbers                                          |     |     | publish in §3                                                                                               |
+| T15 | Open in Sublight Player — direct `.mp4` + engine relay fixture |     |     | M05b landed (2026-09-27), so it is in Beta 1. Direct, HLS, DASH and relay; resume + failure paths included. |
 
 ## Known gaps to watch (candidates before we even start)
 

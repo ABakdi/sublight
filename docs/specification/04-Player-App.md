@@ -137,6 +137,8 @@ interface OpenInPlayerPayload {
 
 Fixtures: a page with a direct `.mp4`, an HLS page (hls.js fixture), a page with multiple sources, an engine-mock "YouTube" page (relay path), and failure cases (blob-without-yt-dlp, live). Verified on Chromium + Brave.
 
+> **As built (2026-09-27):** in `e2e/tests/extension.spec.ts`: hand-over and resume of a direct `.mp4`; HLS and DASH pages playing (hls.js / dash.js); a dead stream explaining itself. With real ASR, a direct page, an HLS page and a `blob:` page (its file named only in `og:video`, found by yt-dlp's generic extractor, relayed by the engine) each caption in the Player. Live streams and pages without a video are refused in unit tests. The suite runs in Chromium and, with `E2E_BRAVE=1`, in Brave.
+
 ## 10. Out of scope for the player
 
 - Playing _online_ videos in place (extension territory) — but _migrating_ them into the player **is** in scope (§9).
