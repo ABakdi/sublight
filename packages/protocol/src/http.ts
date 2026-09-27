@@ -85,6 +85,7 @@ export const ERROR_CODES = [
   'MODEL_IN_USE',
   'MEDIA_PROTECTED',
   'NOT_FOUND',
+  'BODY_TOO_LARGE',
 ] as const
 
 export type ErrorCode = (typeof ERROR_CODES)[number]

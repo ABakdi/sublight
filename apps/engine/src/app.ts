@@ -3,6 +3,7 @@ import { PairingStore, pairingPage, type PairingRequest } from './pairing'
 import { assertNotProtected, isManifest, resolveRemote } from './media/remote'
 import { Readable } from 'node:stream'
 import type { ReadableStream as NodeWebStream } from 'node:stream/web'
+import { bodyLimit } from 'hono/body-limit'
 import { Hono, type Context } from 'hono'
 import type {
   JobCreation,
@@ -17,12 +18,12 @@ import type {
 import { COOKIE_BROWSERS, IDEMPOTENCY_KEY_HEADER } from '@sublight/protocol'
 import { rotateToken, type EngineConfig } from './config'
 import {
-  allowedOrigins,
   bearerAuth,
-  playerOrigins,
+  clientOrigins,
   corsAllowlist,
   hostOriginGuard,
   jsonError,
+  knownPlayers,
 } from './auth'
 import { probeGpu } from './gpu'
 import { buildHealth, buildVersion } from './health'
@@ -91,17 +92,33 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
   const bootedAt = Date.now()
   // The engine's own pages (the pairing page) talk to it from its own origin.
   const selfOrigins = [`http://127.0.0.1:${config.port}`, `http://localhost:${config.port}`]
-  const origins = allowedOrigins([
-    ...config.allowedOrigins,
-    ...playerOrigins(config.player.port),
-    ...selfOrigins,
-  ])
+  const origins = new Set([...clientOrigins(config), ...selfOrigins])
+  const players = knownPlayers(config)
   const pairing = new PairingStore()
   const gpu = opts.gpu ?? probeGpu
   const s = opts.services
 
   app.use('*', hostOriginGuard(config.port, origins))
   app.use('*', corsAllowlist(origins))
+  // Bodies are bounded before anything reads them (baseline A6); uploads cap themselves while streaming.
+  app.use('/v1/*', async (c, next) => {
+    if (c.req.method === 'PUT' && c.req.path.startsWith('/v1/media/')) return next()
+    const path = c.req.path
+    const maxSize = path.startsWith('/v1/pair/')
+      ? 4 * 1024
+      : path.startsWith('/v1/jobs')
+        ? 32 * 1024 ** 2 // a translate job carries a whole track
+        : 1024 ** 2
+    return bodyLimit({
+      maxSize,
+      onError: (c) => jsonError(c, 'BODY_TOO_LARGE', `request body over ${maxSize} bytes`, 413),
+    })(c, next)
+  })
+  // Nothing the API answers belongs in a cache (security baseline A5); the relay sets its own.
+  app.use('/v1/*', async (c, next) => {
+    await next()
+    if (!c.res.headers.has('cache-control')) c.header('cache-control', 'no-store')
+  })
 
   // Unauthenticated pairing probe (Protocol §2) — only advertises *presence*.
   app.get('/v1/pair/info', (c) => c.json({ requiresToken: true }))
@@ -121,7 +138,7 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
     const req = pairing.get(c.req.query('request') ?? '')
     c.header('cache-control', 'no-store')
     c.header('x-frame-options', 'DENY') // no clickjacking the Approve button
-    return c.html(pairingPage(req))
+    return c.html(pairingPage(req, players))
   })
   app.post('/v1/pair/decide', async (c) => {
     // Only the engine's own pairing page decides: no other site can approve.
@@ -348,7 +365,11 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
         !(COOKIE_BROWSERS as readonly string[]).includes(body.cookiesFromBrowser)
       )
         return jsonError(c, 'JOB_INVALID', 'unsupported cookiesFromBrowser', 400)
-      const deps = { ffmpeg: config.ffmpeg, ytDlp: s.ytDlp }
+      const deps = {
+        ffmpeg: config.ffmpeg,
+        ytDlp: s.ytDlp,
+        allowPrivateNetworks: config.allowPrivateNetworks,
+      }
       const reply = (mediaId: string, r: Omit<MediaResolveResponse, 'mediaId' | 'relayPath'>) =>
         c.json({ mediaId, relayPath: `/v1/relay/${mediaId}`, ...r } satisfies MediaResolveResponse)
       try {
