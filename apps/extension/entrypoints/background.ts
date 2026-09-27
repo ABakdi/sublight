@@ -148,6 +148,7 @@ async function handle(
     case 'live.fallback':
     case 'live.hint':
     case 'live.navigated':
+    case 'live.translate':
       return onLiveMessage(message, sender)
     case 'demo.toggle': {
       const set: Message = { type: 'demo.set', on: message.on }

@@ -241,7 +241,11 @@ export function QuickControls({
           data-testid="qc-target"
           value={model.target}
           disabled={!model.canTranslate}
-          title={model.canTranslate ? 'Alt+Shift+T toggles it' : 'Not for live captions'}
+          title={
+            model.canTranslate
+              ? 'Alt+Shift+T toggles it'
+              : 'Live captions: once refined (after Stop)'
+          }
           style={{ ...small, fontWeight: 400, maxWidth: 120 }}
           onChange={(e) => actions.setTarget(e.target.value)}
         >

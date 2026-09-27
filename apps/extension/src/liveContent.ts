@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser'
-import type { SubtitleTrack } from '@sublight/core'
+import { pairWithOriginal, type SubtitleTrack } from '@sublight/core'
 import type { LiveAnchor } from '@sublight/protocol'
 import { startPcmCapture, type PcmCapture } from './capture'
 import type { Message } from './messages'
@@ -19,7 +19,8 @@ const send = (msg: Message) => browser.runtime.sendMessage(msg).catch(() => {})
  * playback anchors for the engine's capture → media timeline, captures the
  * element's own audio when it is CORS-clean (`captureStream`, no prompt),
  * asks the SW to fall back to tabCapture when that audio stays silent, and
- * renders the live track over the video.
+ * renders the live track over the video. Once refined, the captions can be
+ * translated from the quick controls (the LLM, on the final track).
  */
 export class LiveSession {
   private overlay: OverlayFrame
@@ -36,7 +37,17 @@ export class LiveSession {
     private readonly onSourceChange: () => void = () => {},
   ) {
     this.overlay = new OverlayFrame(video)
-    this.controls = new ViewerControls(this.overlay, { canTranslate: false })
+    this.controls = new ViewerControls(this.overlay, {
+      canTranslate: false,
+      onTarget: (target) =>
+        void send({
+          type: 'live.translate',
+          jobId,
+          target,
+          mediaMs: Math.round(video.currentTime * 1000),
+        }),
+      onBoth: () => this.draw(),
+    })
     this.controls.setNote('Live: follows the sound, about 3 s behind it.')
     for (const e of this.events) video.addEventListener(e, this.onPlayback)
     video.addEventListener('emptied', this.onEmptied)
@@ -138,16 +149,31 @@ export class LiveSession {
    * shown behind the audio by a steady delay (`DisplayDelay`); the final
    * track goes back to exact timing.
    */
-  showTrack(track: SubtitleTrack, final: boolean): void {
+  showTrack(track: SubtitleTrack, final: boolean, companion?: SubtitleTrack): void {
     if (final) {
       this.stopDelay()
-      this.overlay.setCues(track.cues, false, 0)
+      this.final = { track, companion: companion ?? null }
+      this.draw()
+      if (!companion) this.controls.setNote(null)
+      this.controls.enableTranslate()
       return
     }
     const starts = track.cues.flatMap((c) => c.words?.map((w) => w.startMs) ?? [c.startMs])
     this.delay.onDraft(this.video.currentTime * 1000, starts)
     this.overlay.setCues(track.cues, true, this.delayNow())
     this.delayTimer ??= setInterval(() => this.overlay.setOffset(this.delayNow()), 100)
+  }
+
+  /** The refined track, or its translation next to the original. */
+  private final: { track: SubtitleTrack; companion: SubtitleTrack | null } | null = null
+
+  /** "Show both": the original as the main line and the translation above it. */
+  private draw(): void {
+    if (!this.final) return
+    const { track, companion } = this.final
+    const both = this.controls.both && companion
+    this.overlay.setCues(both ? companion.cues : track.cues, false, 0)
+    this.overlay.setSecondary(both ? pairWithOriginal(track.cues, companion.cues) : null)
   }
 
   private delayNow(): number {

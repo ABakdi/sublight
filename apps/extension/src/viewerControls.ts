@@ -4,12 +4,12 @@ import { HIDE_SITE_CAPTIONS_KEY, SiteCaptions } from './siteCaptions'
 import {
   clampDelay,
   CONTROLS_KEY,
-  TARGETS,
   type ControlsActions,
   type ControlsModel,
   type ControlsPrefs,
   type Corner,
 } from './quickControls'
+import { languageName } from './translation'
 
 /** "Translate to" (storage.local): 'original' or a language code; followed on every video. */
 export const TARGET_KEY = 'captionTarget'
@@ -24,8 +24,6 @@ export const LAST_TARGET_KEY = 'lastTranslateTarget'
  */
 const viewer = { visible: true, delayMs: 0 }
 
-const languageName = (code: string) => TARGETS.find(([c]) => c === code)?.[1] ?? code
-
 function formatDelay(ms: number): string {
   return ms === 0 ? 'no delay' : `${ms > 0 ? '+' : '−'}${Math.abs(ms)} ms`
 }
@@ -33,10 +31,13 @@ function formatDelay(ms: number): string {
 /**
  * Wires the quick controls (and the keyboard shortcuts) to one overlay:
  * captions on/off, the viewer's delay, "Translate to", and where the controls
- * sit. `onTarget` asks for another language (captions made ahead only).
+ * sit. `onTarget` asks for another language (from the start for captions
+ * made ahead, once refined for live captions: `enableTranslate`).
  */
 export class ViewerControls implements ControlsActions {
   private model: ControlsModel
+  /** The viewer's "Translate to" (storage.local), applied once translation is possible. */
+  private savedTarget = 'original'
   private readonly site: SiteCaptions
   private hideSite = true
 
@@ -70,18 +71,30 @@ export class ViewerControls implements ControlsActions {
     this.render()
     void browser.storage.local.get([CONTROLS_KEY, TARGET_KEY, BOTH_KEY]).then((got) => {
       const prefs = (got[CONTROLS_KEY] as ControlsPrefs | undefined) ?? {}
+      this.savedTarget = (got[TARGET_KEY] as string | undefined) ?? 'original'
       this.model = {
         ...this.model,
         corner: prefs.corner ?? this.model.corner,
         expanded: prefs.expanded ?? false,
         both: got[BOTH_KEY] === true,
-        target: opts.canTranslate
-          ? ((got[TARGET_KEY] as string | undefined) ?? 'original')
-          : 'original',
+        target: opts.canTranslate ? this.savedTarget : 'original',
       }
       this.render()
       opts.onBoth?.()
     })
+  }
+
+  /**
+   * Translation became possible (live captions, once refined): offer "Translate
+   * to" and apply the viewer's saved choice.
+   */
+  enableTranslate(): void {
+    if (this.opts.canTranslate) return
+    this.opts.canTranslate = true
+    this.model = { ...this.model, canTranslate: true, target: this.savedTarget }
+    this.render()
+    this.opts.onBoth?.()
+    if (this.savedTarget !== 'original') this.opts.onTarget?.(this.savedTarget)
   }
 
   get both(): boolean {
@@ -147,6 +160,7 @@ export class ViewerControls implements ControlsActions {
     this.model = { ...this.model, target }
     const save: Record<string, string> = { [TARGET_KEY]: target }
     if (target !== 'original') save[LAST_TARGET_KEY] = target
+    this.savedTarget = target
     void browser.storage.local.set(save)
     this.overlay.toast(
       target === 'original' ? 'Original language' : `Translate to ${languageName(target)}`,

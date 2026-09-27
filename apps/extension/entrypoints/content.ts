@@ -256,11 +256,15 @@ export default defineContentScript({
           return undefined
         }
         case 'live.track':
-          live?.showTrack(message.track, message.final)
+          live?.showTrack(message.track, message.final, message.companion)
           sendResponse({ ok: true })
           return undefined
         case 'live.end':
           live?.end()
+          sendResponse({ ok: true })
+          return undefined
+        case 'live.ui':
+          live?.controls.setNote(message.note)
           sendResponse({ ok: true })
           return undefined
         case 'live.notice':

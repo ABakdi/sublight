@@ -11,6 +11,7 @@ import {
 import { engineRequest, EngineRequestError, getToken } from './engine'
 import type { CaptureSource, LiveState, Message } from './messages'
 import { base64ToBytes, levelDb } from './pcm'
+import { followJob, JobEnded, languageName, TRANSLATE_MODEL, type FollowedJob } from './translation'
 
 export const LIVE_MODEL_KEY = 'liveModel'
 export const LIVE_LANGUAGE_KEY = 'liveLanguage'
@@ -44,6 +45,8 @@ export interface SavedLiveTrack {
   track: SubtitleTrack
   /** False while listening: the draft so far, before the refinement pass. */
   final: boolean
+  /** The refined track translated ("Translate to"), when that is what the page shows. */
+  translation?: SubtitleTrack
 }
 /** Tab audio silent this long while the video plays → probably muted tab or DRM. */
 const TAB_SILENT_NOTICE_MS = 8000
@@ -55,6 +58,8 @@ const NO_SOUND_NOTICE =
  * creates the engine `live` job, relays audio and anchors from the page (or
  * the offscreen tabCapture document), follows the job over the engine WS,
  * forwards drafts to the page, and on stop waits for the refinement pass.
+ * The refined track can then be translated (M05.6): the LLM translates it,
+ * like a finished transcript of captions made ahead.
  */
 class LiveController {
   state: LiveState
@@ -65,6 +70,12 @@ class LiveController {
   detached = false
   private playing = true
   private silentMs = 0
+  /** The refined track, once the job is done. */
+  private finalTrack: SubtitleTrack | null = null
+  /** What the viewer asked for: 'original' or a language code. */
+  private target = 'original'
+  private translation: { lang: string; jobId: string; follow: FollowedJob | null } | null = null
+  private translated = new Map<string, SubtitleTrack>()
 
   constructor(
     readonly tabId: number,
@@ -118,6 +129,7 @@ class LiveController {
   private async finish(): Promise<void> {
     const result = await engineRequest<JobResult>(`/v1/jobs/${this.jobId}/result`)
     const track: SubtitleTrack | undefined = result.tracks[0]
+    this.finalTrack = track ?? null
     if (track) {
       if (!this.detached) this.toPage({ type: 'live.track', track, final: true })
       const saved: SavedLiveTrack = { track, final: true }
@@ -132,6 +144,102 @@ class LiveController {
       cues: track?.cues.length ?? 0,
     })
     this.ws?.close()
+  }
+
+  /** Show the refined track, or `translation` of it, and keep it for "Download SRT". */
+  private async show(translation?: SubtitleTrack): Promise<void> {
+    const track = this.finalTrack
+    if (!track) return
+    if (!this.detached)
+      this.toPage(
+        translation
+          ? { type: 'live.track', track: translation, final: true, companion: track }
+          : { type: 'live.track', track, final: true },
+      )
+    const saved: SavedLiveTrack = { track, final: true, ...(translation ? { translation } : {}) }
+    await browser.storage.session.set({ [liveTrackKey(this.tabId)]: saved })
+  }
+
+  private note(note: string | null): void {
+    if (!this.detached) this.toPage({ type: 'live.ui', note })
+  }
+
+  /** "Translate to" on the refined captions: the LLM translates them, from the playhead on. */
+  async retarget(target: string, mediaMs: number): Promise<void> {
+    this.target = target
+    const track = this.finalTrack
+    if (!track) return
+    if (this.translation && this.translation.lang !== target) await this.cancelTranslation()
+    if (target === 'original' || track.language === target || track.cues.length === 0) {
+      await this.show()
+      this.note(null)
+      return
+    }
+    const done = this.translated.get(target)
+    if (done) {
+      await this.show(done)
+      this.note(null)
+      return
+    }
+    if (this.translation?.lang === target) return
+    const name = languageName(target)
+    this.note(`Translating to ${name}…`)
+    try {
+      const job = await engineRequest<JobSummary>('/v1/jobs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          type: 'translate',
+          track,
+          model: TRANSLATE_MODEL,
+          targetLang: target,
+          glossary: [],
+          style: 'neutral',
+          priority: 'interactive',
+          lease: true,
+          fromMs: Math.max(0, Math.round(mediaMs)),
+        }),
+      })
+      const translation = { lang: target, jobId: job.id, follow: null as FollowedJob | null }
+      this.translation = translation
+      translation.follow = followJob(job.id, {
+        partial: (t) => {
+          if (this.target === target && !this.detached)
+            this.toPage({ type: 'live.track', track: t, final: true, companion: track })
+        },
+        progress: (p) => {
+          if (this.target === target) this.note(`Translating to ${name}… ${Math.round(p * 100)} %`)
+        },
+      })
+      const result = await translation.follow.done
+      if (this.translation === translation) this.translation = null
+      const out = result.tracks[0]
+      if (!out) return
+      this.translated.set(target, out)
+      if (this.target === target) {
+        await this.show(out)
+        this.note(null)
+      }
+    } catch (err) {
+      if (this.translation?.lang === target) this.translation = null
+      if (err instanceof JobEnded && err.state === 'cancelled') return
+      if (this.target !== target) return
+      const message = describe(err)
+      this.note(
+        message.includes('not installed')
+          ? `Translating to ${name} needs the translation model (2.5 GB): install it in sublight’s Options.`
+          : `Couldn’t translate: ${message}`,
+      )
+    }
+  }
+
+  /** Stop a translation still running: it would hold the GPU. */
+  async cancelTranslation(): Promise<void> {
+    const t = this.translation
+    this.translation = null
+    if (!t) return
+    t.follow?.close()
+    await engineRequest(`/v1/jobs/${t.jobId}/cancel`, { method: 'POST' }).catch(() => {})
   }
 
   async fail(message: string): Promise<void> {
@@ -232,6 +340,7 @@ export function describe(err: unknown): string {
 /** Start live captions on the tab's primary video (frame from its video reports). */
 export async function startLive(tabId: number, frameId: number): Promise<LiveState> {
   await stopLive(tabId)
+  await dropFinished(tabId)
   await browser.storage.session.remove(liveTrackKey(tabId))
   const prefs = await browser.storage.local.get([
     LIVE_MODEL_KEY,
@@ -330,6 +439,7 @@ export async function cancelLive(tabId: number): Promise<void> {
       ...[...finishing.values()].filter((f) => f.tabId === tabId).map((f) => f.jobId),
     ].filter((id): id is string => !!id),
   )
+  await dropFinished(tabId)
   for (const id of jobIds) {
     finishing.delete(id)
     await engineRequest(`/v1/jobs/${id}/cancel`, { method: 'POST' }).catch(() => {})
@@ -338,8 +448,21 @@ export async function cancelLive(tabId: number): Promise<void> {
   await browser.storage.session.remove([liveKey(tabId), liveTrackKey(tabId)])
 }
 
-/** Stopped controllers still waiting for their refinement result. */
+/**
+ * Stopped controllers: waiting for their refinement result, then kept while
+ * the page may still ask to translate it.
+ */
 const finishing = new Map<string, LiveController>()
+
+/** A new session or a closed tab: forget the tab's finished ones and their translations. */
+async function dropFinished(tabId: number): Promise<void> {
+  for (const [id, c] of finishing) {
+    if (c.tabId !== tabId) continue
+    finishing.delete(id)
+    c.detached = true // a refinement still due mustn't replace the next session's captions
+    await c.cancelTranslation()
+  }
+}
 
 export async function liveStatus(tabId: number): Promise<LiveState | null> {
   const got = await browser.storage.session.get(liveKey(tabId))
@@ -373,6 +496,12 @@ export async function onLiveMessage(
         c.detached = true
         await stopLive(c.tabId)
       }
+      return { ok: true }
+    }
+    case 'live.translate': {
+      const c = finishing.get(message.jobId)
+      // Not awaited: a translation takes minutes, the page only needs the ack.
+      if (c && sender.tab?.id === c.tabId) void c.retarget(message.target, message.mediaMs)
       return { ok: true }
     }
     case 'live.fallback': {

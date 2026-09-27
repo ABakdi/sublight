@@ -770,7 +770,9 @@ function LiveDownload({ tabId }: { tabId: number }) {
     return () => browser.storage.onChanged.removeListener(onChanged)
   }, [tabId])
   if (!saved || saved.track.cues.length === 0) return null
-  const { track, final } = saved
+  const { final } = saved
+  // What the page shows: the translation when one was asked for.
+  const track = saved.translation ?? saved.track
   const download = async () => {
     const title = (await browser.tabs.get(tabId).catch(() => null))?.title ?? ''
     const name =
@@ -792,6 +794,7 @@ function LiveDownload({ tabId }: { tabId: number }) {
     <button
       data-testid="live-download"
       data-final={final}
+      data-lang={track.language}
       style={button}
       onClick={() => void download()}
     >

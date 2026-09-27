@@ -17,14 +17,13 @@ import {
   stopLive,
 } from './liveController'
 import type { CaptionsState, Message, VideoState } from './messages'
-import { TARGETS } from './quickControls'
+import { KEEPALIVE_MS, languageName, TRANSLATE_MODEL } from './translation'
 import { TARGET_KEY } from './viewerControls'
 
 /** Model for captions made ahead of playback (Options). */
 export const CAPTION_MODEL_KEY = 'captionModel'
 export const DEFAULT_CAPTION_MODEL = 'whisper-small'
-/** The LLM translator for targets other than English (ADR-0018/0019). */
-export const TRANSLATE_MODEL = 'qwen3-4b-instruct'
+export { TRANSLATE_MODEL }
 import { COOKIES_KEY } from './prefs'
 export { COOKIES_KEY }
 /** Options: when a video can't be fetched, caption it live instead (default on). */
@@ -49,10 +48,6 @@ type Stored = CaptionsState & {
   translateJobId?: string
 }
 
-/** How often a followed url job hears from us (the engine cancels it after 90 s of silence). */
-const KEEPALIVE_MS = 30_000
-
-const languageName = (code: string) => TARGETS.find(([c]) => c === code)?.[1] ?? code
 /**
  * Options: how to make English. 'whisper' (default) translates the audio,
  * ahead of playback; 'llm' translates the finished transcript with the

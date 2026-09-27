@@ -113,8 +113,11 @@ export type Message =
   // SW → content
   | { type: 'live.begin'; jobId: string; captureElement: boolean }
   | { type: 'live.end' }
-  | { type: 'live.track'; track: SubtitleTrack; final: boolean }
+  /** `companion`: the original, when `track` is a translation of the refined captions. */
+  | { type: 'live.track'; track: SubtitleTrack; final: boolean; companion?: SubtitleTrack }
   | { type: 'live.notice'; message: string | null }
+  /** The note line of the quick controls ("Translating to French… 40 %"), null clears it. */
+  | { type: 'live.ui'; note: string | null }
   // content / offscreen → SW
   | { type: 'live.audio'; jobId: string; wallMs: number; pcm: string }
   | { type: 'live.anchor'; jobId: string; anchor: LiveAnchor }
@@ -123,6 +126,8 @@ export type Message =
   | { type: 'live.navigated'; jobId: string }
   /** A user-facing hint from the page or offscreen ("unmute the video"), null clears it. */
   | { type: 'live.hint'; jobId: string; message: string | null }
+  /** "Translate to" on refined live captions; `mediaMs` = the playhead, translated first. */
+  | { type: 'live.translate'; jobId: string; target: string; mediaMs: number }
   /** popup → SW: open the tab's video in the Sublight Player (M05b). */
   | { type: 'player.open'; tabId: number }
   /** SW → content: pause the page's video (it moved to the Player). */

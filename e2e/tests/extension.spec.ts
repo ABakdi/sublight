@@ -12,7 +12,7 @@ import {
   type Route,
 } from '@playwright/test'
 import { DEV_EXTENSION_ID } from '@sublight/protocol'
-import { E2E_ENGINE_HEALTH_URL, E2E_PLAYER_URL, E2E_TOKEN } from '../constants'
+import { E2E_ENGINE_HEALTH_URL, E2E_ENGINE_URL, E2E_PLAYER_URL, E2E_TOKEN } from '../constants'
 
 /**
  * The unpacked MV3 build in a real Chromium: stable ID, engine pairing,
@@ -375,6 +375,33 @@ test.describe('extension in Chromium (Spec 09)', () => {
           ),
         )
         .toMatch(/country/i)
+
+      // The refined captions translate from the quick controls (M05.6); needs the LLM.
+      const { models } = (await (
+        await fetch(`${E2E_ENGINE_URL}/v1/models`, {
+          headers: { authorization: `Bearer ${E2E_TOKEN}` },
+        })
+      ).json()) as { models: { id: string; installed: boolean }[] }
+      if (!models.some((m) => m.id === 'qwen3-4b-instruct' && m.installed)) return
+      test.setTimeout(240_000)
+      await site.getByTestId('qc-open').click()
+      await site.getByTestId('qc-target').selectOption('fr')
+      await site.evaluate(() => (document.querySelector('video')!.currentTime = 6.5))
+      await expect
+        .poll(
+          () =>
+            site.evaluate(
+              () =>
+                document
+                  .querySelector('[data-sublight-frame] [data-sublight-host]')
+                  ?.shadowRoot?.querySelector('.sl-cue')?.textContent ?? '',
+            ),
+          { timeout: 120_000 },
+        )
+        .toMatch(/pays/i)
+      // "Download SRT" saves what the page shows: the translation.
+      await popup.bringToFront()
+      await expect(popup.getByTestId('live-download')).toHaveAttribute('data-lang', 'fr')
     })
 
     test('captions ahead of playback from a direct media URL, and the SRT (ADR-0020, real ASR)', async () => {
