@@ -40,6 +40,9 @@ jobs:
       - name: Docs link check
         run: pnpm lint:links
 
+      - name: Versions and changelog agree
+        run: node scripts/release.mjs --check
+
       - name: Typecheck
         run: pnpm typecheck
 

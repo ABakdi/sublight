@@ -1,0 +1,57 @@
+name: Release
+
+# Push a tag made by `node scripts/release.mjs <version>` (CONTRIBUTING "Releasing").
+on:
+  push:
+    tags: ['v*']
+
+env:
+  HUSKY: 0
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Tag, versions and changelog agree
+        run: node scripts/release.mjs --check --tag "$GITHUB_REF_NAME"
+
+      - name: Typecheck and unit tests
+        run: pnpm typecheck && pnpm -r --filter "!@sublight/e2e" exec vitest run --reporter=default --reporter=github-actions
+
+      - name: Build
+        run: pnpm build
+
+      - name: Package
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          mkdir -p release
+          cp apps/engine/dist/sublight-engine.mjs "release/sublight-engine-$V.mjs"
+          (cd apps/extension/.output/chrome-mv3 && zip -qr "$GITHUB_WORKSPACE/release/sublight-extension-$V-chromium.zip" .)
+          (cd release && sha256sum * > SHA256SUMS)
+          node scripts/release.mjs --notes "$V" > release-notes.md
+          cat release/SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: sublight ${{ github.ref_name }}
+          body_path: release-notes.md
+          prerelease: ${{ startsWith(github.ref_name, 'v0.') }}
+          files: release/*
