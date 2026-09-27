@@ -25,8 +25,8 @@ export const CAPTION_MODEL_KEY = 'captionModel'
 export const DEFAULT_CAPTION_MODEL = 'whisper-small'
 /** The LLM translator for targets other than English (ADR-0018/0019). */
 export const TRANSLATE_MODEL = 'qwen3-4b-instruct'
-/** Options: let yt-dlp use this browser's login cookies ('' = off). */
-export const COOKIES_KEY = 'cookiesFromBrowser'
+import { COOKIES_KEY } from './prefs'
+export { COOKIES_KEY }
 /** Options: when a video can't be fetched, caption it live instead (default on). */
 export const AUTO_LIVE_KEY = 'autoLiveFallback'
 

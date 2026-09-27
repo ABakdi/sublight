@@ -191,6 +191,24 @@ export function PopupApp() {
         now={now}
       />
 
+      <button
+        data-testid="open-in-player"
+        style={frame ? button : { ...button, opacity: 0.5, cursor: 'default' }}
+        disabled={!frame}
+        title="Play this video in the Sublight Player: edit, translate and export its captions"
+        onClick={() =>
+          void run(async () => {
+            if (tabId === null) return
+            const r = (await send({ type: 'player.open', tabId })) as
+              { ok: boolean; error?: string } | undefined
+            if (r === undefined) throw new Error(NO_ANSWER)
+            if (!r.ok) throw new Error(r.error ?? 'Couldn’t open the Player.')
+          })
+        }
+      >
+        Open in Sublight Player
+      </button>
+
       <CaptionsCard
         captions={captions}
         frame={frame}

@@ -11,6 +11,7 @@ import {
 } from '../../src/captionsController'
 import { EngineBadge } from '../../src/EngineBadge'
 import { HIDE_SITE_CAPTIONS_KEY } from '../../src/siteCaptions'
+import { DEFAULT_PLAYER_URL, PLAYER_URL_KEY } from '../../src/openInPlayer'
 import { engineRequest, getToken, probeEngine, setToken } from '../../src/engine'
 import {
   DEFAULT_LIVE_MODEL,
@@ -310,10 +311,12 @@ function FetchSettings() {
   const [cookies, setCookies] = useState('')
   const [autoLive, setAutoLive] = useState(true)
   const [hideSite, setHideSite] = useState(true)
+  const [playerUrl, setPlayerUrl] = useState(DEFAULT_PLAYER_URL)
   useEffect(() => {
     void browser.storage.local
-      .get([COOKIES_KEY, AUTO_LIVE_KEY, HIDE_SITE_CAPTIONS_KEY])
+      .get([COOKIES_KEY, AUTO_LIVE_KEY, HIDE_SITE_CAPTIONS_KEY, PLAYER_URL_KEY])
       .then((got) => {
+        setPlayerUrl((got[PLAYER_URL_KEY] as string | undefined) || DEFAULT_PLAYER_URL)
         setCookies((got[COOKIES_KEY] as string | undefined) ?? '')
         setAutoLive(got[AUTO_LIVE_KEY] !== false)
         setHideSite(got[HIDE_SITE_CAPTIONS_KEY] !== false)
@@ -376,6 +379,34 @@ function FetchSettings() {
           }}
         />
         Hide the site’s own captions (YouTube CC and others) while sublight’s are on
+      </label>
+      <label
+        style={{
+          display: 'grid',
+          gap: 4,
+          fontSize: 12,
+          fontWeight: 600,
+          marginTop: 12,
+          maxWidth: 360,
+        }}
+      >
+        Sublight Player address (for “Open in Sublight Player”)
+        <input
+          data-testid="player-url"
+          style={{
+            font: '13px system-ui',
+            padding: '6px 8px',
+            borderRadius: 6,
+            border: `1px solid ${colors.border}`,
+          }}
+          value={playerUrl}
+          onChange={(e) => setPlayerUrl(e.target.value)}
+          onBlur={() =>
+            void browser.storage.local.set({
+              [PLAYER_URL_KEY]: playerUrl.trim() || DEFAULT_PLAYER_URL,
+            })
+          }
+        />
       </label>
     </section>
   )

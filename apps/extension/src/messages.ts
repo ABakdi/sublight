@@ -121,6 +121,10 @@ export type Message =
   | { type: 'live.navigated'; jobId: string }
   /** A user-facing hint from the page or offscreen ("unmute the video"), null clears it. */
   | { type: 'live.hint'; jobId: string; message: string | null }
+  /** popup → SW: open the tab's video in the Sublight Player (M05b). */
+  | { type: 'player.open'; tabId: number }
+  /** SW → content: pause the page's video (it moved to the Player). */
+  | { type: 'video.pause' }
   /** The page with captions is unloading (reload, navigation, close): cancel its jobs. */
   | { type: 'page.gone' }
   // SW → offscreen

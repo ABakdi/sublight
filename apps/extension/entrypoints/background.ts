@@ -11,6 +11,7 @@ import {
 } from '../src/captionsController'
 import { BUILD_ID } from '../src/build'
 import { probeEngine } from '../src/engine'
+import { openInPlayer } from '../src/openInPlayer'
 import { cancelLive, liveStatus, onLiveMessage, startLive, stopLive } from '../src/liveController'
 import { isMessage, type Message, type TabStatus, type VideoState } from '../src/messages'
 
@@ -69,6 +70,11 @@ async function handle(message: Message, sender: { tab?: { id?: number }; frameId
         message.mode,
         ownerFrame(await readFrames(message.tabId)),
       )
+    case 'player.open': {
+      const owner = ownerFrame(await readFrames(message.tabId))
+      if (!owner) return { ok: false, error: 'No video on this page.' }
+      return openInPlayer(message.tabId, owner)
+    }
     case 'page.gone': {
       // The page that showed captions was reloaded or left (not an in-page URL change).
       const tabId = sender.tab?.id

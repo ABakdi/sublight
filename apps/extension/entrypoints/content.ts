@@ -224,6 +224,10 @@ export default defineContentScript({
           lastFollow = null
           sendResponse({ ok: true })
           return undefined
+        case 'video.pause':
+          for (const v of videos) if (!v.paused) v.pause()
+          sendResponse({ ok: true })
+          return undefined
         case 'captions.ui':
           captions?.controls.setNote(message.note)
           sendResponse({ ok: true })
