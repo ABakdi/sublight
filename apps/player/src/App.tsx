@@ -1,4 +1,6 @@
 import { useEffect } from 'react'
+import { decodeOpenPayload } from '@sublight/protocol'
+import { engineBaseUrl } from './lib/engine'
 import { useEngineStore, type EngineStatus as Status } from './store/engine'
 import { usePlayerStore } from './store/player'
 import { Library } from './components/Library'
@@ -9,6 +11,20 @@ export function App() {
   const health = useEngineStore((s) => s.health)
   const check = useEngineStore((s) => s.check)
   const view = usePlayerStore((s) => s.view)
+  const openFromPage = usePlayerStore((s) => s.openFromPage)
+  const setError = usePlayerStore((s) => s.setError)
+
+  // "Open in Sublight Player" (M05b): the extension hands the page's video over in the hash.
+  useEffect(() => {
+    const m = /^#sl=([\w-]+)$/.exec(location.hash)
+    if (!m) return
+    history.replaceState(null, '', location.pathname + location.search) // consume once
+    try {
+      void openFromPage(decodeOpenPayload(m[1]!))
+    } catch {
+      setError('The video handed over by the extension couldn’t be read.')
+    }
+  }, [openFromPage, setError])
 
   useEffect(() => {
     void check()
@@ -26,7 +42,7 @@ export function App() {
           <h1 className="text-lg font-semibold tracking-tight">sublight player</h1>
           <p className="text-xs text-zinc-400">
             Local AI subtitles for any video — engine{' '}
-            <code className="text-zinc-300">127.0.0.1:17421</code>
+            <code className="text-zinc-300">{engineBaseUrl().replace(/^https?:\/\//, '')}</code>
           </p>
         </div>
         <EngineStatus status={status} gpuName={health?.gpu.name ?? null} />

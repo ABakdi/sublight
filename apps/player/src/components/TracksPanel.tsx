@@ -48,7 +48,9 @@ export function TracksPanel() {
       </div>
 
       {project.tracks.length === 0 && (
-        <p className="text-sm text-zinc-500">No tracks yet — import an SRT or VTT file to start.</p>
+        <p className="text-sm text-zinc-500">
+          No tracks yet — caption the video in the Caption tab, or import an SRT or VTT file.
+        </p>
       )}
 
       <ul className="flex flex-col gap-2">

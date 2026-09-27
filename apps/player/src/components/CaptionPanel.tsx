@@ -138,6 +138,8 @@ export function CaptionPanel() {
   const refreshModels = useEngineStore((s) => s.refreshModels)
   const hasFile = usePlayerStore((s) => s.videoFile !== null)
   const hasMediaHash = usePlayerStore((s) => Boolean(s.project?.media.mediaHash))
+  // A page video's audio is fetched by the engine from its page (no file needed).
+  const pageVideo = usePlayerStore((s) => Boolean(s.project?.media.pageUrl))
   const { phase, activity, start } = useCaptionStore()
 
   const models = useMemo(() => allModels.filter((m) => m.role === 'asr'), [allModels])
@@ -158,7 +160,7 @@ export function CaptionPanel() {
   if (status !== 'online') return <EngineGate />
 
   const running = isRunning(phase)
-  const ready = Boolean(selected?.installed) && (hasFile || hasMediaHash) && !running
+  const ready = Boolean(selected?.installed) && (hasFile || hasMediaHash || pageVideo) && !running
 
   return (
     <div className="flex flex-col gap-3" data-testid="caption-panel">
@@ -213,7 +215,7 @@ export function CaptionPanel() {
         )}
       </fieldset>
 
-      {!hasFile && !hasMediaHash && (
+      {!hasFile && !hasMediaHash && !pageVideo && (
         <p className="text-xs text-amber-300">Open the video file again to caption it.</p>
       )}
 

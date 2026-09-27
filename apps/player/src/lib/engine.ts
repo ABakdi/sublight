@@ -10,6 +10,9 @@ import type {
   WsClientMessage,
   WsControlMessage,
   WsEvent,
+  MediaResolveRequest,
+  MediaResolveResponse,
+  RelayStatusResponse,
 } from '@sublight/protocol'
 
 const ENGINE_URL_KEY = 'sublight.engineUrl'
@@ -97,6 +100,22 @@ export interface UploadOptions {
  */
 export const engine = {
   health: () => request<HealthResponse>('/v1/health', {}, 1500),
+
+  /** A page video's playable stream, relayed by the engine (M05b). yt-dlp can take a while. */
+  resolveMedia: (body: MediaResolveRequest) =>
+    request<MediaResolveResponse>(
+      '/v1/media/resolve',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      120_000,
+    ),
+  relayStatus: (mediaId: string) =>
+    request<RelayStatusResponse>(`/v1/media/relay/${encodeURIComponent(mediaId)}`),
+  /** Where the `<video>` plays a relay from (no token: the id is the capability). */
+  relayUrl: (relayPath: string) => `${engineBaseUrl()}${relayPath}`,
   models: () => request<ModelsResponse>('/v1/models'),
   installModel: (id: string) =>
     request<{ ok: boolean; model: ModelInfo }>(`/v1/models/${encodeURIComponent(id)}/install`, {

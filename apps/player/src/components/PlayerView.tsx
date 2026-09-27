@@ -28,6 +28,8 @@ export function PlayerView() {
   const savePosition = usePlayerStore((s) => s.savePosition)
   const pickVideo = usePlayerStore((s) => s.pickVideo)
   const attachFile = usePlayerStore((s) => s.attachFile)
+  const preparing = usePlayerStore((s) => s.preparing)
+  const playbackFailed = usePlayerStore((s) => s.playbackFailed)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -284,6 +286,8 @@ export function PlayerView() {
                     e.currentTarget.currentTime = resume / 1000
                   }
                 }}
+                // A page's own URL can refuse to play here (hotlink checks): use the engine.
+                onError={() => void playbackFailed()}
                 onPlay={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
                 onPause={() => {
                   const v = videoRef.current
@@ -307,6 +311,39 @@ export function PlayerView() {
                 />
               )}
             </>
+          ) : project.media.kind === 'page-video' ? (
+            <div
+              data-testid="page-video-status"
+              className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center"
+            >
+              {preparing ? (
+                <>
+                  <p className="text-sm text-zinc-300">
+                    {preparing.progress > 0
+                      ? `Preparing media… ${Math.round(preparing.progress * 100)} %`
+                      : 'Getting the video from its page…'}
+                  </p>
+                  <div className="h-1.5 w-64 overflow-hidden rounded bg-zinc-800">
+                    <div
+                      className="h-full bg-indigo-500 transition-all"
+                      style={{ width: `${Math.round(preparing.progress * 100)}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-zinc-400">This video couldn&apos;t be opened here.</p>
+              )}
+              {project.media.pageUrl && (
+                <a
+                  className="text-xs text-indigo-300 underline"
+                  href={project.media.pageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open its page
+                </a>
+              )}
+            </div>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
               <p className="text-sm text-zinc-400">

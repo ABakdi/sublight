@@ -37,7 +37,11 @@ export function TranslateForm({ track }: { track: SubtitleTrack }) {
   const savedGlossary = usePlayerStore((s) => s.project?.settings.glossary ?? NO_GLOSSARY)
   const setGlossary = usePlayerStore((s) => s.setGlossary)
   const hasAudio = usePlayerStore(
-    (s) => s.videoFile !== null || Boolean(s.project?.media.mediaHash),
+    // A page video's audio is fetched by the engine from its page.
+    (s) =>
+      s.videoFile !== null ||
+      Boolean(s.project?.media.mediaHash) ||
+      Boolean(s.project?.media.pageUrl),
   )
   const { phase, activity, sourceTrackId, translate } = useCaptionStore()
 

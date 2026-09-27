@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { SubtitleTrack } from '@sublight/core'
+import type { SubtitleProject, SubtitleTrack } from '@sublight/core'
 import type { AsrTask, JobCreation, JobResult, JobSummary, WsEvent } from '@sublight/protocol'
 import { chooseTranslationPath } from '@sublight/protocol'
 import { engine, EngineError } from '../lib/engine'
@@ -51,6 +51,23 @@ interface CaptionState {
 }
 
 const POLL_MS = 1500
+
+/** A page video's captions: the engine fetches its audio itself (ADR-0020). */
+function urlJob(
+  project: SubtitleProject,
+  model: string,
+  language: string | null,
+  task: AsrTask,
+): JobCreation {
+  const direct = project.media.sources?.find((x) => x.kind === 'https-direct')
+  return {
+    type: 'url',
+    pageUrl: project.media.pageUrl!,
+    ...(direct ? { mediaUrl: direct.url } : {}),
+    model,
+    params: { language, ...(task === 'translate' ? { task } : {}) },
+  }
+}
 
 function resultNote(track: SubtitleTrack, result: JobResult, cached: boolean): string {
   const parts = [`${track.cues.length} cues`, track.language]
@@ -226,9 +243,15 @@ export const useCaptionStore = create<CaptionState>((set, get) => {
     resultNote: null,
 
     start: async (req) => {
-      if (!usePlayerStore.getState().project) return
+      const project = usePlayerStore.getState().project
+      if (!project) return
       begin('caption')
       try {
+        if (project.media.kind === 'page-video' && project.media.pageUrl) {
+          // No file to upload: the engine fetches the page's audio (ADR-0020).
+          await runJob(urlJob(project, req.model, req.language, req.task))
+          return
+        }
         const mediaHash = await ensureMedia()
         await runJob({
           type: 'transcribe',
@@ -252,9 +275,11 @@ export const useCaptionStore = create<CaptionState>((set, get) => {
           (m) => m.role === 'asr' && m.installed && m.tasks?.includes('translate'),
         )
         // Audio is available when the engine still has it or the file is open.
+        const pageVideo = project.media.kind === 'page-video' && !!project.media.pageUrl
         const hasAudio =
           whisperModel !== undefined &&
-          (usePlayerStore.getState().videoFile !== null ||
+          (pageVideo ||
+            usePlayerStore.getState().videoFile !== null ||
             (project.media.mediaHash !== undefined &&
               (await engine.mediaInfo(project.media.mediaHash)) !== null))
         const path = chooseTranslationPath({
@@ -262,6 +287,10 @@ export const useCaptionStore = create<CaptionState>((set, get) => {
           hasAudio,
           wantsGlossaryOrStyle: opts.glossary.length > 0 || opts.style !== 'neutral',
         })
+        if (path === 'whisper-translate' && whisperModel && pageVideo) {
+          await runJob(urlJob(project, whisperModel.id, source.language, 'translate'), source)
+          return
+        }
         if (path === 'whisper-translate' && whisperModel) {
           // English from the audio itself (ADR-0018): no LLM needed.
           const mediaHash = await ensureMedia()
