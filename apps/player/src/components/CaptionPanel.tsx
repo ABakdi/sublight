@@ -3,6 +3,7 @@ import type { AsrTask, ModelInfo } from '@sublight/protocol'
 import { useCaptionStore } from '../store/caption'
 import { isRunning, JobProgress } from './JobProgress'
 import { BTN, FIELD, LANGUAGES, mb, PRIMARY } from './ui'
+import { pairWithEngine } from '../lib/engine'
 import { useEngineStore } from '../store/engine'
 import { usePlayerStore } from '../store/player'
 
@@ -14,6 +15,19 @@ function EngineGate() {
   const check = useEngineStore((s) => s.check)
   const pair = useEngineStore((s) => s.pair)
   const [token, setToken] = useState('')
+  const [auto, setAuto] = useState<{ code?: string; error?: string; waiting: boolean }>({
+    waiting: false,
+  })
+  const pairAutomatically = async () => {
+    setAuto({ waiting: true })
+    try {
+      const t = await pairWithEngine((code) => setAuto({ waiting: true, code }))
+      setAuto({ waiting: false })
+      await pair(t)
+    } catch (err) {
+      setAuto({ waiting: false, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
 
   if (status === 'offline' || status === 'checking') {
     return (
@@ -44,9 +58,25 @@ function EngineGate() {
       }}
     >
       <p className="text-sm font-medium text-zinc-200">Pair with the engine</p>
+      <button
+        type="button"
+        data-testid="pair-engine"
+        className={PRIMARY}
+        disabled={auto.waiting}
+        onClick={() => void pairAutomatically()}
+      >
+        Pair with the engine
+      </button>
+      {auto.waiting && auto.code && (
+        <p data-testid="pair-status" className="text-xs text-zinc-300">
+          Approve in the tab that opened. It shows the code{' '}
+          <b className="font-mono tracking-widest">{auto.code}</b>.
+        </p>
+      )}
+      {auto.error && <p className="text-xs text-red-300">{auto.error}</p>}
       <p className="text-xs leading-relaxed text-zinc-400">
-        Run <code className="text-zinc-200">pnpm engine:token</code> and paste the token. It stays
-        in this browser.
+        Or run <code className="text-zinc-200">pnpm engine:token</code> and paste the token. It
+        stays in this browser.
       </p>
       <input
         data-testid="pairing-token"
@@ -58,7 +88,7 @@ function EngineGate() {
         onChange={(e) => setToken(e.target.value)}
       />
       <button type="submit" className={BTN} disabled={!token.trim()}>
-        Pair
+        Use this token
       </button>
     </form>
   )

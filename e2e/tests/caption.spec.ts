@@ -24,7 +24,7 @@ async function openVideo(page: Page, file: string): Promise<void> {
 
 async function pair(page: Page): Promise<void> {
   await page.getByTestId('pairing-token').fill(E2E_TOKEN)
-  await page.getByRole('button', { name: 'Pair' }).click()
+  await page.getByRole('button', { name: 'Use this token' }).click()
   await expect(page.getByTestId('caption-panel')).toBeVisible()
   await expect(page.getByTestId('engine-status')).toContainText('engine online')
 }

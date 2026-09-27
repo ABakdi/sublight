@@ -13,6 +13,8 @@ import type {
   MediaResolveRequest,
   MediaResolveResponse,
   RelayStatusResponse,
+  PairClaimResponse,
+  PairRequestResponse,
 } from '@sublight/protocol'
 
 const ENGINE_URL_KEY = 'sublight.engineUrl'
@@ -280,4 +282,39 @@ export class EngineSocket {
     this.ws?.close()
     this.ws = null
   }
+}
+
+/**
+ * One-click pairing (ADR-0022): ask the engine, open its approval page in a
+ * new tab, and wait (up to 5 minutes) for the approval. Resolves with the
+ * token; `onCode` gets the code the engine's page shows too.
+ */
+export async function pairWithEngine(onCode: (code: string) => void): Promise<string> {
+  let asked: PairRequestResponse
+  try {
+    const res = await fetch(`${engineBaseUrl()}/v1/pair/request`, { method: 'POST' })
+    if (!res.ok) throw await toError(res)
+    asked = (await res.json()) as PairRequestResponse
+  } catch (err) {
+    if (err instanceof EngineError) throw err
+    throw new EngineError('OFFLINE', 'The engine is not reachable on this computer.')
+  }
+  onCode(asked.code)
+  window.open(asked.approveUrl, '_blank', 'noopener')
+  const deadline = Date.now() + 5 * 60 * 1000
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 1000))
+    const res = await fetch(`${engineBaseUrl()}/v1/pair/claim`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ requestId: asked.requestId }),
+    }).catch(() => null)
+    if (!res) continue
+    if (res.status === 404) break
+    const claim = (await res.json()) as PairClaimResponse
+    if (claim.token) return claim.token
+    if (claim.state === 'denied')
+      throw new EngineError('DENIED', 'Pairing was denied on the engine’s page.')
+  }
+  throw new EngineError('TIMEOUT', 'No approval arrived in time. Start pairing again.')
 }

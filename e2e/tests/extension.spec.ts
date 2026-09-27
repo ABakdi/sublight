@@ -464,6 +464,25 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await expect(player.getByRole('button', { name: 'Try again' })).toBeVisible()
   })
 
+  test('pairs in one click: approve on the engine’s page (ADR-0022)', async () => {
+    const options = await context.newPage()
+    await options.goto(`${EXT}/options.html`)
+    await expect(options.getByTestId('engine-status')).toHaveAttribute('data-state', 'no-token')
+    const [approval] = await Promise.all([
+      context.waitForEvent('page'),
+      options.getByTestId('pair-engine').click(),
+    ])
+    await approval.waitForLoadState()
+    expect(approval.url()).toMatch(/^http:\/\/127\.0\.0\.1:17421\/pair\?request=/)
+    // The same code on both sides.
+    const code = await approval.locator('[data-code]').textContent()
+    await expect(options.getByTestId('pair-status')).toContainText(code!.trim())
+    await approval.getByRole('button', { name: 'Approve' }).click()
+    await expect(approval.getByRole('status')).toContainText('Approved')
+    await expect(options.getByTestId('pair-status')).toHaveAttribute('data-state', 'paired')
+    await expect(options.getByTestId('engine-status')).toHaveAttribute('data-state', 'online')
+  })
+
   test('caption size and position toggles apply to the overlay (M05.7)', async () => {
     const site = context.pages()[0] ?? (await context.newPage())
     await site.goto(`${SITE}/watch`)
