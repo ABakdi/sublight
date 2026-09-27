@@ -110,6 +110,7 @@ Drafts (`job.partial`) carry `coverage` (captioned media ranges) and `mediaDurat
 | `GET /pair?request=` (engine page)                              | "Allow access?": who asked, the origin, the 4-digit code, Approve / Deny (`X-Frame-Options: DENY`)                                                                                                                  |
 | `POST /v1/pair/decide` (the engine's own origin only)           | `{ requestId, approve }` → `{ state }`                                                                                                                                                                              |
 | `POST /v1/pair/claim` (the requesting origin only)              | `{ requestId }` → `{ state: "pending" \| "denied" \| "claimed" }`, or `{ state: "approved", token }` exactly once                                                                                                   |
+| `POST /v1/token/rotate` (authenticated)                         | a new token, saved to `config.json` (M06.3, "Unpair every app"): `{ ok: true }`. The new token isn't returned: every client, the caller too, pairs again. Open WebSockets close with `4401`.                        |
 | `GET /v1/pair/info` (unauthenticated)                           | returns the **presence** of pairing (`{ requiresToken: true }`) and a short-lived pairing nonce when the token isn't set — used by the `sublight://pair?token=` flow ([M06](../plan/milestones/06-Beta-Release.md)) |
 
 ## 3. Auth & hardening

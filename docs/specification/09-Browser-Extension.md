@@ -121,7 +121,7 @@ A tab's jobs end with it. Closing the tab (`tabs.onRemoved`), or reloading or le
 
 ### 4.11 Pairing (ADR-0022)
 
-"Pair with the engine" (Options, and the popup while unpaired or rejected) asks the service worker to run the flow: request, open the engine's approval page, show the code, poll the claim, store the token. The SW does it because the popup closes when the tab opens; the popup and Options follow `storage.session.pairing`. Pasting the token from `pnpm engine:token` still works.
+"Pair with the engine" (Options, and the popup while unpaired or rejected) asks the service worker to run the flow: request, open the engine's approval page, show the code, poll the claim, store the token. The SW does it because the popup closes when the tab opens; the popup and Options follow `storage.session.pairing`. Pasting the token from `sublight-engine token` still works. **Unpair every app** (Options, while online, after a confirmation) calls `POST /v1/token/rotate` and forgets this browser's token: every paired browser and Player must pair again (M06.3).
 
 ## 5. Capture wiring
 
@@ -151,7 +151,7 @@ content script ◄─runtime.sendMessage─► SW ◄─fetch/WS─► engine
 ## 7. Popup & options
 
 - **Popup (as built, 2026-09-26):** engine badge in the header; a video card (page title, playing/paused, time, site); **"Caption this video"** with a timeline of captioned parts and the playhead, status ("Captioned up to 9:30 · 38 % of the video") and "Pause until captions are ready"; **Display** (word by word / sentences, size S/M/L, position); **Download subtitles** (word by word / sentences + Download SRT, with progress while the rest is transcribed); **More** (live captions for live streams and unreachable videos, test captions). Planned: language picker, "Open in Sublight Player" (§8).
-- **Options**: full [style schema](02-Data-Model.md#6-style-schema) editor with live preview; default model/language; glossary; engine health (port, token status, "Open logs"); pairing flow (paste token / `sublight://`); cache/disk controls; per-site overrides (e.g. disable on a site).
+- **Options**: full [style schema](02-Data-Model.md#6-style-schema) editor with live preview; default model/language; glossary; engine health (port, token status, "Open logs"); pairing flow (one click, paste token, unpair every app); cache/disk controls; per-site overrides (e.g. disable on a site).
 
 ## 8. Open in Sublight Player
 

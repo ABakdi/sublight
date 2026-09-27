@@ -17,7 +17,7 @@ The first installable sublight: see [INSTALL.md](INSTALL.md).
 - Bilingual jobs: original and translation, timed to the original's words.
 - Job queue with GPU scheduling, leases for jobs only an open tab wants, recovery after restart, and a normalized-audio cache.
 - Relays page videos (including HLS/DASH) to the Player as one seekable file; refuses DRM-protected streams up front.
-- One-click pairing through the engine's own approval page.
+- One-click pairing through the engine's own approval page; "Unpair every app" (Options) or `token --rotate` replaces the token.
 - Model manager: verified installs from pinned revisions, removal, disk-space checks.
 - Serves the Player at `http://127.0.0.1:17420`.
 - `sublight-engine` command: `start [--detach]`, `stop`, `status`, `token`, `transcribe`, `autostart enable|disable|status` (systemd user unit, macOS LaunchAgent).

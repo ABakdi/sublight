@@ -72,7 +72,9 @@ The engine serves it: open **http://127.0.0.1:17420**. (Developers can run
 
 Click the sublight toolbar icon → **Pair with the engine**. A tab from the
 engine opens with a 4-digit code: check it matches the one in the popup, and
-click **Approve**. The Player pairs the same way from its Caption tab.
+click **Approve**. The Player pairs the same way from its Caption tab. To
+unpair everything (a lost laptop, a token shared by mistake), use **Unpair
+every app** in the extension's Options or `pnpm engine token --rotate`.
 
 ## 6. Models
 
