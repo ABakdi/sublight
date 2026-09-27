@@ -7,14 +7,18 @@
   "engines": {
     "node": ">=22.0.0"
   },
+  "bin": {
+    "sublight-engine": "dist/sublight-engine.mjs"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "build": "pnpm typecheck && esbuild src/index.ts src/cli.ts --bundle --platform=node --format=esm --outdir=dist --out-extension:.js=.mjs --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "build": "pnpm typecheck && esbuild src/main.ts --bundle --platform=node --format=esm --outfile=dist/sublight-engine.mjs --banner:js=\"#!/usr/bin/env node\nimport { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" && chmod +x dist/sublight-engine.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "token": "tsx src/token.ts",
-    "transcribe": "tsx src/cli.ts"
+    "token": "tsx src/main.ts token",
+    "transcribe": "tsx src/main.ts transcribe",
+    "cli": "tsx src/main.ts"
   },
   "dependencies": {
     "@hono/node-server": "catalog:",

@@ -6,21 +6,21 @@ import { loadConfig } from './config'
 import { enginePaths } from './paths'
 import { createServices } from './services'
 
-const USAGE = `usage: pnpm engine:transcribe <file> [--model whisper-small] [--language de]
-                               [--translate] [--out subtitles.srt] [--json]
+const USAGE = `usage: sublight-engine transcribe <file> [--model whisper-small] [--language de]
+                                    [--translate] [--out subtitles.srt] [--json]
 
 Runs one transcription in-process (no server, M02.8 "--once"): normalizes the
 file, runs whisper, prints SRT (or the job result with --json) and exits.
 Installs nothing: install models first (POST /v1/models/:id/install).`
 
-function arg(name: string): string | undefined {
-  const i = process.argv.indexOf(name)
-  return i >= 0 ? process.argv[i + 1] : undefined
-}
-
-async function main(): Promise<number> {
-  const file = process.argv[2]
-  if (!file || file.startsWith('--') || process.argv.includes('--help')) {
+/** `sublight-engine transcribe <file> …`; resolves to the exit code. */
+export async function transcribe(args: string[]): Promise<number> {
+  const arg = (name: string): string | undefined => {
+    const i = args.indexOf(name)
+    return i >= 0 ? args[i + 1] : undefined
+  }
+  const file = args[0]
+  if (!file || file.startsWith('--') || args.includes('--help')) {
     console.error(USAGE)
     return file ? 0 : 1
   }
@@ -48,7 +48,7 @@ async function main(): Promise<number> {
       model,
       params: {
         language: arg('--language') ?? null,
-        ...(process.argv.includes('--translate') ? { task: 'translate' as const } : {}),
+        ...(args.includes('--translate') ? { task: 'translate' as const } : {}),
         maxCueDurationMs: 7000,
       },
     })
@@ -66,7 +66,7 @@ async function main(): Promise<number> {
       await new Promise((r) => setTimeout(r, 250))
     }
     const result = services.jobs.result(job.id)!
-    const out = process.argv.includes('--json')
+    const out = args.includes('--json')
       ? JSON.stringify(result, null, 2)
       : serializeSrt(result.tracks[0]!.cues)
     const target = arg('--out')
@@ -84,5 +84,3 @@ async function main(): Promise<number> {
     rmSync(scratch, { recursive: true, force: true })
   }
 }
-
-main().then((code) => process.exit(code))
