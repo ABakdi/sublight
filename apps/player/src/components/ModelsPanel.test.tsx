@@ -26,7 +26,10 @@ const model = (
 describe('ModelsPanel (M06.8)', () => {
   it('shows disk use, blocks installs that won’t fit, and confirms before removing', () => {
     const removeModel = vi.fn(async () => {})
+    const clearMediaCache = vi.fn(async () => {})
     useEngineStore.setState({
+      clearMediaCache,
+      health: { mediaCacheBytes: 300 * 1024 ** 2 } as never,
       status: 'online',
       refreshModels: async () => {},
       removeModel,
@@ -43,5 +46,8 @@ describe('ModelsPanel (M06.8)', () => {
     expect(removeModel).not.toHaveBeenCalled()
     fireEvent.click(screen.getByTestId('model-remove-yes-whisper-small'))
     expect(removeModel).toHaveBeenCalledWith('whisper-small')
+    expect(screen.getByTestId('media-cache').textContent).toContain('300 MB')
+    fireEvent.click(screen.getByTestId('media-cache-clear'))
+    expect(clearMediaCache).toHaveBeenCalled()
   })
 })

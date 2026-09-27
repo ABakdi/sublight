@@ -30,6 +30,8 @@ export function ModelsPanel() {
   const refreshModels = useEngineStore((s) => s.refreshModels)
   const installModel = useEngineStore((s) => s.installModel)
   const removeModel = useEngineStore((s) => s.removeModel)
+  const clearMediaCache = useEngineStore((s) => s.clearMediaCache)
+  const cacheBytes = useEngineStore((s) => s.health?.mediaCacheBytes ?? null)
   const [confirming, setConfirming] = useState<string | null>(null)
 
   useEffect(() => {
@@ -60,6 +62,23 @@ export function ModelsPanel() {
             <p data-testid="models-low-disk" className="mt-1 text-amber-300">
               The disk is almost full: remove models you don’t use, or free space elsewhere.
             </p>
+          )}
+        </div>
+      )}
+      {cacheBytes !== null && (
+        <div data-testid="media-cache" className="flex items-center gap-2 text-xs text-zinc-400">
+          <span>
+            Cached audio of videos you captioned: <b className="text-zinc-200">{gb(cacheBytes)}</b>
+          </span>
+          {cacheBytes > 0 && (
+            <button
+              type="button"
+              data-testid="media-cache-clear"
+              className={`${BTN} ml-auto`}
+              onClick={() => void clearMediaCache()}
+            >
+              Clear
+            </button>
           )}
         </div>
       )}

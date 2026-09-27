@@ -185,8 +185,8 @@ export function OptionsApp() {
       <Shortcuts />
 
       <p style={{ color: colors.muted, fontSize: 12, marginTop: 20 }}>
-        Style presets, default models and languages, cache controls and one-click pairing arrive in
-        M06.
+        Models and cached audio are managed in the Sublight Player (Models tab). Finished jobs are
+        forgotten after 30 days.
       </p>
     </main>
   )

@@ -123,6 +123,9 @@ export const engine = {
     request<{ ok: boolean; freedBytes: number }>(`/v1/models/${encodeURIComponent(id)}/remove`, {
       method: 'POST',
     }),
+  /** Delete cached audio no waiting job needs (security baseline C2). */
+  clearMediaCache: () =>
+    request<{ ok: boolean; freedBytes: number }>('/v1/media/clear', { method: 'POST' }),
   installModel: (id: string) =>
     request<{ ok: boolean; model: ModelInfo }>(`/v1/models/${encodeURIComponent(id)}/install`, {
       method: 'POST',

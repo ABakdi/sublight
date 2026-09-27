@@ -28,6 +28,8 @@ interface EngineState {
   refreshModels: () => Promise<void>
   installModel: (id: string) => Promise<void>
   removeModel: (id: string) => Promise<void>
+  /** Delete the engine's cached audio; refreshes health for the new size. */
+  clearMediaCache: () => Promise<void>
 }
 
 /** One shared socket for the app; the caption flow subscribes to its job. */
@@ -110,6 +112,16 @@ export const useEngineStore = create<EngineState>((set, get) => {
         set({ modelError: err instanceof Error ? err.message : String(err) })
       }
       await get().refreshModels()
+    },
+
+    clearMediaCache: async () => {
+      set({ modelError: null })
+      try {
+        await engine.clearMediaCache()
+      } catch (err) {
+        set({ modelError: err instanceof Error ? err.message : String(err) })
+      }
+      await get().check()
     },
   }
 })
