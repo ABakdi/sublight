@@ -38,6 +38,8 @@ const STATUS: Record<string, number> = {
   JOB_NOT_FOUND: 404,
   MODEL_NOT_INSTALLED: 409,
   MODEL_INSTALL_FAILED: 409,
+  DISK_FULL: 507,
+  MODEL_IN_USE: 409,
   MEDIA_TOO_LARGE: 413,
   AUDIO_EMPTY: 422,
   AUDIO_UNSUPPORTED: 415,
@@ -66,6 +68,13 @@ function toResponse(c: Context, err: unknown) {
  * Engine HTTP app (Spec 06, Protocol §2). Composable so tests drive it with
  * `app.request()`; route groups beyond health/version need `services`.
  */
+/** Does this job need that model (its main model, or a live job's refine model)? */
+function usesModel(request: JobCreation | null, id: string): boolean {
+  if (!request) return false
+  if ('model' in request && request.model === id) return true
+  return request.type === 'live' && request.params?.refineModel === id
+}
+
 export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
   const app = new Hono()
   const bootedAt = Date.now()
@@ -143,6 +152,7 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
       const id = c.req.param('id')
       try {
         s.models.entry(id)
+        s.models.assertRoom(id)
       } catch (err) {
         return toResponse(c, err)
       }
@@ -152,9 +162,27 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
         .catch((err: unknown) => console.error(`[engine] install ${id} failed:`, String(err)))
       return c.json({ ok: true, model: s.models.info(id) }, 202)
     })
-    app.post('/v1/models/:id/remove', (c) => {
+    app.post('/v1/models/:id/remove', async (c) => {
+      const id = c.req.param('id')
+      // A job waiting for this model or running on it would fail halfway.
+      const user = s.jobs
+        .list()
+        .find(
+          (j) =>
+            (j.state === 'queued' || j.state === 'running') && usesModel(s.jobs.request(j.id), id),
+        )
+      if (user)
+        return jsonError(
+          c,
+          'MODEL_IN_USE',
+          `a ${user.type} job is using ${id}: wait or cancel it`,
+          409,
+        )
       try {
-        return c.json({ ok: true, freedBytes: s.models.remove(c.req.param('id')) })
+        // Loaded but idle: give its GPU memory back first.
+        for (const worker of [s.whisper, s.llama])
+          if (worker.residentModel === id) await worker.stop()
+        return c.json({ ok: true, freedBytes: s.models.remove(id) })
       } catch (err) {
         return toResponse(c, err)
       }

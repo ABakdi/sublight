@@ -57,7 +57,12 @@ export interface ModelsResponse {
   models: ModelInfo[]
   /** Disk used by installed models, bytes. */
   diskUsedBytes: number
+  /** Free space on the disk that holds the models, bytes (null if unknown). */
+  diskFreeBytes: number | null
 }
+
+/** Space an install must leave free, so a full disk never breaks the rest of the system. */
+export const DISK_HEADROOM_BYTES = 1024 ** 3
 
 /** Error envelope (Spec 03 §6). */
 export const ERROR_CODES = [
@@ -76,6 +81,8 @@ export const ERROR_CODES = [
   'INTERNAL',
   'MEDIA_UNRESOLVABLE',
   'MEDIA_UNREACHABLE',
+  'DISK_FULL',
+  'MODEL_IN_USE',
   'MEDIA_PROTECTED',
   'NOT_FOUND',
 ] as const

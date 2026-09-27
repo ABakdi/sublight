@@ -8,13 +8,19 @@ import {
   rmSync,
   statSync,
   writeFileSync,
+  statfsSync,
 } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import type { ReadableStream as NodeWebStream } from 'node:stream/web'
 import { pipeline } from 'node:stream/promises'
 import { Transform } from 'node:stream'
-import type { ModelInfo, ModelsResponse, ModelState } from '@sublight/protocol'
+import {
+  DISK_HEADROOM_BYTES,
+  type ModelInfo,
+  type ModelsResponse,
+  type ModelState,
+} from '@sublight/protocol'
 import type { EventBus } from '../events'
 import { downloadUrl, MODEL_MANIFEST, type ManifestEntry } from './manifest'
 
@@ -27,11 +33,14 @@ export interface ModelManagerOptions {
   /** Override the download URL (tests serve fixtures locally). */
   urlFor?: (entry: ManifestEntry) => string
   fetchImpl?: typeof fetch
+  /** Tests: free disk space override. */
+  freeBytes?: () => number | null
 }
 
 export class ModelError extends Error {
   constructor(
-    readonly code: 'MODEL_NOT_INSTALLED' | 'MODEL_INSTALL_FAILED' | 'NOT_FOUND',
+    readonly code:
+      'MODEL_NOT_INSTALLED' | 'MODEL_INSTALL_FAILED' | 'NOT_FOUND' | 'DISK_FULL' | 'MODEL_IN_USE',
     message: string,
   ) {
     super(message)
@@ -54,6 +63,8 @@ export class ModelManager {
   private errors = new Map<string, string>()
   private inflight = new Map<string, Promise<void>>()
 
+  private readonly diskFree: (() => number | null) | undefined
+
   constructor(
     private readonly dir: string,
     private readonly bus: EventBus,
@@ -62,6 +73,7 @@ export class ModelManager {
     this.manifest = opts.manifest ?? MODEL_MANIFEST
     this.urlFor = opts.urlFor ?? downloadUrl
     this.fetchImpl = opts.fetchImpl ?? fetch
+    this.diskFree = opts.freeBytes
     mkdirSync(dir, { recursive: true })
     this.registryFile = join(dir, 'installed.json')
     this.registry = this.readRegistry()
@@ -133,7 +145,32 @@ export class ModelManager {
   list(): ModelsResponse {
     const models = this.manifest.map((m) => this.info(m.id))
     const diskUsedBytes = models.reduce((n, m) => n + (m.diskUsedBytes ?? 0), 0)
-    return { models, diskUsedBytes }
+    return { models, diskUsedBytes, diskFreeBytes: this.freeBytes() }
+  }
+
+  /** Free space where models are stored (null when the OS won't say). */
+  freeBytes(): number | null {
+    if (this.diskFree) return this.diskFree()
+    try {
+      const s = statfsSync(this.dir)
+      return s.bavail * s.bsize
+    } catch {
+      return null
+    }
+  }
+
+  /** Refuse an install that wouldn't fit, leaving headroom (Spec 10: disk full). */
+  assertRoom(id: string): void {
+    const entry = this.entry(id)
+    const free = this.freeBytes()
+    if (this.isInstalled(id) || free === null || entry.sizeBytes === null) return
+    if (entry.sizeBytes + DISK_HEADROOM_BYTES > free) {
+      const gb = (n: number) => `${(n / 1024 ** 3).toFixed(1)} GB`
+      throw new ModelError(
+        'DISK_FULL',
+        `not enough disk space for ${entry.name}: it needs ${gb(entry.sizeBytes)} plus ${gb(DISK_HEADROOM_BYTES)} to spare, and ${gb(free)} is free`,
+      )
+    }
   }
 
   /** Start (or join) an install. Resolves when the model is installed; rejects on failure. */

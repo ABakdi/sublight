@@ -199,6 +199,11 @@ export class JobQueue {
       )
   }
 
+  /** What a job was asked to do (its model, params…), or null for an unknown id. */
+  request(id: string): JobCreation | null {
+    return this.store.get(id)?.request ?? null
+  }
+
   get(id: string): JobSummary | null {
     const job = this.store.get(id)
     return job ? this.summary(job) : null

@@ -108,3 +108,24 @@ describe('model manager (Spec 06 §3, ADR-0016)', () => {
     expect(MODEL_MANIFEST.find((m) => m.id === 'whisper-small')!.tasks).toContain('translate')
   })
 })
+
+describe('disk space (M06.8)', () => {
+  it('lists free space and refuses an install that would not fit', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sublight-models-disk-'))
+    let free = 10 * 1024 ** 3
+    const models = new ModelManager(dir, new EventBus(), {
+      manifest: [{ ...entry('big', 'big.bin'), sizeBytes: 3 * 1024 ** 3 }],
+      urlFor: (e) => `${base}/${e.file}`,
+      freeBytes: () => free,
+    })
+    expect(models.list().diskFreeBytes).toBe(free)
+    expect(() => models.assertRoom('big')).not.toThrow()
+    free = 3.5 * 1024 ** 3 // fits, but not with 1 GB to spare
+    expect(() => models.assertRoom('big')).toThrow(/not enough disk space/)
+    try {
+      models.assertRoom('big')
+    } catch (err) {
+      expect((err as ModelError).code).toBe('DISK_FULL')
+    }
+  })
+})
