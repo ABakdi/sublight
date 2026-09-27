@@ -19,6 +19,7 @@ The first installable sublight: see [INSTALL.md](INSTALL.md).
 - Relays page videos (including HLS/DASH) to the Player as one seekable file; refuses DRM-protected streams up front.
 - One-click pairing through the engine's own approval page.
 - Model manager: verified installs from pinned revisions, removal, disk-space checks.
+- Serves the Player at `http://127.0.0.1:17420`.
 - `sublight-engine` command: `start [--detach]`, `stop`, `status`, `token`, `transcribe`, `autostart enable|disable|status` (systemd user unit, macOS LaunchAgent).
 
 ### Extension

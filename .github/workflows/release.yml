@@ -43,7 +43,12 @@ jobs:
         run: |
           V="${GITHUB_REF_NAME#v}"
           mkdir -p release
-          cp apps/engine/dist/sublight-engine.mjs "release/sublight-engine-$V.mjs"
+          # The engine with the Player next to it (ADR-0023).
+          mkdir -p "sublight-$V"
+          cp apps/engine/dist/sublight-engine.mjs "sublight-$V/"
+          cp -r apps/player/dist "sublight-$V/player"
+          cp INSTALL.md CHANGELOG.md LICENSE* "sublight-$V/" 2>/dev/null || true
+          tar -czf "release/sublight-$V.tar.gz" "sublight-$V"
           (cd apps/extension/.output/chrome-mv3 && zip -qr "$GITHUB_WORKSPACE/release/sublight-extension-$V-chromium.zip" .)
           (cd release && sha256sum * > SHA256SUMS)
           node scripts/release.mjs --notes "$V" > release-notes.md

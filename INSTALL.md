@@ -34,7 +34,8 @@ pnpm engine stop
 ```
 
 `apps/engine/dist/sublight-engine.mjs` is the whole engine in one file: copy
-it anywhere and run it with Node. Its data (models, caches, logs, config)
+it anywhere and run it with Node (put the Player's build next to it as
+`player/` to keep the Player). Its data (models, caches, logs, config)
 lives in `~/.sublight`.
 
 ### Start it when you log in
@@ -64,9 +65,8 @@ updates: load the new folder over the old one.
 
 ## 4. Open the Player
 
-```sh
-pnpm dev:player   # http://localhost:5173
-```
+The engine serves it: open **http://127.0.0.1:17420**. (Developers can run
+`pnpm dev:player` for the live-reloading version on `:5173`.)
 
 ## 5. Pair
 
@@ -82,7 +82,8 @@ the ones you don't use.
 
 ## Releases
 
-Tagged releases on GitHub carry `sublight-engine-<version>.mjs`, the extension
-zip and `SHA256SUMS`; check a download with `sha256sum -c SHA256SUMS
---ignore-missing`. You still need the repository for the setup scripts
-(whisper.cpp, yt-dlp) and the Player.
+Tagged releases on GitHub carry `sublight-<version>.tar.gz` (the engine,
+`sublight-engine.mjs`, with the Player next to it), the extension zip and
+`SHA256SUMS`; check a download with `sha256sum -c SHA256SUMS
+--ignore-missing`. Unpack it and run `node sublight-engine.mjs start`. You
+still need the repository for the setup scripts (whisper.cpp, yt-dlp).

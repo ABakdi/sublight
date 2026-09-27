@@ -6,7 +6,7 @@ updated: 2026-09-23
 
 # 04 — Player app
 
-_The React web app where users watch **any video**: files from disk, and any web video the extension hands over ("Open in Sublight Player", §9). Projects, captioning orchestration, editing, export. Runs at `http://localhost:5173` in dev; packaged as an extension page in prod (no server needed)._
+_The React web app where users watch **any video**: files from disk, and any web video the extension hands over ("Open in Sublight Player", §9). Projects, captioning orchestration, editing, export. Runs at `http://localhost:5173` in dev; the engine serves the built Player at `http://127.0.0.1:17420` ([ADR-0023](../architecture/decisions/0023-engine-serves-the-player.md))._
 
 ## 1. Responsibilities
 
@@ -80,7 +80,7 @@ Part of [M05b](../plan/milestones/05b-Open-in-Player.md). The extension detects 
 
 > **As built (2026-09-27, M05b):**
 >
-> - **Handoff:** the extension opens the Player at its configured address (Options, default `http://localhost:5173/`) with `#sl=<payload>` (`encodeOpenPayload`). The Player consumes the hash once and removes it. The payload adds `engine: { userAgent, cookiesFromBrowser }`, so the engine fetches the way the extension would.
+> - **Handoff:** the extension opens the Player at its configured address (Options, default `http://127.0.0.1:17420/`, the Player the engine serves) with `#sl=<payload>` (`encodeOpenPayload`). The Player consumes the hash once and removes it. The payload adds `engine: { userAgent, cookiesFromBrowser }`, so the engine fetches the way the extension would.
 > - **Project and playback:** `openFromPage` creates a `page-video` project titled after the video and plays the page's own file directly when it has one (`transport: "direct"`, no engine needed). Otherwise, or when that file won't play here (`<video>` error), it goes through the engine relay (`transport: "engine-relay"`), showing "Preparing media… N %" while the engine downloads. It resumes at `resumeAtMs`.
 > - **Library:** reopening a page video resolves it again (relay ids die with the engine run).
 > - **Captions:** "Caption this video" and Whisper English translation run a `url` job on the page (the engine fetches the audio), so no file is uploaded. LLM translation works on the resulting track as for files.
@@ -92,7 +92,7 @@ Part of [M05b](../plan/milestones/05b-Open-in-Player.md). The extension detects 
 | Delivery                                   | When                             | Mechanism                                             |
 | ------------------------------------------ | -------------------------------- | ----------------------------------------------------- |
 | `chrome.storage.session.openInPlayer.last` | packaged player (extension page) | written by the SW, **consumed once** on `/open`       |
-| URL hash `#sl=<base64url(json)>`           | dev player (localhost:5173)      | hash keeps the payload out of server logs; cap ~16 KB |
+| URL hash `#sl=<base64url(json)>`           | the Player (served or dev)       | hash keeps the payload out of server logs; cap ~16 KB |
 
 `introspectOpenPayload()` prefers storage, falls back to the hash, and deletes storage on success. No payload → `/open` shows a friendly "nothing to open" card.
 

@@ -141,7 +141,7 @@ git commit -am "release: v0.2.0" && git tag v0.2.0 && git push --follow-tags
 
 The tag runs `.github/workflows/release.yml`: it checks that the tag, versions
 and changelog agree, runs the unit tests, builds, and publishes a GitHub
-release with the engine bundle, the extension zip and `SHA256SUMS`. `0.x`
+release with the engine bundle and the Player (`sublight-<version>.tar.gz`), the extension zip and `SHA256SUMS`. `0.x`
 releases are marked pre-release. CI runs `release.mjs --check` on every push,
 so a missed bump fails early.
 
