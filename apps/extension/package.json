@@ -1,9 +1,9 @@
 {
   "name": "@sublight/extension",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Chromium MV3 extension (WXT) \u2014 video discovery, overlay, engine bridge",
+  "description": "Chromium MV3 extension (WXT) — video discovery, overlay, engine bridge",
   "scripts": {
     "dev": "wxt",
     "build": "wxt build",
