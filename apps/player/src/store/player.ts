@@ -84,6 +84,19 @@ export interface PlayerState {
   setGlossary: (glossary: { source: string; target: string }[]) => Promise<void>
 }
 
+/** The payload is page-supplied: a user agent must be one plain header value. */
+function safeHints(
+  hints: OpenInPlayerPayload['engine'],
+): NonNullable<OpenInPlayerPayload['engine']> {
+  const out = { ...(hints ?? {}) }
+  if (
+    out.userAgent !== undefined &&
+    (typeof out.userAgent !== 'string' || !/^[\x20-\x7e]{1,512}$/.test(out.userAgent))
+  )
+    delete out.userAgent
+  return out
+}
+
 /** Why a page video can't play in the Player, and the way forward (M05b.6, Spec 10). */
 export interface PageVideoError {
   code: string
@@ -281,7 +294,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     openFromPage: async (payload) => {
       await swapObjectUrl(null)
-      pageHints = payload.engine ?? {}
+      pageHints = safeHints(payload.engine)
       const title = payload.media.title || payload.source.pageTitle || 'Page video'
       const project: SubtitleProject = {
         id: newId(),

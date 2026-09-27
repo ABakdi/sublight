@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { decodeOpenPayload } from '@sublight/protocol'
+import { useEffect, useState } from 'react'
+import { decodeOpenPayload, type OpenInPlayerPayload } from '@sublight/protocol'
 import { engineBaseUrl } from './lib/engine'
 import { useEngineStore, type EngineStatus as Status } from './store/engine'
 import { usePlayerStore } from './store/player'
@@ -15,16 +15,18 @@ export function App() {
   const setError = usePlayerStore((s) => s.setError)
 
   // "Open in Sublight Player" (M05b): the extension hands the page's video over in the hash.
+  // Any site can link here with a hash, so nothing happens until the viewer says so (baseline F6).
+  const [handoff, setHandoff] = useState<OpenInPlayerPayload | null>(null)
   useEffect(() => {
     const m = /^#sl=([\w-]+)$/.exec(location.hash)
     if (!m) return
     history.replaceState(null, '', location.pathname + location.search) // consume once
     try {
-      void openFromPage(decodeOpenPayload(m[1]!))
+      setHandoff(decodeOpenPayload(m[1]!))
     } catch {
       setError('The video handed over by the extension couldn’t be read.')
     }
-  }, [openFromPage, setError])
+  }, [setError])
 
   useEffect(() => {
     void check()
@@ -48,7 +50,71 @@ export function App() {
         <EngineStatus status={status} gpuName={health?.gpu.name ?? null} />
       </header>
 
-      {view.name === 'library' ? <Library /> : <PlayerView />}
+      {handoff ? (
+        <HandoffConfirm
+          payload={handoff}
+          onOpen={() => {
+            setHandoff(null)
+            void openFromPage(handoff)
+          }}
+          onCancel={() => setHandoff(null)}
+        />
+      ) : view.name === 'library' ? (
+        <Library />
+      ) : (
+        <PlayerView />
+      )}
+    </div>
+  )
+}
+
+/** "Open this video?": the handed-over page, before the engine fetches anything for it. */
+function HandoffConfirm({
+  payload,
+  onOpen,
+  onCancel,
+}: {
+  payload: OpenInPlayerPayload
+  onOpen: () => void
+  onCancel: () => void
+}) {
+  let site = payload.source.pageUrl
+  try {
+    site = new URL(payload.source.pageUrl).host
+  } catch {
+    // shown as given
+  }
+  const title = payload.media.title || payload.source.pageTitle
+  return (
+    <div className="flex flex-1 items-center justify-center p-6">
+      <div
+        data-testid="handoff-confirm"
+        className="w-full max-w-md rounded-xl border border-zinc-800 bg-zinc-900 p-5"
+      >
+        <h2 className="text-base font-semibold">Open this video?</h2>
+        {title && <p className="mt-2 text-sm text-zinc-200">{title}</p>}
+        <p className="mt-1 text-xs break-all text-zinc-400">
+          From <b className="text-zinc-200">{site}</b>. The engine will fetch it from there.
+        </p>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            data-testid="handoff-open"
+            autoFocus
+            className="rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400"
+            onClick={onOpen}
+          >
+            Open
+          </button>
+          <button
+            type="button"
+            className="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-800"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

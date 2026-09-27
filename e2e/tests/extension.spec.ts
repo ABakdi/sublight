@@ -381,6 +381,8 @@ test.describe('extension in Chromium (Spec 09)', () => {
     ])
     await player.waitForLoadState()
     expect(player.url().startsWith(E2E_PLAYER_URL)).toBe(true)
+    // A hand-over only opens once the viewer confirms it (security baseline F6).
+    await player.getByTestId('handoff-open').click({ timeout: 15_000 })
     // The page's own file plays in the Player, from where the page was.
     // The Player is Vite's dev server: its first load can be slow under a full run.
     await expect(player.getByTestId('video')).toHaveAttribute('src', `${SITE}/clip.mp4`, {
@@ -464,6 +466,7 @@ test.describe('extension in Chromium (Spec 09)', () => {
       popup.getByTestId('open-in-player').click(),
     ])
     await player.waitForLoadState()
+    await player.getByTestId('handoff-open').click({ timeout: 15_000 })
     return player
   }
 
