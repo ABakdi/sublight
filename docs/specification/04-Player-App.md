@@ -70,6 +70,7 @@ Side panel **Caption** tab (`CaptionPanel`, state in `store/caption.ts`):
 ## 8. Engine status integration
 
 - `GET /v1/health` on load and `visibilitychange`; the header badge shows online (with GPU name), not paired, or offline.
+- **Models** (M06.8): a Models tab in the player and a Models section in the Library list the engine's models by role (speech recognition, translation) with size and license. Each can be installed (live progress) or removed after an inline "Remove it?" confirmation. The panel shows how much the models use and the disk space left, warns below 5 GB free, and disables an install that wouldn't fit with 1 GB to spare ("Not enough disk space"); the engine refuses it too (`DISK_FULL`). Removing a model a job is using is refused (`MODEL_IN_USE`).
 - Token: pasted into the Caption panel (or `localStorage['sublight.token']`), the **same token model** as the extension; `sublight://pair` handshake in M06. `sublight.engineUrl` overrides the engine address.
 - One shared WS connection (`EngineSocket`) authenticates with the first message, resubscribes after reconnects (exponential backoff to 10 s) and feeds model-install and job events to the stores.
 

@@ -26,12 +26,12 @@ _The wire contract between clients (extension, player) and the engine. Typed in 
 
 ### Models
 
-| Endpoint                      | Notes                                                                                                                                                                                              |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /v1/models`              | `{ models: ModelInfo[], diskUsedBytes }`; each `{ id, role, name, sizeBytes, vramClass, license, tasks?, installed, state: not-installed \| downloading \| installed \| error, progress, error? }` |
-| `POST /v1/models/:id/install` | `202 { ok, model }`; download runs in the background, progress via WS `model.install.progress`, end state via `model.state`                                                                        |
-| `POST /v1/models/:id/remove`  | removes the artifact; `{ ok, freedBytes }`                                                                                                                                                         |
-| `GET /v1/models/:id`          | single model detail                                                                                                                                                                                |
+| Endpoint                      | Notes                                                                                                                                                                                                                                                                                   |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/models`              | `{ models: ModelInfo[], diskUsedBytes, diskFreeBytes }` (`diskFreeBytes` is free space on the models disk, `null` if unknown); each `{ id, role, name, sizeBytes, vramClass, license, tasks?, installed, state: not-installed \| downloading \| installed \| error, progress, error? }` |
+| `POST /v1/models/:id/install` | `202 { ok, model }`; `507 DISK_FULL` if the model plus 1 GB headroom (`DISK_HEADROOM_BYTES`) doesn't fit; download runs in the background, progress via WS `model.install.progress`, end state via `model.state`                                                                        |
+| `POST /v1/models/:id/remove`  | removes the artifact and stops a worker holding it; `{ ok, freedBytes }`; `409 MODEL_IN_USE` while a queued or running job uses it                                                                                                                                                      |
+| `GET /v1/models/:id`          | single model detail                                                                                                                                                                                                                                                                     |
 
 ### Jobs (the core)
 

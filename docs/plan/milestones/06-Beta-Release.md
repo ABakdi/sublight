@@ -27,7 +27,7 @@ updated: 2026-09-27
 - [ ] **M06.5** — Release pipeline: version bump, changelog, CI artifact build.
 - [ ] **M06.6** — Checkpoint Beta-1 executed (template): test matrix rows checked on both browsers; corpus numbers; bugs triaged; missing features logged as issues that produce new spec/plan items.
 - [ ] **M06.7** — Security baseline audit pass 1: findings recorded + fixes tracked ([audits](../../audits/README.md)).
-- [ ] **M06.8** — Model store UI: installed size, remove models, disk budget warning.
+- [x] **M06.8** — Model store UI: installed size, remove models, disk budget warning. Player Models tab and Library section; engine refuses installs that don't fit (`DISK_FULL`, 1 GB headroom) and removals in use (`MODEL_IN_USE`), and stops a resident worker before removing.
 
 ## Acceptance criteria
 

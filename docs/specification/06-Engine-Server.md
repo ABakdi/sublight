@@ -30,7 +30,7 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
 - Install: stream download to `<file>.part` while hashing → abort past the pinned size → verify size + SHA-256 → atomic rename → registry update. Refuse on mismatch (part file deleted, state `error` with the reason); never execute downloaded files. Progress over WS `model.install.progress` (≈1% steps); concurrent installs of one model join.
 - Removal: delete artifact, report freed bytes. (Evicting cached results made with the model is not needed: cache keys include the model id.)
 - **Default install set = one ASR model only.** The translation LLM is installed on demand the first time a user picks a non-English target; English targets use Whisper `translate` and need nothing extra.
-- Registry lists manifest models; UI shows `installed/model size/disk used` and a budget line (default 20 GB, warn at 80%).
+- Registry lists manifest models; UI shows `installed/model size/disk used` and free space on the models disk (warns below 5 GB). An install needs its size plus 1 GB free or fails with `DISK_FULL` (`507`); a removal while a queued or running job uses the model fails with `MODEL_IN_USE` (`409`), and a resident worker holding the model is stopped first.
 
 ## 4. ffmpeg (audio ingestion)
 

@@ -42,7 +42,7 @@ _What sublight deliberately is not, and how every component fails — with detec
 | Overlay     | Host page CSS pierces shadow (rare)     | visual e2e screenshots       | Style breakage         | Scoped stylesheet + `all: initial` reset; e2e fixture coverage                                            |
 | Playback    | Huge file / slow disk                   | buffering events             | Playback stutter       | Native video behaviour; no action (player is a player)                                                    |
 | Storage     | IndexedDB quota                         | QuotaExceededError           | Save fails             | Warn at 80%; export/import escape hatch; purge old projects                                               |
-| Model store | Disk full / checksum fail               | install error                | Model unusable         | Refuse install, clear message; disk budget UI                                                             |
+| Model store | Disk full / checksum fail               | install error                | Model unusable         | Refuse install (`DISK_FULL`, size + 1 GB headroom), clear message; Models panel shows free space, blocks  |
 | Network     | Model download fails/interrupted        | fetch error                  | No model               | Resume downloads (range requests); retry UI                                                               |
 
 ## 3. DRM & protected content
