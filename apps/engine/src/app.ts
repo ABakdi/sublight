@@ -1,5 +1,5 @@
 import { PLAYABLE_FORMAT, relayResponse } from './media/relay'
-import { resolveRemote } from './media/remote'
+import { assertNotProtected, isManifest, resolveRemote } from './media/remote'
 import { Readable } from 'node:stream'
 import type { ReadableStream as NodeWebStream } from 'node:stream/web'
 import { Hono, type Context } from 'hono'
@@ -266,6 +266,16 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
           body.cookiesFromBrowser,
           PLAYABLE_FORMAT,
         )
+        if (isManifest(media.input)) {
+          // An HLS/DASH playlist: copy the stream into one seekable file first.
+          await assertNotProtected(media.input, media.headers)
+          return reply(s.relays.remux(media, config.ffmpeg.ffmpeg), {
+            durationMs: media.durationMs,
+            title: media.title,
+            via: media.via,
+            state: 'downloading',
+          })
+        }
         return reply(s.relays.add(media), {
           durationMs: media.durationMs,
           title: media.title,

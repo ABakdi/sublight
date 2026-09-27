@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { createReadStream, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
-import type { RemoteMedia } from './remote'
+import { headerArgs, type RemoteMedia } from './remote'
 
 /** How long a relay handle works: longer than a film, shorter than a signed CDN URL. */
 export const RELAY_TTL_MS = 6 * 60 * 60 * 1000
@@ -146,6 +146,66 @@ export class RelayStore {
             .split('\n')
             .pop()
             ?.replace(/^ERROR:\s*/, '') ?? `yt-dlp exited ${code}`
+      }
+    })
+    return id
+  }
+
+  /**
+   * An HLS/DASH manifest can't be relayed as-is (its segments are relative
+   * to it): copy the stream into one seekable mp4 with ffmpeg (no re-encode).
+   */
+  remux(media: RemoteMedia, ffmpeg: string, now = Date.now()): string {
+    if (!this.dir) throw new Error('relay downloads need a cache directory')
+    this.prune(now)
+    const id = randomBytes(16).toString('hex')
+    const path = join(this.dir, `${id}.mp4`)
+    const relay: Relay = {
+      kind: 'file',
+      path,
+      state: 'downloading',
+      progress: 0,
+      title: media.title,
+      durationMs: media.durationMs,
+      expiresAt: now + RELAY_TTL_MS,
+    }
+    this.relays.set(id, relay)
+    const child = spawn(
+      ffmpeg,
+      [
+        '-nostdin',
+        '-y',
+        '-v',
+        'error',
+        '-progress',
+        'pipe:1',
+        ...headerArgs(media.headers),
+        '-i',
+        media.input,
+        '-c',
+        'copy',
+        '-movflags',
+        '+faststart',
+        path,
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    )
+    let stderr = ''
+    child.stdout.on('data', (d: Buffer) => {
+      const m = /out_time_us=(\d+)/.exec(d.toString())
+      if (m && media.durationMs)
+        relay.progress = Math.min(0.99, Number(m[1]) / 1000 / media.durationMs)
+    })
+    child.stderr.on('data', (d: Buffer) => {
+      stderr = (stderr + d.toString()).slice(-4000)
+    })
+    child.on('close', (code) => {
+      if (code === 0 && existsSync(path)) {
+        relay.state = 'ready'
+        relay.progress = 1
+      } else {
+        relay.state = 'failed'
+        relay.error = stderr.trim().split('\n').pop() || `ffmpeg exited ${code}`
       }
     })
     return id

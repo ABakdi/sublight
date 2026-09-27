@@ -31,7 +31,7 @@ export function findYtDlp(binDir: string): string | null {
 
 const isHttp = (url: string | undefined): url is string => !!url && /^https?:\/\//i.test(url)
 
-function headerArgs(headers: Record<string, string>): string[] {
+export function headerArgs(headers: Record<string, string>): string[] {
   const lines = Object.entries(headers)
     .filter(([k]) => !/^(accept-encoding|cookie)$/i.test(k))
     .map(([k, v]) => `${k}: ${v}\r\n`)
@@ -75,8 +75,20 @@ export function isDrmPlaylist(playlist: string): boolean {
   )
 }
 
+/** An HLS or DASH manifest (a playlist, not a media file). */
+export function isManifest(url: string): boolean {
+  try {
+    return /\.(m3u8|mpd)$/i.test(new URL(url).pathname)
+  } catch {
+    return false
+  }
+}
+
 /** Refuse DRM-protected HLS up front: nothing can decode its audio. */
-async function assertNotProtected(input: string, headers: Record<string, string>): Promise<void> {
+export async function assertNotProtected(
+  input: string,
+  headers: Record<string, string>,
+): Promise<void> {
   if (!/\.m3u8(\?|$)|m3u8/i.test(input)) return
   const res = await fetch(input, { headers, signal: AbortSignal.timeout(15_000) }).catch(() => null)
   const text = res?.ok ? await res.text().catch(() => '') : ''
