@@ -99,3 +99,17 @@ export interface PairInfoResponse {
   nonce?: string
   expiresAtMs?: number
 }
+
+/** `POST /v1/pair/request` (ADR-0022): open `approveUrl`, then poll `/v1/pair/claim`. */
+export interface PairRequestResponse {
+  requestId: string
+  /** Shown on the engine's page too, so the user can tell it's this request. */
+  code: string
+  approveUrl: string
+}
+
+/** `POST /v1/pair/claim`: the token arrives once, after approval. */
+export interface PairClaimResponse {
+  state: 'pending' | 'approved' | 'denied' | 'claimed'
+  token?: string
+}

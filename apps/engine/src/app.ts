@@ -1,4 +1,5 @@
 import { PLAYABLE_FORMAT, relayResponse } from './media/relay'
+import { PairingStore, pairingPage, type PairingRequest } from './pairing'
 import { assertNotProtected, isManifest, resolveRemote } from './media/remote'
 import { Readable } from 'node:stream'
 import type { ReadableStream as NodeWebStream } from 'node:stream/web'
@@ -9,6 +10,8 @@ import type {
   LiveStatus,
   MediaResolveRequest,
   MediaResolveResponse,
+  PairClaimResponse,
+  PairRequestResponse,
   RelayStatusResponse,
 } from '@sublight/protocol'
 import { COOKIE_BROWSERS, IDEMPOTENCY_KEY_HEADER } from '@sublight/protocol'
@@ -26,6 +29,8 @@ export interface AppOptions {
   services?: EngineServices
   /** GPU probe override (tests). */
   gpu?: typeof probeGpu
+  /** A pairing request arrived (the engine prints where to approve it). */
+  onPairingRequest?: (req: PairingRequest, approveUrl: string) => void
 }
 
 const STATUS: Record<string, number> = {
@@ -64,7 +69,10 @@ function toResponse(c: Context, err: unknown) {
 export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
   const app = new Hono()
   const bootedAt = Date.now()
-  const origins = allowedOrigins(config.allowedOrigins)
+  // The engine's own pages (the pairing page) talk to it from its own origin.
+  const selfOrigins = [`http://127.0.0.1:${config.port}`, `http://localhost:${config.port}`]
+  const origins = allowedOrigins([...config.allowedOrigins, ...selfOrigins])
+  const pairing = new PairingStore()
   const gpu = opts.gpu ?? probeGpu
   const s = opts.services
 
@@ -74,8 +82,45 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
   // Unauthenticated pairing probe (Protocol §2) — only advertises *presence*.
   app.get('/v1/pair/info', (c) => c.json({ requiresToken: true }))
 
+  // --- one-click pairing (ADR-0022) ---
+  app.post('/v1/pair/request', (c) => {
+    const origin = c.req.header('origin') ?? ''
+    // The extension or the Player asks; the engine's own pages don't need a token.
+    if (!origins.has(origin) || selfOrigins.includes(origin))
+      return jsonError(c, 'BAD_ORIGIN', 'pairing is for the sublight extension and Player', 403)
+    const req = pairing.request(origin)
+    const approveUrl = `http://127.0.0.1:${config.port}/pair?request=${req.id}`
+    opts.onPairingRequest?.(req, approveUrl)
+    return c.json({ requestId: req.id, code: req.code, approveUrl } satisfies PairRequestResponse)
+  })
+  app.get('/pair', (c) => {
+    const req = pairing.get(c.req.query('request') ?? '')
+    c.header('cache-control', 'no-store')
+    c.header('x-frame-options', 'DENY') // no clickjacking the Approve button
+    return c.html(pairingPage(req))
+  })
+  app.post('/v1/pair/decide', async (c) => {
+    // Only the engine's own pairing page decides: no other site can approve.
+    if (!selfOrigins.includes(c.req.header('origin') ?? ''))
+      return jsonError(c, 'BAD_ORIGIN', 'approve from the engine’s pairing page', 403)
+    const body = await c.req.json<{ requestId?: string; approve?: boolean }>().catch(() => null)
+    const req = pairing.decide(body?.requestId ?? '', body?.approve === true)
+    if (!req) return jsonError(c, 'NOT_FOUND', 'no such pending pairing request', 404)
+    return c.json({ state: req.state })
+  })
+  app.post('/v1/pair/claim', async (c) => {
+    const body = await c.req.json<{ requestId?: string }>().catch(() => null)
+    const claimed = pairing.claim(body?.requestId ?? '', c.req.header('origin') ?? '')
+    if (!claimed)
+      return jsonError(c, 'NOT_FOUND', 'no such pairing request (it may have expired)', 404)
+    const res: PairClaimResponse = claimed.fresh
+      ? { state: 'approved', token: config.token }
+      : { state: claimed.request.state }
+    return c.json(res)
+  })
+
   app.use('/v1/*', async (c, next) => {
-    if (c.req.path === '/v1/pair/info') return next()
+    if (c.req.path === '/v1/pair/info' || c.req.path.startsWith('/v1/pair/')) return next()
     // A <video> can't send the token: relay ids are unguessable and expire (M05b).
     if (c.req.path.startsWith('/v1/relay/') && ['GET', 'HEAD'].includes(c.req.method)) return next()
     return bearerAuth(config.token)(c, next)

@@ -12,7 +12,11 @@ const config = loadConfig()
 const paths = enginePaths()
 const log = new Logger(paths.logs)
 const services = createServices(config, paths)
-const app = createApp(config, { services })
+const app = createApp(config, {
+  services,
+  onPairingRequest: (req, url) =>
+    log.info(`pairing request from ${req.origin}, code ${req.code}: approve at ${url}`),
+})
 
 // Job lifecycle and model installs go to the JSONL log (Spec 06 §8).
 services.bus.on((e) => {
