@@ -133,6 +133,8 @@ export type Message =
   | { type: 'offscreen.start'; jobId: string; streamId: string }
   | { type: 'offscreen.stop' }
   | { type: 'engine.status' }
+  /** Start one-click pairing (the SW waits for the approval, ADR-0022). */
+  | { type: 'engine.pair' }
   | { type: 'tab.status'; tabId: number }
   | { type: 'demo.toggle'; tabId: number; on: boolean }
   | { type: 'demo.set'; on: boolean }

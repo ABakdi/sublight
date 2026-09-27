@@ -1,5 +1,11 @@
 import { browser } from 'wxt/browser'
-import { ENGINE_BASE_URL, type ErrorEnvelope, type VersionResponse } from '@sublight/protocol'
+import {
+  ENGINE_BASE_URL,
+  type ErrorEnvelope,
+  type PairClaimResponse,
+  type PairRequestResponse,
+  type VersionResponse,
+} from '@sublight/protocol'
 import type { EngineStatus } from './messages'
 
 /** Token lives in storage.local, readable by the SW/popup/options only — never content scripts. */
@@ -83,4 +89,64 @@ export async function engineRequest<T>(path: string, init: RequestInit = {}): Pr
     )
   }
   return body as T
+}
+
+/** Where one-click pairing is (storage.session), for the popup and Options to show. */
+export const PAIRING_KEY = 'pairing'
+export interface PairingStatus {
+  state: 'waiting' | 'paired' | 'denied' | 'failed'
+  /** Shown here and on the engine's page: the same code means the same request. */
+  code?: string
+  error?: string
+}
+
+let pairing: Promise<void> | null = null
+
+/**
+ * One-click pairing (ADR-0022), run by the service worker (a popup closes
+ * when the approval tab opens): ask the engine, open its approval page, wait
+ * up to 5 minutes for the approval, then keep the token.
+ */
+export function pairWithEngine(): Promise<void> {
+  pairing ??= run().finally(() => (pairing = null))
+  return pairing
+  async function run() {
+    const save = (status: PairingStatus) => browser.storage.session.set({ [PAIRING_KEY]: status })
+    let asked: PairRequestResponse
+    try {
+      const res = await fetch(`${ENGINE_BASE_URL}/v1/pair/request`, { method: 'POST' })
+      if (!res.ok) throw new Error(`the engine answered HTTP ${res.status}`)
+      asked = (await res.json()) as PairRequestResponse
+    } catch (err) {
+      await save({
+        state: 'failed',
+        error: `The engine isn’t reachable (${err instanceof Error ? err.message : String(err)}). Start it, then try again.`,
+      })
+      return
+    }
+    await save({ state: 'waiting', code: asked.code })
+    await browser.tabs.create({ url: asked.approveUrl })
+    const deadline = Date.now() + 5 * 60 * 1000
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1000))
+      const res = await fetch(`${ENGINE_BASE_URL}/v1/pair/claim`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ requestId: asked.requestId }),
+      }).catch(() => null)
+      if (!res) continue
+      if (res.status === 404) break
+      const claim = (await res.json()) as PairClaimResponse
+      if (claim.token) {
+        await setToken(claim.token)
+        await save({ state: 'paired' })
+        return
+      }
+      if (claim.state === 'denied') {
+        await save({ state: 'denied' })
+        return
+      }
+    }
+    await save({ state: 'failed', error: 'No approval arrived in time. Start pairing again.' })
+  }
 }

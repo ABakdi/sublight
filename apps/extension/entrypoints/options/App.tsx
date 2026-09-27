@@ -10,6 +10,7 @@ import {
   TRANSLATE_MODEL,
 } from '../../src/captionsController'
 import { EngineBadge } from '../../src/EngineBadge'
+import { PairButton } from '../../src/PairButton'
 import { HIDE_SITE_CAPTIONS_KEY } from '../../src/siteCaptions'
 import { DEFAULT_PLAYER_URL, PLAYER_URL_KEY } from '../../src/openInPlayer'
 import { engineRequest, getToken, probeEngine, setToken } from '../../src/engine'
@@ -26,9 +27,8 @@ import type { EngineStatus } from '../../src/messages'
 import { button, colors, primaryButton } from '../../src/ui'
 
 /**
- * Options (Spec 09 §7): manual engine pairing for now: paste the token from
- * `pnpm engine:token`. The one-click `sublight://pair` flow, style editor,
- * defaults and cache controls land in M06.
+ * Options (Spec 09 §7): engine pairing (one click, ADR-0022, or paste the
+ * token from `pnpm engine:token`), captions, fetching, translation, shortcuts.
  */
 export function OptionsApp() {
   const [token, setTokenInput] = useState('')
@@ -79,9 +79,20 @@ export function OptionsApp() {
       >
         <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>Engine pairing</h2>
         <p style={{ fontSize: 13, color: colors.muted, margin: '0 0 12px', lineHeight: 1.5 }}>
-          The engine runs on this machine at <code>{ENGINE_BASE_URL}</code>. Print its token with{' '}
-          <code>pnpm engine:token</code> in the sublight repo and paste it here. It is stored only
-          in this browser profile, and web pages never see it.
+          The engine runs on this machine at <code>{ENGINE_BASE_URL}</code>. Pair once: the engine
+          opens a page where you approve, and the token is stored only in this browser profile (web
+          pages never see it).
+        </p>
+        <PairButton
+          onPaired={() =>
+            void getToken().then((t) => {
+              setTokenInput(t ?? '')
+              void probeEngine(t ?? undefined).then(setStatus)
+            })
+          }
+        />
+        <p style={{ fontSize: 12, color: colors.muted, margin: '14px 0 8px' }}>
+          Or paste the token printed by <code>pnpm engine:token</code>:
         </p>
         <label style={{ display: 'grid', gap: 4, fontSize: 12, fontWeight: 600 }}>
           Engine token

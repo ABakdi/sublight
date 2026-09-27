@@ -4,6 +4,7 @@ import { browser } from 'wxt/browser'
 import { BUILD_ID } from '../../src/build'
 import { HOLD_KEY } from '../../src/captionsContent'
 import { EngineBadge } from '../../src/EngineBadge'
+import { PairButton } from '../../src/PairButton'
 import { liveTrackKey, type SavedLiveTrack } from '../../src/liveController'
 import type {
   CaptionsState,
@@ -180,6 +181,17 @@ export function PopupApp() {
             Reload sublight
           </button>
           <div style={{ fontSize: 11, color: colors.muted }}>Then reload the video’s page too.</div>
+        </section>
+      )}
+
+      {(engine?.state === 'no-token' || engine?.state === 'unauthorized') && (
+        <section style={card} data-testid="pair-card">
+          <div style={{ fontSize: 12, lineHeight: 1.45 }}>
+            {engine.state === 'no-token'
+              ? 'Pair sublight with the engine on this computer to caption videos.'
+              : 'The engine no longer accepts the saved token. Pair again.'}
+          </div>
+          <PairButton onPaired={refreshEngine} />
         </section>
       )}
 

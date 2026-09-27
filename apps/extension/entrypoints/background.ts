@@ -10,7 +10,7 @@ import {
   stopCaptions,
 } from '../src/captionsController'
 import { BUILD_ID } from '../src/build'
-import { probeEngine } from '../src/engine'
+import { pairWithEngine, probeEngine } from '../src/engine'
 import { openInPlayer } from '../src/openInPlayer'
 import { cancelLive, liveStatus, onLiveMessage, startLive, stopLive } from '../src/liveController'
 import { isMessage, type Message, type TabStatus, type VideoState } from '../src/messages'
@@ -45,6 +45,9 @@ async function handle(message: Message, sender: { tab?: { id?: number }; frameId
     }
     case 'tab.status':
       return tabStatus(message.tabId)
+    case 'engine.pair':
+      void pairWithEngine()
+      return { ok: true }
     case 'engine.status':
       return probeEngine()
     case 'captions.start': {
