@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import type { Context, MiddlewareHandler } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { AUTH_HEADER, BEARER_PREFIX, DEV_EXTENSION_ID } from '@sublight/protocol'
+import type { EngineConfig } from './config'
 
 /**
  * Auth & hardening (Protocol §3).
@@ -14,11 +15,10 @@ import { AUTH_HEADER, BEARER_PREFIX, DEV_EXTENSION_ID } from '@sublight/protocol
 export function allowedHosts(port: number): Set<string> {
   return new Set([`127.0.0.1:${port}`, `localhost:${port}`])
 }
-/** Built-in origins: the dev player and the unpacked dev extension. */
-export const DEFAULT_ORIGINS: readonly string[] = [
+/** The Vite dev server's Player: allowed only with `devOrigins` (baseline B2: any Vite app uses :5173). */
+export const DEV_PLAYER_ORIGINS: readonly string[] = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
-  `chrome-extension://${DEV_EXTENSION_ID}`,
 ]
 
 /** The Player the engine serves (`player.port`, 0 = off). */
@@ -26,9 +26,23 @@ export function playerOrigins(playerPort: number): string[] {
   return playerPort > 0 ? [`http://127.0.0.1:${playerPort}`, `http://localhost:${playerPort}`] : []
 }
 
-/** Built-ins plus `config.allowedOrigins` (packaged/store extension IDs). */
-export function allowedOrigins(extra: readonly string[] = []): Set<string> {
-  return new Set([...DEFAULT_ORIGINS, ...extra])
+/** The Players this engine trusts: the served one, and the dev one when enabled. */
+export function knownPlayers(config: Pick<EngineConfig, 'player' | 'devOrigins'>): string[] {
+  return [...playerOrigins(config.player.port), ...(config.devOrigins ? DEV_PLAYER_ORIGINS : [])]
+}
+
+/**
+ * Every client origin: the unpacked extension (pinned ID), the Players, and
+ * `config.allowedOrigins` (packaged/store extension IDs).
+ */
+export function clientOrigins(
+  config: Pick<EngineConfig, 'player' | 'devOrigins' | 'allowedOrigins'>,
+): Set<string> {
+  return new Set([
+    `chrome-extension://${DEV_EXTENSION_ID}`,
+    ...knownPlayers(config),
+    ...config.allowedOrigins,
+  ])
 }
 
 export function jsonError(

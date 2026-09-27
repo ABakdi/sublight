@@ -81,21 +81,21 @@ const escape = (s: string) =>
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
   )
 
-/** Who's asking, in words (a loopback web origin on the allowlist is a Player). */
-export function describeOrigin(origin: string): string {
+/** Who's asking, in words: only origins known to be a Player are called one. */
+export function describeOrigin(origin: string, players: readonly string[] = []): string {
   if (origin.startsWith('chrome-extension://')) return 'The sublight browser extension'
-  if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return 'The Sublight Player'
-  return origin
+  if (players.includes(origin)) return 'The Sublight Player'
+  return `The web page at ${origin}`
 }
 
 /** The engine's approval page: self-contained (no external resources), light and dark. */
-export function pairingPage(req: PairingRequest | null): string {
+export function pairingPage(req: PairingRequest | null, players: readonly string[] = []): string {
   const body = !req
     ? `<h1>Nothing to approve</h1><p>This pairing request has expired or was already answered. Start pairing again from sublight.</p>`
     : req.state !== 'pending'
       ? `<h1>Already ${req.state === 'denied' ? 'denied' : 'approved'}</h1><p>You can close this tab.</p>`
       : `<h1>Allow access to the sublight engine?</h1>
-<p><b>${escape(describeOrigin(req.origin))}</b> wants to use the engine on this computer to caption and translate videos.</p>
+<p><b>${escape(describeOrigin(req.origin, players))}</b> wants to use the engine on this computer to caption and translate videos.</p>
 <p class="origin">${escape(req.origin)}</p>
 <p>Check that sublight shows the same code:</p>
 <div class="code" data-code>${escape(req.code)}</div>

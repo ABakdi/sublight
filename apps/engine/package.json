@@ -11,7 +11,7 @@
     "sublight-engine": "dist/sublight-engine.mjs"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "SUBLIGHT_DEV=1 tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "build": "pnpm typecheck && esbuild src/main.ts --bundle --platform=node --format=esm --outfile=dist/sublight-engine.mjs --banner:js=\"#!/usr/bin/env node\nimport { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" && chmod +x dist/sublight-engine.mjs",
     "typecheck": "tsc --noEmit",

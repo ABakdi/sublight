@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { serve } from '@hono/node-server'
 import { loadConfig } from './config'
 import { createApp } from './app'
-import { allowedOrigins, playerOrigins } from './auth'
+import { clientOrigins } from './auth'
 import { findPlayerDir, servePlayer } from './player-server'
 import { Logger } from './logger'
 import { enginePaths } from './paths'
@@ -72,7 +72,7 @@ export function runServer(): Promise<{ port: number }> {
   const wss = attachWebSocket(server, {
     port: config.port,
     token: () => config.token,
-    origins: allowedOrigins([...config.allowedOrigins, ...playerOrigins(config.player.port)]),
+    origins: clientOrigins(config),
     bus: services.bus,
   })
   services.jobs.start()

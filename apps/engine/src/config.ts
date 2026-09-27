@@ -50,6 +50,16 @@ export interface EngineConfig {
     contextTokens: number
   }
   ffmpeg: { ffmpeg: string; ffprobe: string }
+  /**
+   * Trust the Vite dev Player (`:5173`). Off unless developing (`SUBLIGHT_DEV=1`,
+   * `pnpm dev:engine`): any Vite app on that port could otherwise pair.
+   */
+  devOrigins: boolean
+  /**
+   * Let page and media URLs point at this computer or the local network (a
+   * home media server). Off: web pages choose those URLs (baseline A10).
+   */
+  allowPrivateNetworks: boolean
   /** The built Player, served on its own origin (`0` turns it off; Spec 06 §1). */
   player: {
     port: number
@@ -71,6 +81,8 @@ const DEFAULTS: Omit<EngineConfig, 'token'> = {
   llama: { port: 17423, gpu: 'auto', threads: 4, contextTokens: 4096 },
   ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
   player: { port: PLAYER_DEFAULT_PORT },
+  devOrigins: false,
+  allowPrivateNetworks: false,
 }
 
 export function sublightHome(): string {
@@ -80,7 +92,13 @@ export function sublightHome(): string {
 /** Load config; generate + persist a fresh token when none exists yet. */
 export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
   const dir = sublightHome()
-  mkdirSync(dir, { recursive: true })
+  // Private: it holds the token, jobs (the pages you watched) and logs (baseline G1).
+  mkdirSync(dir, { recursive: true, mode: 0o700 })
+  try {
+    if (statSync(dir).mode & 0o077) chmodSync(dir, 0o700)
+  } catch {
+    // a filesystem without Unix modes
+  }
   const file = join(dir, 'config.json')
 
   let raw: Partial<EngineConfig> | null = null
@@ -128,6 +146,7 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
   }
   const port = Number(envPort)
   if (envPort && Number.isInteger(port) && port > 0 && port < 65536) merged.port = port
+  if (process.env.SUBLIGHT_DEV === '1') merged.devOrigins = true
   const envPlayerPort = process.env.SUBLIGHT_PLAYER_PORT
   const playerPort = Number(envPlayerPort)
   if (envPlayerPort && Number.isInteger(playerPort) && playerPort >= 0 && playerPort < 65536)
