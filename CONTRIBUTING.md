@@ -87,9 +87,9 @@ unpacked build loaded into a dedicated profile under
 
 Then:
 
-1. **Pair:** run `pnpm engine:token`, open the extension's **Options**
-   (toolbar icon → _Options & pairing_), paste the token and click Save. The
-   status should turn to _Engine online_.
+1. **Pair:** toolbar icon → **Pair with the engine**, then **Approve** in the
+   engine's tab (same code on both). Pasting `pnpm engine:token` in
+   **Options** still works. The status should turn to _Engine online_.
 2. **Live captions:** on a page with a playing video, click the toolbar icon →
    **Caption live** (or press **Alt+Shift+L**). The engine needs whisper-small
    installed. Stop from the popup (or the shortcut) to get the refined track.

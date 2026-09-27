@@ -18,7 +18,7 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
   - A running engine writes `~/.sublight/run/engine.pid` and removes it on shutdown. `stop` sends SIGTERM to that pid and waits up to 10 s; a stale pid file is removed.
   - `status` asks `/v1/health` with the configured token: exit 0 and a one-line summary (address, version, uptime, jobs, GPU), or exit 3 when nothing answers.
 - Graceful shutdown: SIGTERM/SIGINT → mark `running` jobs `interrupted` → compact `jobs.jsonl` → stop whisper-server → remove the engine pid file. A hard kill leaves an orphaned whisper-server; its pid file (`~/.sublight/run/whisper-server.pid`) lets the next start reap it, after checking `/proc/<pid>/cmdline` really is whisper-server.
-- Autostart via user unit/LaunchAgent at [M06](../plan/milestones/06-Beta-Release.md).
+- **Autostart** (M06.4): `sublight-engine autostart enable` writes a systemd user unit (`~/.config/systemd/user/sublight-engine.service`, `systemctl --user enable`) on Linux, or a LaunchAgent (`~/Library/LaunchAgents/com.sublight.engine.plist`, `launchctl bootstrap`) on macOS. It runs the same runtime and script as the command that enabled it, with its `PATH` (and `SUBLIGHT_HOME`), so ffmpeg and the workers resolve the same. It restarts after a crash but not after a clean `stop` (`Restart=on-failure`, `KeepAlive.SuccessfulExit=false`). It starts at the next login rather than at once, so it can't clash with an engine already running. `--print` shows the file, `disable` removes it, and `status` says whether it's on. Windows prints Task Scheduler steps (L1). The LaunchAgent is covered by a unit test but hasn't been tried on a Mac yet.
 
 ## 2. GPU scheduling (the 4 GB budget)
 
