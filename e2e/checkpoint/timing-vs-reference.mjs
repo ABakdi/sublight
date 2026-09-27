@@ -64,7 +64,8 @@ function words(cues) {
     list.forEach((w, i) => {
       const text = w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
       const t = c.startMs + ((c.endMs - c.startMs) * (i + 0.5)) / list.length
-      if (text) out.push({ text, t })
+      // The first word's time is the cue's start: exact, not spread.
+      if (text) out.push({ text, t, first: i === 0 })
     })
   }
   return out
@@ -126,8 +127,21 @@ const ref = words(reference.cues)
 const got = words(ahead.cues)
 const { pairs, missing, extra } = align(ref, got)
 const errors = pairs.map(([a, b]) => Math.abs(a.t - b.t)).sort((a, b) => a - b)
-const q = (p) =>
-  (errors[Math.min(errors.length - 1, Math.floor(errors.length * p))] / 1000).toFixed(2)
+const q = (p, list = errors) =>
+  Number((list[Math.min(list.length - 1, Math.floor(list.length * p))] / 1000).toFixed(2))
+// Exact: words that start a cue in both (their times aren't spread over a cue).
+const starts = pairs
+  .filter(([a, b]) => a.first && b.first)
+  .map(([a, b]) => Math.abs(a.t - b.t))
+  .sort((a, b) => a - b)
+const worst = pairs
+  .map(([a, b]) => ({
+    at: Math.round(a.t / 1000),
+    off: Number(((b.t - a.t) / 1000).toFixed(1)),
+    word: a.text,
+  }))
+  .sort((x, y) => Math.abs(y.off) - Math.abs(x.off))
+  .slice(0, 8)
 console.log(
   JSON.stringify(
     {
@@ -137,7 +151,14 @@ console.log(
       aheadWords: got.length,
       missing,
       extra,
-      timingErrorSeconds: { median: Number(q(0.5)), p90: Number(q(0.9)), max: Number(q(1)) },
+      timingErrorSeconds: { median: q(0.5), p90: q(0.9), max: q(1) },
+      cueStartErrorSeconds: {
+        pairs: starts.length,
+        median: q(0.5, starts),
+        p90: q(0.9, starts),
+        max: q(1, starts),
+      },
+      worstWords: worst,
       wordsOffMoreThan2s: errors.filter((e) => e > 2000).length,
       jobSeconds: { reference: reference.seconds, ahead: ahead.seconds },
     },
