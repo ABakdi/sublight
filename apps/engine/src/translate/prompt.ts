@@ -32,7 +32,8 @@ export function glossaryProblem(glossary: GlossaryEntry[]): string | null {
     if (!g.source.trim() || !g.target.trim()) return 'glossary entries can’t be empty'
     if (g.source.length > 100 || g.target.length > 100)
       return 'glossary terms are limited to 100 characters'
-    if (/\p{Cc}/u.test(g.source + g.target)) return 'glossary terms must be single-line text'
+    if (/[\p{Cc}\p{Zl}\p{Zp}]/u.test(g.source + g.target))
+      return 'glossary terms must be single-line text'
   }
   return null
 }
@@ -59,6 +60,9 @@ export interface PromptInput {
  * instructions): they only ever appear inside <subtitles> delimiters, and the
  * system message says that text is content, never instructions.
  */
+/** Spoken text can't close or open the delimiters it sits in (security baseline D1). */
+export const neutralize = (text: string) => text.replace(/<\s*\/?\s*subtitles\s*>/gi, ' ')
+
 export function buildMessages(input: PromptInput): ChatMessage[] {
   const src = languageName(input.sourceLang)
   const tgt = languageName(input.targetLang)
@@ -78,11 +82,11 @@ export function buildMessages(input: PromptInput): ChatMessage[] {
   if (input.context?.length) {
     rules.push(
       `For continuity, the lines just before were translated like this (do not output them again):\n${input.context
-        .map((c) => `${c.source} → ${c.target}`)
+        .map((c) => `${neutralize(c.source)} → ${neutralize(c.target)}`)
         .join('\n')}`,
     )
   }
-  const body = input.lines.map((l, i) => `${i + 1}: ${l}`).join('\n')
+  const body = input.lines.map((l, i) => `${i + 1}: ${neutralize(l)}`).join('\n')
   return [
     { role: 'system', content: rules.join('\n\n') },
     { role: 'user', content: `<subtitles>\n${body}\n</subtitles>` },

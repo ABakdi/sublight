@@ -11,11 +11,23 @@ function clean(text: string): string {
 }
 
 /**
+ * How long a translation of `source` may be. Languages differ, but a line
+ * several times longer than its source is the model following something the
+ * audio said, not translating it (security baseline D1).
+ */
+export const maxTranslationChars = (source: string) => source.length * 3 + 40
+
+/**
  * Parse "n: text" lines (Spec 07 §2.3). Tolerates code fences, bold numbers,
  * "1." / "1)" styles and wrapped continuation lines; returns null unless
- * exactly lines 1..expected are present, each non-empty.
+ * exactly lines 1..expected are present, each non-empty and (given the
+ * sources) not far longer than its source.
  */
-export function parseNumbered(output: string, expected: number): string[] | null {
+export function parseNumbered(
+  output: string,
+  expected: number,
+  sources?: string[],
+): string[] | null {
   const byNumber = new Map<number, string>()
   let last: number | null = null
   for (const raw of output.replace(/```[a-z]*\n?|```/gi, '').split('\n')) {
@@ -33,6 +45,8 @@ export function parseNumbered(output: string, expected: number): string[] | null
   for (let n = 1; n <= expected; n++) {
     const line = byNumber.get(n)
     if (!line) return null
+    if (sources?.[n - 1] !== undefined && line.length > maxTranslationChars(sources[n - 1]!))
+      return null
     lines.push(line)
   }
   return lines

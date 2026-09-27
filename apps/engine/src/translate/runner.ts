@@ -8,7 +8,7 @@ import type { LlamaWorker } from '../llm/llama'
 import type { ModelManager } from '../models/manager'
 import type { GpuResidency } from '../workers/gpu'
 import { cueLine, groupParagraphs } from './paragraphs'
-import { parseNumbered, resplitByDuration } from './parse'
+import { maxTranslationChars, parseNumbered, resplitByDuration } from './parse'
 import { buildMessages, glossaryProblem, languageName, type Register } from './prompt'
 
 /** Bump when output changes for the same input, so stale cache entries miss. */
@@ -57,7 +57,11 @@ export function translateRunner(deps: TranslateDeps): JobRunner<TranslateJob> {
       maxTokens: Math.max(256, Math.ceil(chars * 1.5)),
       signal,
     })
-    return { lines: parseNumbered(out.text, lines.length), raw: out.text, tps: out.tokensPerSecond }
+    return {
+      lines: parseNumbered(out.text, lines.length, lines),
+      raw: out.text,
+      tps: out.tokensPerSecond,
+    }
   }
 
   /** Validate 1:1; on mismatch retry as two halves once; then re-split by duration (Spec 07 §2.3). */
@@ -90,7 +94,12 @@ export function translateRunner(deps: TranslateDeps): JobRunner<TranslateJob> {
         tokensPerSecond: a.tokensPerSecond ?? b.tokensPerSecond,
       }
     }
-    const text = first.raw.replace(/^\s*\d+\s*[:.)]\s*/gm, ' ').replace(/<\/?subtitles>/g, ' ')
+    // Whatever came back, but no more of it than the sources could need (D1).
+    const budget = lines.reduce((n, l) => n + maxTranslationChars(l), 0)
+    const text = first.raw
+      .replace(/^\s*\d+\s*[:.)]\s*/gm, ' ')
+      .replace(/<\/?subtitles>/g, ' ')
+      .slice(0, budget)
     return {
       lines: resplitByDuration(
         text,
