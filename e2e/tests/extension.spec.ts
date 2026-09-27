@@ -12,7 +12,7 @@ import {
   type Route,
 } from '@playwright/test'
 import { DEV_EXTENSION_ID } from '@sublight/protocol'
-import { E2E_TOKEN } from '../constants'
+import { E2E_PLAYER_URL, E2E_TOKEN } from '../constants'
 
 /**
  * The unpacked MV3 build in a real Chromium: stable ID, engine pairing,
@@ -336,6 +336,46 @@ test.describe('extension in Chromium (Spec 09)', () => {
     } finally {
       server.close()
     }
+  })
+
+  test('Open in Sublight Player hands the page video over (M05b)', async () => {
+    const options = await context.newPage()
+    await options.goto(`${EXT}/options.html`)
+    await options.evaluate(
+      (url) =>
+        (
+          globalThis as unknown as {
+            chrome: { storage: { local: { set(v: object): Promise<void> } } }
+          }
+        ).chrome.storage.local.set({ playerUrl: `${url}/` }),
+      E2E_PLAYER_URL,
+    )
+    await options.close()
+    const site = context.pages()[0] ?? (await context.newPage())
+    await site.goto(`${SITE}/watch`)
+    await site.evaluate(async () => {
+      const v = document.querySelector('video')!
+      await v.play()
+      v.currentTime = 2
+    })
+    const popup = await openPopupFor(site)
+    const [player] = await Promise.all([
+      context.waitForEvent('page'),
+      popup.getByTestId('open-in-player').click(),
+    ])
+    await player.waitForLoadState()
+    expect(player.url().startsWith(E2E_PLAYER_URL)).toBe(true)
+    // The page's own file plays in the Player, from where the page was.
+    await expect(player.getByTestId('video')).toHaveAttribute('src', `${SITE}/clip.mp4`)
+    await expect
+      .poll(() =>
+        player.evaluate(
+          () => (document.querySelector('[data-testid=video]') as HTMLVideoElement).currentTime,
+        ),
+      )
+      .toBeGreaterThan(1.5)
+    // …and no longer on its page.
+    expect(await site.evaluate(() => document.querySelector('video')!.paused)).toBe(true)
   })
 
   test('caption size and position toggles apply to the overlay (M05.7)', async () => {
