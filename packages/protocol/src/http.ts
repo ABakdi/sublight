@@ -7,6 +7,13 @@ export interface GpuInfo {
   vramFree: number | null // MB
 }
 
+/** A worker binary against the checksum its setup script recorded (security baseline E2). */
+export interface BinaryCheck {
+  name: 'whisper' | 'llama' | 'yt-dlp'
+  tag: string | null
+  state: 'ok' | 'modified' | 'missing' | 'unrecorded'
+}
+
 export interface HealthResponse {
   status: 'online'
   version: string
@@ -19,6 +26,8 @@ export interface HealthResponse {
   residentModel?: string | null
   /** Normalized-audio cache size, bytes. */
   mediaCacheBytes?: number
+  /** Worker binaries checked at startup (empty until the check finishes). */
+  binaries?: BinaryCheck[]
   /** Simple counters feeding checkpoints (Spec 06 §8). */
   metrics?: {
     jobsTotal: number

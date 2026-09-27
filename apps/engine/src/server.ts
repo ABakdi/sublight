@@ -9,6 +9,7 @@ import { findPlayerDir, servePlayer } from './player-server'
 import { Logger } from './logger'
 import { enginePaths } from './paths'
 import { createServices } from './services'
+import { verifyBinaries } from './workers/verify'
 import { attachWebSocket } from './ws'
 
 /**
@@ -76,6 +77,16 @@ export function runServer(): Promise<{ port: number }> {
     bus: services.bus,
   })
   services.jobs.start()
+
+  // Are the worker binaries still the ones setup built? Warn if not (baseline E2).
+  void verifyBinaries(paths.bin).then((checks) => {
+    services.binaries = checks
+    for (const b of checks)
+      if (b.state !== 'ok')
+        log.warn(
+          `${b.name} binary is ${b.state} (expected ${b.tag ?? 'a recorded build'}): rerun its setup script`,
+        )
+  })
 
   // The Player, when it's built (Spec 06 §1): a missing build or a busy port
   // costs the Player only, never the engine.

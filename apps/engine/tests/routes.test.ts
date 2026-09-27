@@ -76,7 +76,21 @@ function services(runner?: JobRunner): EngineServices {
   const live = new LiveHub(join(paths.jobs, 'live'))
   const ahead = aheadRunner({ models, whisper, ffmpeg: SYSTEM_FFMPEG, ytDlp: null })
   const relays = new RelayStore()
-  return { bus, models, media, jobs, whisper, llama, gpu, live, ahead, relays, ytDlp: null, paths }
+  return {
+    bus,
+    models,
+    media,
+    jobs,
+    whisper,
+    llama,
+    gpu,
+    live,
+    ahead,
+    relays,
+    ytDlp: null,
+    paths,
+    binaries: [],
+  }
 }
 
 /** Stand-in for whisper: instant, deterministic output. */

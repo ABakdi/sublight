@@ -1,3 +1,4 @@
+import type { BinaryCheck } from '@sublight/protocol'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { aheadRunner, type AheadRunner } from './asr/ahead'
@@ -33,6 +34,8 @@ export interface EngineServices {
   relays: RelayStore
   /** yt-dlp, when installed. */
   ytDlp: string | null
+  /** Worker binaries against their recorded checksums, filled in at startup (baseline E2). */
+  binaries: BinaryCheck[]
   paths: EnginePaths
 }
 
@@ -105,5 +108,19 @@ export function createServices(config: EngineConfig, paths: EnginePaths): Engine
   jobs.register(ahead)
   const relays = new RelayStore(join(paths.mediaCache, 'relay'))
   const ytDlp = findYtDlp(paths.bin)
-  return { bus, models, media, jobs, whisper, llama, gpu, live, ahead, relays, ytDlp, paths }
+  return {
+    bus,
+    models,
+    media,
+    jobs,
+    whisper,
+    llama,
+    gpu,
+    live,
+    ahead,
+    relays,
+    ytDlp,
+    paths,
+    binaries: [],
+  }
 }

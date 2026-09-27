@@ -24,6 +24,7 @@ export function buildHealth(
           queuedJobs: stats!.queued,
           residentModel: services.gpu.resident,
           mediaCacheBytes: services.media.all().reduce((n, m) => n + m.normalizedBytes, 0),
+          binaries: services.binaries,
         }
       : {}),
     metrics: {

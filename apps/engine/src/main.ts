@@ -156,6 +156,9 @@ async function status(): Promise<number> {
       h.gpu.available ? `GPU ${h.gpu.name ?? ''}`.trim() : 'CPU only',
     ].join(' · '),
   )
+  for (const b of h.binaries ?? [])
+    if (b.state !== 'ok')
+      console.log(`warning: the ${b.name} binary is ${b.state}: rerun its setup script`)
   return 0
 }
 
