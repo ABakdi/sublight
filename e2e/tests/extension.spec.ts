@@ -213,53 +213,6 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await expect(popup.getByTestId('live-status')).toContainText('speech model isn’t installed')
   })
 
-  test('live captions from the element audio, refined on stop (M05, real ASR)', async () => {
-    test.skip(!process.env.E2E_REAL_ASR, 'set E2E_REAL_ASR=1 with whisper-small installed locally')
-    test.setTimeout(120_000)
-    const dir = mkdtempSync(join(tmpdir(), 'sublight-e2e-live-'))
-    const clip = join(dir, 'jfk.mp4')
-    execFileSync('ffmpeg', [
-      ...['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=10'],
-      ...['-i', resolve(process.cwd(), '..', 'apps', 'engine', 'tests', 'fixtures', 'jfk.wav')],
-      ...['-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', clip],
-    ])
-    served = readFileSync(clip)
-    await pair()
-    const site = context.pages()[0] ?? (await context.newPage())
-    await site.goto(`${SITE}/watch`)
-    await site.evaluate(() => document.querySelector('video')!.play())
-    const popup = await openPopupFor(site)
-    await popup.getByTestId('live-toggle').click()
-    await expect(popup.getByTestId('live-status')).toHaveAttribute('data-phase', 'listening')
-    await expect(popup.getByTestId('live-status')).toContainText('this video’s audio')
-    await site.bringToFront()
-    await site.waitForFunction(() => document.querySelector('video')!.ended, null, {
-      timeout: 30_000,
-    })
-    await popup.bringToFront()
-    // While listening, the draft so far can already be saved.
-    await expect(popup.getByTestId('live-download')).toContainText('Download draft SRT so far')
-    await popup.getByTestId('live-toggle').click()
-    await expect(popup.getByTestId('live-status')).toHaveAttribute('data-phase', 'done', {
-      timeout: 60_000,
-    })
-    // The finished track can be saved as SRT from the popup.
-    await expect(popup.getByTestId('live-download')).toContainText('Download SRT (')
-    await expect(popup.getByTestId('live-download')).toHaveAttribute('data-final', 'true')
-    await site.bringToFront()
-    await site.evaluate(() => (document.querySelector('video')!.currentTime = 6.5))
-    await expect
-      .poll(() =>
-        site.evaluate(
-          () =>
-            document
-              .querySelector('[data-sublight-frame] [data-sublight-host]')
-              ?.shadowRoot?.querySelector('.sl-cue')?.textContent ?? '',
-        ),
-      )
-      .toMatch(/country/i)
-  })
-
   test('Caption this video explains a missing speech model (ADR-0020)', async () => {
     test.skip(!!process.env.E2E_REAL_ASR, 'the real-ASR engine has the model installed')
     await pair()
@@ -271,9 +224,13 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await expect(popup.getByTestId('captions-error')).toContainText('speech model isn’t installed')
   })
 
-  test('captions ahead of playback from a direct media URL, and the SRT (ADR-0020, real ASR)', async () => {
-    test.skip(!process.env.E2E_REAL_ASR, 'set E2E_REAL_ASR=1 with whisper-small installed locally')
-    test.setTimeout(120_000)
+  /**
+   * A real HTTP site the engine can fetch (Playwright routes are browser-only)
+   * serving the JFK clip as a video. Loopback page + loopback media: Chrome
+   * blocks public pages from loading local media. `/next` is a second page
+   * with the same clip, for following a feed.
+   */
+  async function speechSite(): Promise<{ port: number; server: Server }> {
     const dir = mkdtempSync(join(tmpdir(), 'sublight-e2e-ahead-'))
     const clip = join(dir, 'jfk.mp4')
     execFileSync('ffmpeg', [
@@ -282,8 +239,6 @@ test.describe('extension in Chromium (Spec 09)', () => {
       ...['-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', clip],
     ])
     served = readFileSync(clip)
-    // A real HTTP server the engine can fetch from (Playwright routes are browser-only).
-    // Loopback page + loopback media: Chrome blocks public pages from loading local media.
     const server: Server = createServer((req, res) => {
       if (req.url?.startsWith('/clip.mp4')) {
         const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '')
@@ -305,24 +260,111 @@ test.describe('extension in Chromium (Spec 09)', () => {
     })
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
     const port = (server.address() as { port: number }).port
-    try {
+    return { port, server }
+  }
+
+  // One url or live job at a time: a new one replaces the running one (one viewer, one video).
+  test.describe.serial('with real speech recognition', () => {
+    test('captions follow the next video of a feed (Spec 09 §4.8, real ASR)', async () => {
+      test.skip(
+        !process.env.E2E_REAL_ASR,
+        'set E2E_REAL_ASR=1 with whisper-small installed locally',
+      )
+      test.setTimeout(150_000)
+      const { port, server } = await speechSite()
+      const urlJobs = async () =>
+        (
+          (await (
+            await fetch(E2E_ENGINE_HEALTH_URL.replace('/v1/health', '/v1/jobs'), {
+              headers: { authorization: `Bearer ${E2E_TOKEN}` },
+            })
+          ).json()) as { jobs: { type: string }[] }
+        ).jobs.filter((j) => j.type === 'url').length
+      try {
+        await pair()
+        const before = await urlJobs()
+        const site = context.pages()[0] ?? (await context.newPage())
+        await site.goto(`http://127.0.0.1:${port}/watch`)
+        await site.evaluate(() => document.querySelector('video')!.play())
+        const popup = await openPopupFor(site)
+        await popup.getByTestId('captions-toggle').click()
+        await expect(popup.getByTestId('captions-status')).toHaveAttribute('data-phase', 'done', {
+          timeout: 60_000,
+        })
+        await popup.close()
+        // The feed moves on: a new URL and a new video element, as a SPA does.
+        await site.bringToFront()
+        await site.evaluate(() => {
+          history.pushState(null, '', '/next')
+          const old = document.querySelector('video')!
+          const next = document.createElement('video')
+          next.src = '/clip.mp4?next'
+          next.style.cssText = old.style.cssText
+          old.replaceWith(next)
+          void next.play()
+        })
+        // A second url job, for the new video, started by the page's own report.
+        await expect.poll(urlJobs, { timeout: 60_000 }).toBe(before + 2)
+        await site.evaluate(() => {
+          const v = document.querySelector('video')!
+          v.pause()
+          v.currentTime = 6.5
+        })
+        await expect
+          .poll(
+            () =>
+              site.evaluate(
+                () =>
+                  document
+                    .querySelector('[data-sublight-frame] [data-sublight-host]')
+                    ?.shadowRoot?.querySelector('.sl-cue')?.textContent ?? '',
+              ),
+            { timeout: 60_000 },
+          )
+          .toMatch(/country/i)
+      } finally {
+        server.close()
+      }
+    })
+
+    test('live captions from the element audio, refined on stop (M05, real ASR)', async () => {
+      test.skip(
+        !process.env.E2E_REAL_ASR,
+        'set E2E_REAL_ASR=1 with whisper-small installed locally',
+      )
+      test.setTimeout(120_000)
+      const dir = mkdtempSync(join(tmpdir(), 'sublight-e2e-live-'))
+      const clip = join(dir, 'jfk.mp4')
+      execFileSync('ffmpeg', [
+        ...['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=320x180:rate=10'],
+        ...['-i', resolve(process.cwd(), '..', 'apps', 'engine', 'tests', 'fixtures', 'jfk.wav')],
+        ...['-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', clip],
+      ])
+      served = readFileSync(clip)
       await pair()
       const site = context.pages()[0] ?? (await context.newPage())
-      await site.goto(`http://127.0.0.1:${port}/watch`)
+      await site.goto(`${SITE}/watch`)
       await site.evaluate(() => document.querySelector('video')!.play())
       const popup = await openPopupFor(site)
-      await expect(popup.getByTestId('engine-status')).toHaveAttribute('data-state', 'online')
-      await popup.getByTestId('captions-toggle').click()
-      await expect(popup.getByTestId('captions-status')).toHaveAttribute('data-phase', 'done', {
+      await popup.getByTestId('live-toggle').click()
+      await expect(popup.getByTestId('live-status')).toHaveAttribute('data-phase', 'listening')
+      await expect(popup.getByTestId('live-status')).toContainText('this video’s audio')
+      await site.bringToFront()
+      await site.waitForFunction(() => document.querySelector('video')!.ended, null, {
+        timeout: 30_000,
+      })
+      await popup.bringToFront()
+      // While listening, the draft so far can already be saved.
+      await expect(popup.getByTestId('live-download')).toContainText('Download draft SRT so far')
+      await popup.getByTestId('live-toggle').click()
+      await expect(popup.getByTestId('live-status')).toHaveAttribute('data-phase', 'done', {
         timeout: 60_000,
       })
-      // Exact timing: at 6.5 s the sentence around "country" is on screen.
+      // The finished track can be saved as SRT from the popup.
+      await expect(popup.getByTestId('live-download')).toContainText('Download SRT (')
+      await expect(popup.getByTestId('live-download')).toHaveAttribute('data-final', 'true')
       await site.bringToFront()
-      await site.evaluate(() => {
-        const v = document.querySelector('video')!
-        v.pause()
-        v.currentTime = 6.5
-      })
+      await site.evaluate(() => (document.querySelector('video')!.currentTime = 6.5))
       await expect
         .poll(() =>
           site.evaluate(
@@ -333,25 +375,65 @@ test.describe('extension in Chromium (Spec 09)', () => {
           ),
         )
         .toMatch(/country/i)
-      // The whole video as SRT, by sentence.
-      await popup.bringToFront()
-      await popup.getByTestId('download-mode-sentences').click()
-      await popup.getByTestId('download-srt').click()
-      type Dl = { state: string; filename: string }
-      const chromeDl = () =>
-        popup.evaluate(() =>
-          (
-            globalThis as unknown as { chrome: { downloads: { search(q: object): Promise<Dl[]> } } }
-          ).chrome.downloads.search({}),
-        )
-      await expect
-        .poll(async () => (await chromeDl()).some((d) => d.state === 'complete'))
-        .toBe(true)
-      const file = (await chromeDl()).find((d) => d.state === 'complete')!.filename
-      expect(readFileSync(file, 'utf8')).toMatch(/ask not what your country/i)
-    } finally {
-      server.close()
-    }
+    })
+
+    test('captions ahead of playback from a direct media URL, and the SRT (ADR-0020, real ASR)', async () => {
+      test.skip(
+        !process.env.E2E_REAL_ASR,
+        'set E2E_REAL_ASR=1 with whisper-small installed locally',
+      )
+      test.setTimeout(120_000)
+      const { port, server } = await speechSite()
+      try {
+        await pair()
+        const site = context.pages()[0] ?? (await context.newPage())
+        await site.goto(`http://127.0.0.1:${port}/watch`)
+        await site.evaluate(() => document.querySelector('video')!.play())
+        const popup = await openPopupFor(site)
+        await expect(popup.getByTestId('engine-status')).toHaveAttribute('data-state', 'online')
+        await popup.getByTestId('captions-toggle').click()
+        await expect(popup.getByTestId('captions-status')).toHaveAttribute('data-phase', 'done', {
+          timeout: 60_000,
+        })
+        // Exact timing: at 6.5 s the sentence around "country" is on screen.
+        await site.bringToFront()
+        await site.evaluate(() => {
+          const v = document.querySelector('video')!
+          v.pause()
+          v.currentTime = 6.5
+        })
+        await expect
+          .poll(() =>
+            site.evaluate(
+              () =>
+                document
+                  .querySelector('[data-sublight-frame] [data-sublight-host]')
+                  ?.shadowRoot?.querySelector('.sl-cue')?.textContent ?? '',
+            ),
+          )
+          .toMatch(/country/i)
+        // The whole video as SRT, by sentence.
+        await popup.bringToFront()
+        await popup.getByTestId('download-mode-sentences').click()
+        await popup.getByTestId('download-srt').click()
+        type Dl = { state: string; filename: string }
+        const chromeDl = () =>
+          popup.evaluate(() =>
+            (
+              globalThis as unknown as {
+                chrome: { downloads: { search(q: object): Promise<Dl[]> } }
+              }
+            ).chrome.downloads.search({}),
+          )
+        await expect
+          .poll(async () => (await chromeDl()).some((d) => d.state === 'complete'))
+          .toBe(true)
+        const file = (await chromeDl()).find((d) => d.state === 'complete')!.filename
+        expect(readFileSync(file, 'utf8')).toMatch(/ask not what your country/i)
+      } finally {
+        server.close()
+      }
+    })
   })
 
   test('Open in Sublight Player hands the page video over (M05b)', async () => {

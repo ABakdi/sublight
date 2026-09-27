@@ -485,10 +485,11 @@ export async function startCaptions(
   owner: { frameId: number; state: VideoState },
   opts: { pendingDownload?: CaptionMode; quiet?: boolean; target?: string } = {},
 ): Promise<CaptionsState> {
+  await stopCaptions(tabId, { quiet: opts.quiet ?? false })
   // The viewer asked (not a feed scroll): this tab follows its feed, on this site.
+  // Set after stopping the previous captions, which forgets it.
   if (!opts.quiet)
     await browser.storage.session.set({ [followKey(tabId)]: hostOf(owner.state.url) })
-  await stopCaptions(tabId, { quiet: opts.quiet ?? false })
   await stopLive(tabId)
   await browser.storage.session.remove([captionsTrackKey(tabId), translatedKey(tabId)])
   const tab = await browser.tabs.get(tabId).catch(() => null)
