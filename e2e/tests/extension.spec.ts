@@ -382,12 +382,17 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await player.waitForLoadState()
     expect(player.url().startsWith(E2E_PLAYER_URL)).toBe(true)
     // The page's own file plays in the Player, from where the page was.
-    await expect(player.getByTestId('video')).toHaveAttribute('src', `${SITE}/clip.mp4`)
+    // The Player is Vite's dev server: its first load can be slow under a full run.
+    await expect(player.getByTestId('video')).toHaveAttribute('src', `${SITE}/clip.mp4`, {
+      timeout: 15_000,
+    })
     await expect
-      .poll(() =>
-        player.evaluate(
-          () => (document.querySelector('[data-testid=video]') as HTMLVideoElement).currentTime,
-        ),
+      .poll(
+        () =>
+          player.evaluate(
+            () => (document.querySelector('[data-testid=video]') as HTMLVideoElement).currentTime,
+          ),
+        { timeout: 15_000 },
       )
       .toBeGreaterThan(1.5)
     // …and no longer on its page.

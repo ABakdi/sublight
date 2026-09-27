@@ -7,7 +7,7 @@ import { E2E_ENGINE_URL, E2E_ENGINE_HEALTH_URL, E2E_ENGINE_PORT, E2E_TOKEN } fro
 const repoRoot = `${resolve(process.cwd(), '..')}`
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
 
-export default async function globalSetup(): Promise<() => void> {
+export default async function globalSetup(): Promise<() => Promise<void>> {
   const home = mkdtempSync(join(tmpdir(), 'sublight-e2e-'))
   writeFileSync(
     join(home, 'config.json'),
@@ -36,11 +36,20 @@ export default async function globalSetup(): Promise<() => void> {
     }
   }
 
+  // A previous suite's engine may still be shutting down: never test against it.
+  if (!(await portFreeWithin(15_000)))
+    throw new Error(
+      `port ${E2E_ENGINE_PORT} is still in use (another engine?): the e2e engine can't start`,
+    )
+  // Its own process group, so teardown stops pnpm, tsx and node together.
   const engine: ChildProcess = spawn(pnpm, ['--filter', '@sublight/engine', 'start'], {
     cwd: repoRoot,
     env: { ...process.env, SUBLIGHT_HOME: home },
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
   })
+  let exited = false
+  engine.on('exit', () => (exited = true))
   // Also kept in a file: tests quote its tail when the engine is gone (CI logs aren't public).
   process.env.E2E_ENGINE_HOME = home
   const output = join(home, 'engine-output.txt')
@@ -58,7 +67,7 @@ export default async function globalSetup(): Promise<() => void> {
 
   const deadline = Date.now() + 15_000
   let ok = false
-  while (Date.now() < deadline) {
+  while (Date.now() < deadline && !exited) {
     try {
       const res = await fetch(E2E_ENGINE_HEALTH_URL, {
         headers: { authorization: `Bearer ${E2E_TOKEN}` },
@@ -73,8 +82,8 @@ export default async function globalSetup(): Promise<() => void> {
     }
     await new Promise((r) => setTimeout(r, 250))
   }
-  if (!ok) {
-    engine.kill('SIGTERM')
+  if (!ok || exited) {
+    stopTree(engine)
     throw new Error(
       `engine did not become healthy at ${E2E_ENGINE_URL} within 15s — is the port already in use by an unrelated instance?`,
     )
@@ -88,7 +97,33 @@ export default async function globalSetup(): Promise<() => void> {
     if (build.status !== 0) throw new Error('extension build failed (required for EXTENSION_TESTS)')
   }
 
-  return () => {
-    engine.kill('SIGTERM')
+  return async () => {
+    stopTree(engine)
+    // The next suite starts its own engine on the same port: wait until it's free.
+    await portFreeWithin(15_000)
   }
+}
+
+/** Stop the engine's whole process group (pnpm → tsx → node), not just pnpm. */
+function stopTree(child: ChildProcess): void {
+  if (child.pid === undefined) return
+  try {
+    process.kill(-child.pid, 'SIGTERM')
+  } catch {
+    child.kill('SIGTERM')
+  }
+}
+
+/** True once nothing answers on the engine port (checked for up to `ms`). */
+async function portFreeWithin(ms: number): Promise<boolean> {
+  const end = Date.now() + ms
+  while (Date.now() < end) {
+    const taken = await fetch(E2E_ENGINE_HEALTH_URL, { signal: AbortSignal.timeout(1000) }).then(
+      () => true,
+      () => false,
+    )
+    if (!taken) return true
+    await new Promise((r) => setTimeout(r, 250))
+  }
+  return false
 }
