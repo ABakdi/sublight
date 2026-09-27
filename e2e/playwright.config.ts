@@ -10,7 +10,8 @@ export default defineConfig({
   expect: { timeout: 5_000 },
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [['html', { open: 'never' }]] : 'list',
+  // On CI, 'github' turns each failure into an annotation (readable without the log).
+  reporter: process.env.CI ? [['github'], ['list'], ['html', { open: 'never' }]] : 'list',
   testIgnore: process.env.EXTENSION_TESTS
     ? ['**/player.spec.ts', '**/engine.spec.ts']
     : ['**/extension.spec.ts'],
