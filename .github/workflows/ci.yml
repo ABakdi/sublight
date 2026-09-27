@@ -43,8 +43,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # github-actions reporter: each failing test becomes an annotation with its name and error.
       - name: Unit tests
-        run: pnpm test
+        run: pnpm -r --filter "!@sublight/e2e" exec vitest run --reporter=default --reporter=github-actions
 
       # Playwright is a dependency of the e2e package, not the root.
       - name: Install Playwright browsers (Chromium + deps)

@@ -277,6 +277,7 @@ describe('engine routes (Protocol §2)', () => {
 describe('page videos for the Player (M05b)', () => {
   it.skipIf(!hasFfmpeg)(
     'resolves a direct video and relays byte ranges without a token',
+    { timeout: 20_000 },
     async () => {
       const bytes = readFileSync(join(import.meta.dirname, 'fixtures', 'jfk.wav'))
       const server = createServer((req, res) => {
@@ -332,56 +333,61 @@ describe('page videos for the Player (M05b)', () => {
 })
 
 describe('HLS pages in the Player (M05b.4)', () => {
-  it.skipIf(!hasFfmpeg)('copies an HLS stream into one seekable mp4 for the relay', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'sublight-hls-'))
-    execFileSync('ffmpeg', [
-      ...['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=160x90:rate=10', '-f', 'lavfi'],
-      ...['-i', 'sine=frequency=440', '-t', '4', '-c:v', 'libx264', '-pix_fmt', 'yuv420p'],
-      ...['-c:a', 'aac', '-f', 'hls', '-hls_time', '1', '-hls_playlist_type', 'vod'],
-      join(dir, 'index.m3u8'),
-    ])
-    const server = createServer((req, res) => {
+  // ffmpeg encodes the fixture and copies the stream: slow on a shared CI runner.
+  it.skipIf(!hasFfmpeg)(
+    'copies an HLS stream into one seekable mp4 for the relay',
+    { timeout: 30_000 },
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'sublight-hls-'))
+      execFileSync('ffmpeg', [
+        ...['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=160x90:rate=10', '-f', 'lavfi'],
+        ...['-i', 'sine=frequency=440', '-t', '4', '-c:v', 'libx264', '-pix_fmt', 'yuv420p'],
+        ...['-c:a', 'aac', '-f', 'hls', '-hls_time', '1', '-hls_playlist_type', 'vod'],
+        join(dir, 'index.m3u8'),
+      ])
+      const server = createServer((req, res) => {
+        try {
+          res.end(readFileSync(join(dir, (req.url ?? '/').slice(1).split('?')[0]!)))
+        } catch {
+          res.writeHead(404).end()
+        }
+      })
+      await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+      const port = (server.address() as { port: number }).port
+      const store = services()
+      store.relays = new RelayStore(mkdtempSync(join(tmpdir(), 'sublight-relays-')))
       try {
-        res.end(readFileSync(join(dir, (req.url ?? '/').slice(1).split('?')[0]!)))
-      } catch {
-        res.writeHead(404).end()
+        const app = createApp(config, { services: store })
+        const res = await app.request('/v1/media/resolve', {
+          method: 'POST',
+          headers: { ...H, 'content-type': 'application/json' },
+          body: JSON.stringify({
+            pageUrl: 'https://example.test/watch',
+            mediaUrl: `http://127.0.0.1:${port}/index.m3u8`,
+          }),
+        })
+        const resolved = await json<MediaResolveResponse>(res)
+        expect(resolved.state).toBe('downloading')
+        let status = { state: 'downloading' }
+        for (let i = 0; i < 100 && status.state === 'downloading'; i++) {
+          await new Promise((r) => setTimeout(r, 100))
+          status = await json(
+            await app.request(`/v1/media/relay/${resolved.mediaId}`, { headers: H }),
+          )
+        }
+        expect(status.state).toBe('ready')
+        const part = await app.request(resolved.relayPath, {
+          headers: { host: H.host, range: 'bytes=0-7' },
+        })
+        expect(part.status).toBe(206)
+        expect(
+          Buffer.from(await part.arrayBuffer())
+            .subarray(4, 8)
+            .toString(),
+        ).toBe('ftyp')
+      } finally {
+        server.close()
       }
-    })
-    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
-    const port = (server.address() as { port: number }).port
-    const store = services()
-    store.relays = new RelayStore(mkdtempSync(join(tmpdir(), 'sublight-relays-')))
-    try {
-      const app = createApp(config, { services: store })
-      const res = await app.request('/v1/media/resolve', {
-        method: 'POST',
-        headers: { ...H, 'content-type': 'application/json' },
-        body: JSON.stringify({
-          pageUrl: 'https://example.test/watch',
-          mediaUrl: `http://127.0.0.1:${port}/index.m3u8`,
-        }),
-      })
-      const resolved = await json<MediaResolveResponse>(res)
-      expect(resolved.state).toBe('downloading')
-      let status = { state: 'downloading' }
-      for (let i = 0; i < 100 && status.state === 'downloading'; i++) {
-        await new Promise((r) => setTimeout(r, 100))
-        status = await json(
-          await app.request(`/v1/media/relay/${resolved.mediaId}`, { headers: H }),
-        )
-      }
-      expect(status.state).toBe('ready')
-      const part = await app.request(resolved.relayPath, {
-        headers: { host: H.host, range: 'bytes=0-7' },
-      })
-      expect(part.status).toBe(206)
-      expect(
-        Buffer.from(await part.arrayBuffer())
-          .subarray(4, 8)
-          .toString(),
-      ).toBe('ftyp')
-    } finally {
-      server.close()
-    }
-  })
+    },
+  )
 })

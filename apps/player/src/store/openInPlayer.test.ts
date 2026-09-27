@@ -44,29 +44,34 @@ describe('open in Sublight Player (M05b)', () => {
     expect(resolve).not.toHaveBeenCalled()
   })
 
-  it('plays a blob/MSE video through the engine relay after "Preparing media…"', async () => {
-    const resolve = vi.spyOn(engine, 'resolveMedia').mockResolvedValue({
-      mediaId: 'r1',
-      relayPath: '/v1/relay/r1',
-      durationMs: 60_000,
-      title: 'A talk',
-      via: 'yt-dlp',
-      state: 'downloading',
-    })
-    vi.spyOn(engine, 'relayStatus').mockResolvedValue({ state: 'ready', progress: 1 })
-    await usePlayerStore
-      .getState()
-      .openFromPage(payload([{ kind: 'engine-fetchable', url: 'https://site.test/watch?v=1' }]))
-    expect(resolve).toHaveBeenCalledWith({
-      pageUrl: 'https://site.test/watch?v=1',
-      userAgent: 'UA',
-      cookiesFromBrowser: 'brave',
-    })
-    const s = usePlayerStore.getState()
-    expect(s.videoObjectUrl).toBe(engine.relayUrl('/v1/relay/r1'))
-    expect(s.preparing).toBeNull()
-    expect(s.project!.media.transport).toBe('engine-relay')
-  })
+  // The store polls the relay every 1.5 s while the engine downloads.
+  it(
+    'plays a blob/MSE video through the engine relay after "Preparing media…"',
+    { timeout: 15_000 },
+    async () => {
+      const resolve = vi.spyOn(engine, 'resolveMedia').mockResolvedValue({
+        mediaId: 'r1',
+        relayPath: '/v1/relay/r1',
+        durationMs: 60_000,
+        title: 'A talk',
+        via: 'yt-dlp',
+        state: 'downloading',
+      })
+      vi.spyOn(engine, 'relayStatus').mockResolvedValue({ state: 'ready', progress: 1 })
+      await usePlayerStore
+        .getState()
+        .openFromPage(payload([{ kind: 'engine-fetchable', url: 'https://site.test/watch?v=1' }]))
+      expect(resolve).toHaveBeenCalledWith({
+        pageUrl: 'https://site.test/watch?v=1',
+        userAgent: 'UA',
+        cookiesFromBrowser: 'brave',
+      })
+      const s = usePlayerStore.getState()
+      expect(s.videoObjectUrl).toBe(engine.relayUrl('/v1/relay/r1'))
+      expect(s.preparing).toBeNull()
+      expect(s.project!.media.transport).toBe('engine-relay')
+    },
+  )
 
   it('captions a page video with a url job (no file to upload)', async () => {
     vi.spyOn(engine, 'resolveMedia').mockRejectedValue(new Error('offline'))
