@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
-import { E2E_TOKEN } from '../constants'
+import { E2E_SERVED_PLAYER_URL, E2E_TOKEN } from '../constants'
 
 /**
  * M03: the player talks to the engine. The e2e engine (global-setup) runs
@@ -51,7 +51,27 @@ test.describe('captioning (M03)', () => {
     await page.goto('/')
     await expect(page.getByTestId('engine-status')).toHaveText('engine offline')
     await openVideo(page, SILENT_VIDEO)
-    await expect(page.getByTestId('engine-offline')).toContainText('pnpm dev:engine')
+    await expect(page.getByTestId('engine-offline')).toContainText('pnpm engine start')
+  })
+
+  test('the engine serves the Player, which pairs in one click (M06.2, ADR-0022)', async ({
+    page,
+    context,
+  }) => {
+    const built = existsSync(resolve(process.cwd(), '..', 'apps', 'player', 'dist', 'index.html'))
+    test.skip(!built && !process.env.CI, 'build the Player first (pnpm build)')
+    await page.goto(E2E_SERVED_PLAYER_URL)
+    await expect(page.getByTestId('engine-status')).toHaveText('engine not paired')
+    await openVideo(page, SILENT_VIDEO)
+    const [approve] = await Promise.all([
+      context.waitForEvent('page'),
+      page.getByTestId('pair-engine').click(),
+    ])
+    await expect(approve.locator('main')).toContainText('The Sublight Player')
+    const code = (await approve.locator('[data-code]').textContent())!
+    await expect(page.getByTestId('pair-status')).toContainText(code)
+    await approve.getByRole('button', { name: 'Approve' }).click()
+    await expect(page.getByTestId('engine-status')).toContainText('engine online')
   })
 
   test('offers the translation model install before translating to French', async ({ page }) => {

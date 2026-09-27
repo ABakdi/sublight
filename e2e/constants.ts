@@ -4,6 +4,9 @@ import { resolve } from 'node:path'
 export const E2E_PLAYER_PORT = 5173
 export const E2E_PLAYER_URL = `http://127.0.0.1:${E2E_PLAYER_PORT}`
 export const E2E_ENGINE_PORT = 17421
+/** The built Player, as the engine serves it (M06.2). */
+export const E2E_SERVED_PLAYER_PORT = 17420
+export const E2E_SERVED_PLAYER_URL = `http://127.0.0.1:${E2E_SERVED_PLAYER_PORT}`
 export const E2E_ENGINE_URL = `http://127.0.0.1:${E2E_ENGINE_PORT}`
 export const E2E_TOKEN = 'e2e'.padEnd(64, 'c')
 

@@ -2,7 +2,13 @@ import { appendFileSync, existsSync, mkdtempSync, symlinkSync, writeFileSync } f
 import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
-import { E2E_ENGINE_URL, E2E_ENGINE_HEALTH_URL, E2E_ENGINE_PORT, E2E_TOKEN } from './constants'
+import {
+  E2E_ENGINE_URL,
+  E2E_ENGINE_HEALTH_URL,
+  E2E_ENGINE_PORT,
+  E2E_SERVED_PLAYER_PORT,
+  E2E_TOKEN,
+} from './constants'
 
 const repoRoot = `${resolve(process.cwd(), '..')}`
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
@@ -18,6 +24,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
         defaults: { asrModel: 'whisper-small', translateModel: 'qwen3-4b-instruct' },
         autoRetry: true,
         cacheLimits: { mediaBytes: 20 * 1024 ** 3 },
+        player: { port: E2E_SERVED_PLAYER_PORT },
       },
       null,
       2,
