@@ -104,9 +104,13 @@ Drafts (`job.partial`) carry `coverage` (captioned media ranges) and `mediaDurat
 
 ### Auth pairing (v1 handshake)
 
-| Endpoint                              | Notes                                                                                                                                                                                                               |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /v1/pair/info` (unauthenticated) | returns the **presence** of pairing (`{ requiresToken: true }`) and a short-lived pairing nonce when the token isn't set — used by the `sublight://pair?token=` flow ([M06](../plan/milestones/06-Beta-Release.md)) |
+| Endpoint                                                        | Notes                                                                                                                                                                                                               |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/pair/request` (unauthenticated, allowed origins only) | `{ requestId, code, approveUrl }` ([ADR-0022](../architecture/decisions/0022-one-click-pairing.md)): open `approveUrl` and poll `/claim`                                                                            |
+| `GET /pair?request=` (engine page)                              | "Allow access?": who asked, the origin, the 4-digit code, Approve / Deny (`X-Frame-Options: DENY`)                                                                                                                  |
+| `POST /v1/pair/decide` (the engine's own origin only)           | `{ requestId, approve }` → `{ state }`                                                                                                                                                                              |
+| `POST /v1/pair/claim` (the requesting origin only)              | `{ requestId }` → `{ state: "pending" \| "denied" \| "claimed" }`, or `{ state: "approved", token }` exactly once                                                                                                   |
+| `GET /v1/pair/info` (unauthenticated)                           | returns the **presence** of pairing (`{ requiresToken: true }`) and a short-lived pairing nonce when the token isn't set — used by the `sublight://pair?token=` flow ([M06](../plan/milestones/06-Beta-Release.md)) |
 
 ## 3. Auth & hardening
 

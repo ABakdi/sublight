@@ -1,7 +1,7 @@
 ---
 tags: [plan, milestone]
-status: not-started
-updated: 2026-09-23
+status: in-progress
+updated: 2026-09-27
 ---
 
 # M06 — Beta 1 release
@@ -22,7 +22,7 @@ updated: 2026-09-23
 
 - [ ] **M06.1** — Extension packaged build loads in clean Chromium and Brave profiles (no "developer mode" hackery for the test user — document the tradeoff).
 - [ ] **M06.2** — Engine packaging: single-launch binary/package; `sublight-engine start` + health URIs; graceful shutdown.
-- [ ] **M06.3** — Pairing UX: token display, copy/paste field in Options, `sublight://` handshake, rotation; persisted in `chrome.storage.local` (per-profile).
+- [x] **M06.3** — Pairing UX: one-click pairing through the engine's approval page ([ADR-0022](../../architecture/decisions/0022-one-click-pairing.md)) in Options, the popup and the Player; paste field kept; persisted per profile. Rotation/revoke UI still to do.
 - [ ] **M06.4** — Autostart instructions + installer integration (L1: docs; L2: actual setup).
 - [ ] **M06.5** — Release pipeline: version bump, changelog, CI artifact build.
 - [ ] **M06.6** — Checkpoint Beta-1 executed (template): test matrix rows checked on both browsers; corpus numbers; bugs triaged; missing features logged as issues that produce new spec/plan items.

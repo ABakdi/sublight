@@ -21,7 +21,7 @@ sublight has **two** client types, one of which (the player web app) has no nati
 
 - The engine exposes **HTTP (REST) + WebSocket (`/ws`)** on `127.0.0.1:17421` only.
 - Auth: **random 128-bit bearer token** stored in the engine config; required on every request as `Authorization: Bearer <token>` (header, **not** cookie — cookies are what CSRF/DNS-rebinding abuse).
-- Token provisioning: engine writes the token to its config; the player/extension pair via a **paste-token UI** and later a **`sublight://pair?token=…` custom-protocol handshake** (M06).
+- Token provisioning: engine writes the token to its config; the player/extension pair via a **paste-token UI** and later a one-click approval page served by the engine ([ADR-0022](0022-one-click-pairing.md), which replaced the planned `sublight://pair?token=…` custom-protocol handshake).
 - Hardening (all enforced, audited in the [security baseline](../../audits/Security-Baseline-Plan.md)):
   - Bind `127.0.0.1` only; reject `Host` headers that aren't `127.0.0.1[:port]`/`localhost[:port]` (defeats DNS rebinding).
   - CORS allowlist: `chrome-extension://<id>` (built + dev IDs) and player origins (`http://localhost:5173`, `http://127.0.0.1:5173`, later the packaged player origin). Never `*`.

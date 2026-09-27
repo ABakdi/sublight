@@ -119,6 +119,10 @@ After the extension's files change on disk (a new build of the unpacked extensio
 
 A tab's jobs end with it. Closing the tab (`tabs.onRemoved`), or reloading or leaving the page (the content script's `pagehide` → `page.gone`), cancels its captioning, its translation and its live job (no refinement). In-page URL changes don't count; following a feed handles those. A requested download still finishes. The engine backs this up: the extension starts `url` and `translate` jobs with `lease: true` and renews them every 30 s (`/v1/jobs/:id/keepalive`), so if the browser itself goes away they are cancelled after 90 s. (Seen 2026-09-26: a French translation of a closed tab's video held the GPU for 15 minutes and survived engine restarts; every new captions job queued behind it.) Measured in Brave: tab closed → job cancelled in 4.9 s; page reloaded → 7.3 s.
 
+### 4.11 Pairing (ADR-0022)
+
+"Pair with the engine" (Options, and the popup while unpaired or rejected) asks the service worker to run the flow: request, open the engine's approval page, show the code, poll the claim, store the token. The SW does it because the popup closes when the tab opens; the popup and Options follow `storage.session.pairing`. Pasting the token from `pnpm engine:token` still works.
+
 ## 5. Capture wiring
 
 The content script drives [Audio capture](08-Audio-Capture.md): probe `captureStream()`, fall back to `tabCapture` (audio-only) requested from the SW; chunks streamed via the SW's WS channel to the engine with `{ mediaTimeStart = T₀ }`.

@@ -34,7 +34,7 @@ few simple conventions keep it coherent.
 
 ```sh
 pnpm engine:setup-whisper      # once: builds whisper.cpp v1.9.4 (~15 min with CUDA)
-pnpm dev:engine                # terminal 1
+pnpm dev:engine                # terminal 1 (pair from sublight's Options: "Pair with the engine")
 TOKEN=$(pnpm -s engine:token)
 curl -X POST -H "Authorization: Bearer $TOKEN" http://127.0.0.1:17421/v1/models/whisper-small/install
 pnpm engine:transcribe some-video.mp4 --out some-video.srt   # or --translate for English
