@@ -133,7 +133,7 @@ User message: `<subtitles>\n1: …\n2: …\n</subtitles>`. Language names come f
 
 ### 2.3 Validation & reconciliation (as built)
 
-1. Parse `n: text` lines (tolerates code fences, `**1:**`, `1.` / `1)` styles, wrapped continuation lines, surrounding quotes); accept only exactly 1..N non-empty lines.
+1. Parse `n: text` lines (tolerates code fences, `**1:**`, `1.` / `1)` styles, wrapped continuation lines, surrounding quotes); accept only exactly 1..N non-empty lines, and none that repeats the line before it where the sources differ (the model moved later lines up and filled the gap; seen at the [Beta-1 checkpoint](../checkpoints/Beta-1-Checklist.md), English → Japanese). A shift without a repeated line still passes; M07.8 addresses it.
 2. **Mismatch** → translate the paragraph again as two halves (the second half gets the first as context). Still mismatched → **proportional re-split**: the returned text is dealt out over the source cues by duration share at word boundaries (every cue gets at least one word when there are enough), and those cues get `lowConfidence: true`. The player shows "N to review" on the track.
 3. A cue whose translation came back empty keeps its source text, flagged low-confidence.
 4. Glossary terms are validated as untrusted input (≤ 100 entries, ≤ 100 chars, no control characters) and injected into the system prompt.

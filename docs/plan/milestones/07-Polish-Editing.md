@@ -25,6 +25,10 @@ updated: 2026-09-27
 - [ ] **M07.4** — Prefs app: style editor (live preview pane), defaults, glossary CRUD, cache eviction UI, engine status/logs viewer.
 - [ ] **M07.5** — Perf pass: long-video memory, overlay render throttling (rAF scheduling), WS backpressure, service-worker wake budget.
 - [ ] **M07.6** — Triage Beta-1 checkpoint: every finding either fixed here or routed to a later milestone/ADR with owner.
+- [ ] **M07.8** — From the [Beta-1 checkpoint](../../checkpoints/Beta-1-Checklist.md) (B5): translations shift lines around sentence fragments with the count intact. Translate whole sentences and re-split them by timing (or mark continuations), and re-run the English → Arabic / Japanese spot check to ≥ 90 %.
+- [ ] **M07.9** — (B6) Translation at 5–7 tok/s when desktop apps take VRAM: offer a smaller variant (e.g. Q3_K_M) that fully fits next to a desktop, and retry full offload when VRAM frees instead of keeping the fallback for the session.
+- [ ] **M07.10** — (B7) YouTube sometimes throttles open-ended audio reads to ~1.8× realtime: fetch pieces with bounded byte ranges, as yt-dlp does, and measure the first caption on throttled videos.
+- [ ] **M07.11** — (M1, M2) A 2 h corpus clip for the drift bar; measure the Player tab's own memory.
 - [ ] **M07.7** — Carried from [M05](05-Extension-Overlay.md): load the overlay lazily instead of bundling React into every frame (content script 268 kB, 85 kB gzipped); start "Better" English (LLM) before the whole transcript is done, and speed up translation in fast feeds, both limited by the whisper ↔ LLM swap on 4 GB.
 
 ## Acceptance criteria

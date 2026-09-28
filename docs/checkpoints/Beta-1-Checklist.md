@@ -1,70 +1,121 @@
 ---
 tags: [checkpoints, beta]
-status: open
-updated: 2026-09-23
+status: in-triage
+updated: 2026-09-28
 ---
 
-# Checkpoint — Beta 1 (planned)
+# Checkpoint — Beta 1
 
-> Executed at **[M06 — Beta release](../plan/milestones/06-Beta-Release.md)**. This file is the pre-filled template for that checkpoint: **expected** values are decided now so "good" is defined before we test. The checkpoint is `open` until the matrix is run and triaged.
+> Executed at **[M06 — Beta release](../plan/milestones/06-Beta-Release.md)** on 2026-09-28. The **expected** values were decided before testing (2026-09-23). Every automated row was run on Chromium and Brave; the rows only a person can check are marked **owner** and keep the checkpoint `in-triage` until they are signed off.
 
-- **Release:** Beta 1 (M06)
-- **Opened:** at M06 · **Status:** `open` (planned)
-- **Milestone(s) covered:** M00–M06 (+ [M05b](../plan/milestones/05b-Open-in-Player.md), only if it lands in time — non-blocking)
+- **Release:** Beta 1 (0.1.0, commit `f9347ee` and the fixes listed in §8)
+- **Opened:** 2026-09-28 · **Status:** `in-triage` (owner rows and sign-off pending)
+- **Milestone(s) covered:** M00–M06, [M05b](../plan/milestones/05b-Open-in-Player.md) included
+
+## 1. Environment
+
+- Engine, extension and Player 0.1.0 from `master`; whisper.cpp v1.9.4 (CUDA), llama.cpp b11174, yt-dlp 2026.08.19.
+- Models: whisper-small (captions and live), Qwen3-4B-Instruct-2507 Q4_K_M (translation).
+- Browsers: Chromium 153.0.8010 (Playwright build) · Brave 153.1.95; both headless, clean profiles.
+- Hardware: the target machine (Quadro T1000 4 GB, driver 615.71, i7-9750H, 32 GB), with a normal desktop running (Discord, Brave, Telegram, Obsidian: ~0.5 GB of VRAM).
 
 ## What Beta 1 must prove
 
-1. A non-dev can install, pair, and caption a YouTube video **and** a local file without a terminal.
-2. Live captions are good enough to watch with; refined cues hit the sync budget.
-3. Translation is meaning-accurate on the primary language pairs.
-4. Graceful degradation everywhere (engine down, DRM, muted tab…).
+1. A non-dev can install, pair, and caption a YouTube video **and** a local file without a terminal. **Mostly:** everything after starting the engine is clicks (checked from the packaged release, §3); starting the engine takes one command the first time, then autostart at login (L1, M06.4).
+2. Live captions are good enough to watch with; refined cues hit the sync budget. **Yes** (live ~3 s behind; refined and ahead-of-playback captions exact, §3).
+3. Translation is meaning-accurate on the primary language pairs. **Not yet:** below the bar on English → Arabic / Japanese (§3, B5).
+4. Graceful degradation everywhere (engine down, DRM, muted tab…). **Yes** for what was tested (T12, T13).
 
 ## Pre-decided expected values (the "good" bar)
 
-| Metric                            | Expected bar                            | Measured |
-| --------------------------------- | --------------------------------------- | -------- |
-| Live caption latency              | ≤ 8 s behind speech (T1000, base/small) |          |
-| Median word-onset offset (corpus) | ≤ 250 ms                                |          |
-| Cumulative drift, 2 h capture     | ≤ 500 ms                                |          |
-| Translation meaning QA            | ≥ 90% paragraphs pass (3 pairs × 10)    |          |
-| SRT round-trip                    | byte-stable (fixtures)                  |          |
-| Memory during caption job         | engine ≤ 3 GB · player ≤ 1.5 GB         |          |
-| e2e smoke (both browsers)         | 100% green                              |          |
+| Metric                            | Expected bar                            | Measured                                                                                                                                  |
+| --------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Live caption latency              | ≤ 8 s behind speech (T1000, base/small) | ✅ ~3.0 s median (JFK, whisper-small; 2026-09-26, same live code); the live e2e passes on both browsers                                   |
+| Median word-onset offset (corpus) | ≤ 250 ms                                | ✅ JFK 4 ms · Kafka 30 min (German) 77 ms, bias −2 ms, 99 % of 540 onsets                                                                 |
+| Cumulative drift, 2 h capture     | ≤ 500 ms                                | ⚠️ 5 ms over 30 min; the corpus has no 2 h clip (M1)                                                                                      |
+| Translation meaning QA            | ≥ 90% paragraphs pass (3 pairs × 10)    | ❌ spot check, 30 lines each: EN→DE ~80 %, EN→AR ~67 %, EN→JA ~70 % (lines, not paragraphs; B5). Owner rating of the M04 samples: pending |
+| SRT round-trip                    | byte-stable (fixtures)                  | ✅ Player e2e, both browsers                                                                                                              |
+| Memory during caption job         | engine ≤ 3 GB · player ≤ 1.5 GB         | ✅ engine 176 MB + whisper-server 638 MB (+ yt-dlp/ffmpeg < 0.15 GB); whole browser with YouTube and the extension 1.5–1.9 GB peak (M2)   |
+| e2e smoke (both browsers)         | 100% green                              | ✅ extension 17 + Player 12 tests, real ASR and LLM, Chromium and Brave                                                                   |
 
-## Matrix (rows pre-filled from the template; run at M06)
+## 2. Matrix
 
-| #   | Flow                                                           | Ch  | Br  | Notes                                                                                                       |
-| --- | -------------------------------------------------------------- | --- | --- | ----------------------------------------------------------------------------------------------------------- |
-| T1  | YouTube live captions                                          |     |     | tabCapture path (YouTube is EME → captureStream muted)                                                      |
-| T2  | YouTube refinement + timing                                    |     |     | corpus cross-check                                                                                          |
-| T3  | Seek / pause / speed mid-capture                               |     |     | re-anchor behavior                                                                                          |
-| T4  | SPA navigation YouTube→new video                               |     |     |                                                                                                             |
-| T5  | Vimeo                                                          |     |     | likely captureStream-clean path                                                                             |
-| T6  | Generic page + iframe player                                   |     |     |                                                                                                             |
-| T7  | Local file captioning                                          |     |     | player + engine                                                                                             |
-| T8  | Translation EN→DE/AR/JA spot check                             |     |     |                                                                                                             |
-| T9  | Bilingual render                                               |     |     |                                                                                                             |
-| T10 | Style live + persist                                           |     |     |                                                                                                             |
-| T11 | SRT export → re-import                                         |     |     |                                                                                                             |
-| T12 | Engine offline state                                           |     |     | cards + retry, no crash                                                                                     |
-| T13 | DRM / mute / autoplay-block errors                             |     |     | no silent failure                                                                                           |
-| T14 | Corpus + perf numbers                                          |     |     | publish in §3                                                                                               |
-| T15 | Open in Sublight Player — direct `.mp4` + engine relay fixture |     |     | M05b landed (2026-09-27), so it is in Beta 1. Direct, HLS, DASH and relay; resume + failure paths included. |
+✅ pass · ⚠️ pass with a finding · ❌ fail · **owner** needs a person (can't be automated here)
 
-## Known gaps to watch (candidates before we even start)
+| #   | Flow                                                           | Ch    | Br    | Notes                                                                                                                                                                                                                                                                                                                             |
+| --- | -------------------------------------------------------------- | ----- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T1  | YouTube live captions                                          | owner | owner | The live path passes e2e on both browsers (element audio, refined on Stop, translated after refinement); not re-measured on YouTube in this pass.                                                                                                                                                                                 |
+| T2  | YouTube refinement + timing                                    | ✅    | ✅    | Ahead of playback: every sampled on-screen caption matched the SRT at that moment (27/27, 25/25, 17/17, 20/20, 10/10 over five runs). Cold start: playback resumes ~10 s after "Caption this video" (hold released at 10.2 s); the first caption follows the first speech.                                                        |
+| T3  | Seek / pause / speed mid-capture                               | owner | owner | 1.5× speed ✅ (in sync). Seeking a YouTube video stalls YouTube's own player in a headless browser, with or without sublight (§7.2): check by hand. Seeks are covered on direct files (e2e, unit).                                                                                                                                |
+| T4  | SPA navigation YouTube→new video                               | ⚠️    | ✅    | Brave: captions followed the next video (29 s warm, 16 s cold). Chromium: YouTube's player failed to play the next video. Found and fixed: two jobs per follow (B2), and a new video waiting behind the old one's fetch (B1).                                                                                                     |
+| T5  | Vimeo                                                          | ⚠️    | ⚠️    | Vimeo now needs a login for yt-dlp ("the web client only works when logged-in"): refused with that reason and the browser-login hint; the extension falls back to live captions. (On 2026-09-26 it resolved, to DRM audio.)                                                                                                       |
+| T6  | Generic page + iframe player                                   | ✅    | ✅    | Generic, same-origin and cross-origin pages in e2e. The YouTube iframe embed was verified by hand at M05; not re-run (owner, optional).                                                                                                                                                                                           |
+| T7  | Local file captioning                                          | ✅    | ✅    | Player e2e (real ASR) and the packaged release: "what your country can" at 6.5 s, captioned in 5.3 s.                                                                                                                                                                                                                             |
+| T8  | Translation EN→DE/AR/JA spot check                             | ❌    | ❌    | Below the bar (B5). Throughput 4.8–7.5 tok/s on this desktop (B6).                                                                                                                                                                                                                                                                |
+| T9  | Bilingual render                                               | owner | owner | Unit-tested (pairing, overlay); "Show both" verified by hand at M05; not re-run.                                                                                                                                                                                                                                                  |
+| T10 | Style live + persist                                           | ✅    | ✅    | Player style panel, popup size/position and Options caption style (e2e).                                                                                                                                                                                                                                                          |
+| T11 | SRT export → re-import                                         | ✅    | ✅    | Byte-for-byte (Player e2e).                                                                                                                                                                                                                                                                                                       |
+| T12 | Engine offline state                                           | ✅    | ✅    | Player card with the command to start it (e2e); extension status probes (unit).                                                                                                                                                                                                                                                   |
+| T13 | DRM / mute / autoplay-block errors                             | ✅    | ✅    | DRM refused up front (`MEDIA_PROTECTED`, unit), unreachable and login-walled videos explained (e2e, T5), live streams refused for the Player (unit). Muted-tab notices: unit only; autoplay block: not specifically tested (U2).                                                                                                  |
+| T14 | Corpus + perf numbers                                          | ✅    | —     | §3.                                                                                                                                                                                                                                                                                                                               |
+| T15 | Open in Sublight Player — direct `.mp4` + engine relay fixture | ✅    | ✅    | Direct, HLS, DASH and relayed page videos play and caption in the Player (e2e, real ASR); an 80-min YouTube video relays in 39 s.                                                                                                                                                                                                 |
+| —   | Packaged release in a clean profile (M06.1, acceptance 1)      | ✅    | ✅    | `e2e/checkpoint/packaged.mjs`: the release tarball's engine run outside the repo with a fresh home (up in 0.3 s), the zip's extension (pinned ID), one-click pairing from the popup and the served Player, a local file captioned in the Player, a cold YouTube video captioned from the extension (first caption 10.9 / 12.3 s). |
 
-- yt-dlp toggle may be rough on YouTube after signature changes — treat as an optional extra, not a Beta-1 blocker.
-- First-run model download UX (network needed, can be slow) — flag if > 3 min without feedback.
-- Firefox parity — NOT in Beta 1 (that's M08).
-- Editor polish — deliberately minimal at Beta 1 (M07 ships it); only text-fix in popup.
-- Carried from M05: per-site yt-dlp failures on real sites (T1–T6), Instagram with the browser-login setting on (needs a real session), and translating refined live captions (T1 + T8).
+## 3. Performance numbers (actual)
 
-## Triage routing reminder (from [README](README.md))
+- **ASR realtime factor:** local file, 30 min German in 239 s (7.5×). Captions ahead of playback: whisper ~14 s per 2-min piece (~8.5×); end to end it depends on YouTube (below).
+- **Captions ahead of playback, time to the first captioned stretch:** 10 s (audio found in 2.7–3.3 s, model ready, first 30 s piece in 6 s). The whole-video SRT: 14-min video in ~90 s when YouTube serves the audio fast.
+- **YouTube audio speed varies:** on some videos the first ~8 min of audio arrive at ~1.8× realtime (18–68 s per piece) and the rest at once (~1 s per piece); the first caption then takes 20–30 s, a 19-min video 429 s (B7).
+- **Translation throughput:** 4.8–7.5 tok/s, 30 lines in 100–185 s on this desktop; 29 tok/s at M04 with more free VRAM (B6).
+- **Live caption latency (T1):** ~3.0 s median (2026-09-26).
+- **Memory:** engine (node) 176 MB, whisper-server 638 MB, llama-server 2.6 GB while translating (never both: one model resident); browser 1.5–1.9 GB peak with YouTube.
+- **Relay:** 80-min YouTube video playable in the Player 39 s after the click (720p, 262 MB).
 
-- Bugs → milestone tasks with severity.
-- Mis-features → spec + plan.
-- Security/quality → audits.
+## 4. Bugs found
 
-## Sign-off
+| ID  | Severity | Summary                                                                                                                  | Repro                                                                                 | Root cause                                                                                                                                                          | Disposition                                                                                                        |
+| --- | -------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| B1  | P1       | A new video's captions wait 18–40 s behind the previous video's job                                                      | Caption a YouTube video, move to another while YouTube is slow                        | The queue aborted the old job, but yt-dlp and the ffmpeg slices ignored the signal (60 s / 180 s timeouts)                                                          | **fixed** (`32fccfd`): processes take the job's signal; unit test                                                  |
+| B2  | P2       | Following the next video starts two `url` jobs; the first is cancelled after ~4 s of fetching                            | YouTube: captions on, click another video                                             | The 2 s URL check undid the follow the video's `play` event had already made                                                                                        | **fixed** (`3c4b28d`): e2e with the same element moving to a new video                                             |
+| B3  | P3       | An interrupted real-model test leaves its llama-server running; later runs fail with "Invalid API Key"                   | Kill a run of `translate.integration.test.ts` mid-load, run it again                  | A fresh temp home per run, so the pid-file reaping never finds the orphan                                                                                           | **fixed** (`f9347ee`): stable run dir                                                                              |
+| B4  | P3       | Engine tests flaky with the real models installed (media test timeout, Qwen test slow)                                   | `pnpm test` where whisper and Qwen are installed                                      | Real-model tests ran in parallel with each other and the unit tests: more than 4 GB VRAM, CPU starved                                                               | **fixed** (`f9347ee`): their own group, one at a time                                                              |
+| B5  | P1       | Translations shift lines around sentence fragments (the next line's words move up, a later line is invented or repeated) | 30 English cues (TED talk) → Japanese: lines 17–20 and 22–26; Arabic and German 22–24 | The model is asked for one line per fragment and returns the right count with the content moved; the count check can't see it. Also plain errors ("plank" → "plum") | **partly fixed** (`c4f2d27`): repeated lines are retried (fixed 17–20). Shifts without a repeat remain → **M07.8** |
+| B6  | P2       | Translation runs at 5–7 tok/s instead of ~29                                                                             | Translate with Discord/Brave/Telegram open                                            | Full GPU offload is ~100–300 MB short on a 4 GB card with a desktop; llama.cpp's automatic fit keeps layers on the CPU (a q4_0 KV cache doesn't fit either)         | **deferred → M07.9**: a smaller variant (e.g. Q3_K_M) as an option, and retrying full offload once VRAM frees      |
+| B7  | P2       | YouTube sometimes serves a video's audio at ~1.8× realtime: first caption 20–30 s, full SRT slower                       | Some YouTube videos, some sessions (not reproducible on demand)                       | Throttled long reads; yt-dlp avoids it by downloading in chunks, ffmpeg reads open-ended                                                                            | **deferred → M07.10**: fetch pieces with bounded byte ranges; the engine now logs each piece's fetch time          |
 
-- Owner date: — (pending M06 execution)
+## 5. Missing features / forgotten work
+
+| ID  | What we forgot or never specified                                                               | Where it should live      | Decision                                                   |
+| --- | ----------------------------------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------- |
+| M1  | A 2 h corpus clip to measure the drift bar                                                      | sync corpus, M07          | accepted: add a long public-domain recording               |
+| M2  | The Player tab's own memory (the bar says player ≤ 1.5 GB); only whole-browser RSS was measured | checkpoint tooling, M07.5 | accepted                                                   |
+| M3  | Starting the engine without a terminal the first time (acceptance 1)                            | M06 L2 / an installer     | defer: autostart covers every later login; L2 after Beta 1 |
+
+## 6. Underspecified items (spec gaps found while testing)
+
+| ID  | Spec area          | Gap                                                                                              | Fix                                                                                              |
+| --- | ------------------ | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| U1  | Checkpoint metrics | "Time to first caption" mixes our delay with where the first speech is; the hold release is ours | real-sites.mjs records a start-up timeline; report the hold release (done)                       |
+| U2  | Spec 08 §7         | The autoplay-blocked case has copy but no detection or test                                      | M07: detect a paused-at-start video when captions start; add to the extension e2e                |
+| U3  | Spec 10 N-list     | Sites that need a login for yt-dlp (Vimeo now) aren't named as a class                           | Spec 08 §6a: login walls → `MEDIA_UNREACHABLE` with the browser-login hint, live fallback (done) |
+
+## 7. Things we believed would work that didn't
+
+1. **Translation accuracy on English sources.** M04 QA used literary German into English, French and Arabic; English talks into Arabic and Japanese do worse, mostly at sentence fragments (B5).
+2. **YouTube in a headless browser seeks like a real one.** After a seek YouTube's player stalls at the new time in headless Brave and Chromium, whether or not the engine is fetching the same video (probe: 4 runs, fetching and not). Automated YouTube seek checks aren't meaningful; T3 is an owner row.
+3. **A 4 GB card has room for Qwen next to a desktop.** It had at M04; with a few Electron apps open it doesn't (B6).
+4. **YouTube serves audio at network speed.** Usually; sometimes throttled (B7).
+
+## 8. Triage summary & actions
+
+- **Fixed now:** B1, B2, B3, B4; B5 partly (repeated lines retried).
+- **Deferred:** B5 rest → M07.8 (translate whole sentences, re-split by timing); B6 → M07.9; B7 → M07.10; M1, M2 → M07; M3 → after Beta 1.
+- **Owner rows before sign-off:** T1 (live on YouTube), T3 (seek on YouTube), T9 (Show both), the M04 translation rating, and optionally T6 (iframe embed).
+- **Specs changed:** Spec 08 §6a (timing logs, login walls), Spec 07 §2.3 (repeated-line check).
+- **New tooling:** `e2e/checkpoint/packaged.mjs`; `real-sites.mjs --no-hold` and its start-up timeline; `E2E_BRAVE=1` / `E2E_CHROMIUM=1` for the two browsers.
+- **ADRs:** none needed.
+
+## 9. Sign-off
+
+- Owner date: —
+- "Closed" only when every row in §4–§7 has a disposition (done) and the owner rows in §2 are checked.

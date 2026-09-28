@@ -1,7 +1,7 @@
 ---
 tags: [plan, milestone]
 status: in-progress
-updated: 2026-09-27
+updated: 2026-09-28
 ---
 
 # M06 — Beta 1 release
@@ -20,12 +20,12 @@ updated: 2026-09-27
 
 ## Tasks
 
-- [ ] **M06.1** — Extension packaged build loads in clean Chromium and Brave profiles (no "developer mode" hackery for the test user — document the tradeoff). Release zip exists and the tradeoff is documented in [INSTALL.md](../../../INSTALL.md); loading it into clean Chromium and Brave profiles is checked at the Beta-1 checkpoint.
+- [x] **M06.1** — Extension packaged build loads in clean Chromium and Brave profiles (no "developer mode" hackery for the test user — document the tradeoff). Release zip exists and the tradeoff is documented in [INSTALL.md](../../../INSTALL.md). Checked at the Beta-1 checkpoint with `e2e/checkpoint/packaged.mjs`: the release packaged as the workflow does, unpacked outside the repository, the engine run with a fresh home, the extension in a clean profile of each browser; pairing, a local file and a YouTube video captioned.
 - [x] **M06.2** — Engine packaging: single-launch binary/package; `sublight-engine start` + health URIs; graceful shutdown. A single bundled `sublight-engine.mjs` (Node ≥ 22) with `start [--detach] | stop | status | token | transcribe`, a pid file, and status via `/v1/health` ([Spec 06 §1](../../specification/06-Engine-Server.md#1-process--lifecycle)). Node SEA not pursued yet: the bundle plus Node is the documented-requirements edition.
 - [x] **M06.3** — Pairing UX: one-click pairing through the engine's approval page ([ADR-0022](../../architecture/decisions/0022-one-click-pairing.md)) in Options, the popup and the Player; paste field kept; persisted per profile. Revoke by rotation: "Unpair every app" in Options and `sublight-engine token --rotate` (`POST /v1/token/rotate`).
 - [x] **M06.4** — Autostart instructions + installer integration (L1: docs; L2: actual setup). `sublight-engine autostart enable|disable|status` (systemd user unit, macOS LaunchAgent; Windows L1 steps) and [INSTALL.md](../../../INSTALL.md). macOS not yet tried on hardware (Beta-1 checkpoint row).
 - [x] **M06.5** — Release pipeline: version bump, changelog, CI artifact build. `scripts/release.mjs` (bump / `--check` / `--notes`), [CHANGELOG.md](../../../CHANGELOG.md) at 0.1.0, and a tag workflow publishing the engine bundle, the extension zip and `SHA256SUMS`. The engine serves the Player ([ADR-0023](../../architecture/decisions/0023-engine-serves-the-player.md)), and the release ships them together as `sublight-<version>.tar.gz`.
-- [ ] **M06.6** — Checkpoint Beta-1 executed (template): test matrix rows checked on both browsers; corpus numbers; bugs triaged; missing features logged as issues that produce new spec/plan items.
+- [x] **M06.6** — Checkpoint Beta-1 executed (template): test matrix rows checked on both browsers; corpus numbers; bugs triaged; missing features logged as issues that produce new spec/plan items. [Executed 2026-09-28](../../checkpoints/Beta-1-Checklist.md): 7 bugs (B1–B4 fixed, B5 partly), the rest and 2 missing items routed to M07; `in-triage` until the owner checks the rows a person has to (T1, T3, T9, the translation rating) and signs off.
 - [x] **M06.7** — Security baseline audit pass 1: findings recorded + fixes tracked ([audits](../../audits/README.md)). [Pass 1](../../audits/2026-09-Security-Baseline.md): 22 findings, no P0/P1, all 12 P2 fixed, P3s fixed or scheduled for M07 ([ADR-0024](../../architecture/decisions/0024-web-supplied-urls-and-handoffs.md)).
 - [x] **M06.8** — Model store UI: installed size, remove models, disk budget warning. Player Models tab and Library section; engine refuses installs that don't fit (`DISK_FULL`, 1 GB headroom) and removals in use (`MODEL_IN_USE`), and stops a resident worker before removing.
 

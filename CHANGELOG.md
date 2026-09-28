@@ -6,6 +6,12 @@ moves **Unreleased** under a new version.
 
 ## [Unreleased]
 
+### Fixes (Beta-1 checkpoint)
+
+- A new video's captions no longer wait behind the previous video's audio fetch.
+- Following the next video of a feed starts one captioning job instead of two.
+- A translation that repeats a line for a different source is retried instead of shifting the lines after it.
+
 ### Extension
 
 - Refined live captions translate to any language from the quick controls, with "Show both" and SRT download of the translation.
