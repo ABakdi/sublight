@@ -38,6 +38,8 @@ const jfk: SubtitleTrack = {
 describe.skipIf(!ready)('real translation with Qwen3-4B', () => {
   const paths = {
     ...enginePaths(mkdtempSync(join(tmpdir(), 'sublight-tr-'))),
+    // Stable, so a worker left by an interrupted run is reaped by its pid file.
+    run: join(tmpdir(), 'sublight-tr-run'),
     models: realPaths.models,
     bin: realPaths.bin,
   }
@@ -56,13 +58,15 @@ describe.skipIf(!ready)('real translation with Qwen3-4B', () => {
     })
     for (
       let i = 0;
-      i < 900 && !['done', 'failed'].includes(services.jobs.get(job.id)!.state);
+      i < 800 && !['done', 'failed'].includes(services.jobs.get(job.id)!.state);
       i++
     ) {
       await new Promise((r) => setTimeout(r, 200))
     }
     const summary = services.jobs.get(job.id)!
     expect(summary.error).toBeUndefined()
+    // Slow when another engine holds VRAM: llama.cpp then runs mostly on the CPU.
+    expect(summary.state, 'still translating: is another engine using the GPU?').toBe('done')
     const result = services.jobs.result(job.id)!
     const out = result.tracks[0]!
     expect(out.cues.map((c) => [c.startMs, c.endMs])).toEqual(

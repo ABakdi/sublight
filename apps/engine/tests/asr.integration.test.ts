@@ -27,6 +27,8 @@ const ready =
 describe.skipIf(!ready)('real transcription with whisper-small', () => {
   const paths = {
     ...enginePaths(mkdtempSync(join(tmpdir(), 'sublight-asr-'))),
+    // Stable, so a worker left by an interrupted run is reaped by its pid file.
+    run: join(tmpdir(), 'sublight-asr-run'),
     models: realPaths.models,
     bin: realPaths.bin,
   }

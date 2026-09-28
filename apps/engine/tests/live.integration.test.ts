@@ -21,6 +21,8 @@ const ready =
 describe.skipIf(!ready)('live captioning with whisper-small', () => {
   const paths = {
     ...enginePaths(mkdtempSync(join(tmpdir(), 'sublight-live-it-'))),
+    // Stable, so a worker left by an interrupted run is reaped by its pid file.
+    run: join(tmpdir(), 'sublight-live-it-run'),
     models: realPaths.models,
     bin: realPaths.bin,
   }
