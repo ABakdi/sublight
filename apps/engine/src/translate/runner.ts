@@ -12,7 +12,7 @@ import { maxTranslationChars, parseNumbered, resplitByDuration } from './parse'
 import { buildMessages, glossaryProblem, languageName, type Register } from './prompt'
 
 /** Bump when output changes for the same input, so stale cache entries miss. */
-const PIPELINE_VERSION = 2
+const PIPELINE_VERSION = 3
 /** Continuity context: this many previous source/translation pairs. */
 const CONTEXT_LINES = 3
 const LANG_RE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/

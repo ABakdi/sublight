@@ -123,6 +123,23 @@ describe('output parsing (Spec 07 §2.3)', () => {
     expect(parseNumbered('1: a\n2: b\n3: c\n4: d', 3)).toBeNull()
   })
 
+  it('rejects a line repeated for a different source: the lines after it are shifted', () => {
+    // Beta-1 checkpoint, English → Japanese: the right count, but lines moved up.
+    const sources = [
+      'hour, for two hours and then ten hours.',
+      'Yep, ten hours, ten',
+      'minutes and ten seconds.',
+    ]
+    const shifted =
+      '1: 1時間、2時間、そして10時間\n2: はい、10時間、10分、10秒\n3: はい、10時間、10分、10秒。'
+    expect(parseNumbered(shifted, 3, sources)).toBeNull()
+    // A line that really is said twice may be translated twice.
+    expect(parseNumbered('1: いいえ！\n2: いいえ！', 2, ['No!', 'No!'])).toEqual([
+      'いいえ！',
+      'いいえ！',
+    ])
+  })
+
   it('re-splits text over cues by duration share at word boundaries', () => {
     expect(resplitByDuration('a b c d e f', [1000, 2000])).toEqual(['a b', 'c d e f'])
     expect(resplitByDuration('a b c', [100, 5000, 100])).toEqual(['a', 'b', 'c'])

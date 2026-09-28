@@ -21,7 +21,8 @@ export const maxTranslationChars = (source: string) => source.length * 3 + 40
  * Parse "n: text" lines (Spec 07 §2.3). Tolerates code fences, bold numbers,
  * "1." / "1)" styles and wrapped continuation lines; returns null unless
  * exactly lines 1..expected are present, each non-empty and (given the
- * sources) not far longer than its source.
+ * sources) not far longer than its source, and no line repeats the one
+ * before it where the sources differ.
  */
 export function parseNumbered(
   output: string,
@@ -47,10 +48,23 @@ export function parseNumbered(
     if (!line) return null
     if (sources?.[n - 1] !== undefined && line.length > maxTranslationChars(sources[n - 1]!))
       return null
+    // The same line twice for different sources: the model moved the next
+    // line's words up and filled the gap, so the lines after it are shifted
+    // (Beta-1 checkpoint: 18-20 and 25-26 of 30 in Japanese, count intact).
+    const prev = lines[n - 2]
+    if (
+      prev !== undefined &&
+      sources?.[n - 1] !== undefined &&
+      comparable(prev) === comparable(line) &&
+      comparable(sources[n - 2] ?? '') !== comparable(sources[n - 1]!)
+    )
+      return null
     lines.push(line)
   }
   return lines
 }
+
+const comparable = (text: string) => text.toLowerCase().replace(/[\s\p{P}]+/gu, '')
 
 /**
  * Last resort when the line count won't match (Spec 07 §2.3): join whatever
