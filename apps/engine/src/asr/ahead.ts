@@ -223,7 +223,13 @@ export interface AheadDeps {
   allowPrivateNetworks?: boolean
   /** Tests: skip the network. */
   resolve?: (req: UrlJob) => Promise<RemoteMedia>
-  slice?: (media: RemoteMedia, out: string, startMs: number, durationMs: number) => Promise<void>
+  slice?: (
+    media: RemoteMedia,
+    out: string,
+    startMs: number,
+    durationMs: number,
+    signal: AbortSignal,
+  ) => Promise<void>
 }
 
 export interface AheadRunner extends JobRunner<UrlJob> {
@@ -301,22 +307,32 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
       focusOf.set(ctx.jobId, focus)
       try {
         ctx.progress(0, 'finding the audio')
+        const began = Date.now()
         const media = await (deps.resolve?.(req) ??
           resolveRemote(
             {
               ffmpeg: deps.ffmpeg,
               ytDlp: deps.ytDlp,
               allowPrivateNetworks: deps.allowPrivateNetworks ?? false,
+              // A newer job (the viewer moved on) or a lost lease stops the fetch too.
+              signal: ctx.signal,
             },
             req.pageUrl,
             req.mediaUrl,
             req.userAgent,
             req.cookiesFromBrowser,
           ))
-        const slice = deps.slice ?? ((m, out, s, d) => sliceRemote(deps.ffmpeg, m, out, s, d))
+        const slice =
+          deps.slice ?? ((m, out, s, d, signal) => sliceRemote(deps.ffmpeg, m, out, s, d, signal))
+        const resolvedAt = Date.now()
         ctx.progress(0, 'loading model')
         await deps.gpu?.use('asr')
         await deps.whisper.ensure(req.model, deps.models.pathOf(req.model))
+        // Where the time to the first caption goes (Beta-1 checkpoint).
+        ctx.log?.(
+          'info',
+          `url: audio found via ${media.via} in ${resolvedAt - began} ms, model ready after ${Date.now() - resolvedAt} ms`,
+        )
 
         const total = media.durationMs
         const pieces: Piece[] = []
@@ -399,8 +415,11 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
           let heardWords: SpeechWord[] | undefined
           let originalWords: SpeechWord[] = []
           let originalHeard: SpeechWord[] = []
+          const pieceAt = Date.now()
+          let fetchedMs = 0
           try {
-            await slice(media, file, from, to - from)
+            await slice(media, file, from, to - from, ctx.signal)
+            fetchedMs = Date.now() - pieceAt
             const pcm = pcmFromWav(file)
             // ffmpeg can exit cleanly after reading part of a stream (no Range
             // support, a dropped connection): never pass that off as silence.
@@ -495,6 +514,10 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
           } finally {
             rmSync(file, { force: true })
           }
+          ctx.log?.(
+            'info',
+            `url: piece ${Math.round(cut.startMs / 1000)}–${Math.round(cut.endMs / 1000)} s: audio in ${fetchedMs} ms, done in ${Date.now() - pieceAt} ms`,
+          )
           const piece = { ...cut, atPause: moveEnd }
           pieces.push({ ...piece, words, ...(heardWords ? { heard: heardWords } : {}) })
           if (bilingual) originals.push({ ...piece, words: originalWords, heard: originalHeard })

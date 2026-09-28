@@ -24,6 +24,8 @@ export interface RemoteDeps {
   ytDlp: string | null
   /** Fetch from this computer and the local network too (`config.allowPrivateNetworks`). */
   allowPrivateNetworks?: boolean
+  /** The job was cancelled: stop ffprobe and yt-dlp at once. */
+  signal?: AbortSignal
 }
 
 /** The installed yt-dlp: `~/.sublight/bin/yt-dlp` (pnpm engine:setup-ytdlp), else none. */
@@ -53,6 +55,7 @@ async function probeDuration(
   bin: FfmpegBinaries,
   input: string,
   headers: Record<string, string>,
+  signal?: AbortSignal,
 ): Promise<number | null> {
   const r = await run(
     bin.ffprobe,
@@ -67,7 +70,11 @@ async function probeDuration(
       input,
     ],
     20_000,
-  ).catch(() => null)
+    signal,
+  ).catch((err: unknown) => {
+    if (signal?.aborted) throw err
+    return null
+  })
   const seconds = Number(r?.stdout.trim())
   return r?.code === 0 && Number.isFinite(seconds) && seconds > 0
     ? Math.round(seconds * 1000)
@@ -141,7 +148,7 @@ export async function resolveRemote(
     await assertPublicUrl(mediaUrl, allowPrivate)
     const headers: Record<string, string> = { Referer: pageUrl }
     if (userAgent) headers['User-Agent'] = userAgent
-    const durationMs = await probeDuration(deps.ffmpeg, mediaUrl, headers)
+    const durationMs = await probeDuration(deps.ffmpeg, mediaUrl, headers, deps.signal)
     if (durationMs) return { input: mediaUrl, headers, durationMs, title: null, via: 'direct' }
   }
   if (!deps.ytDlp) {
@@ -169,6 +176,7 @@ export async function resolveRemote(
       pageUrl,
     ],
     60_000,
+    deps.signal,
   )
   if (r.code !== 0) {
     const last =
@@ -210,7 +218,7 @@ export async function resolveRemote(
   const durationMs =
     info.duration && info.duration > 0
       ? Math.round(info.duration * 1000)
-      : await probeDuration(deps.ffmpeg, input, headers)
+      : await probeDuration(deps.ffmpeg, input, headers, deps.signal)
   if (!durationMs)
     throw new JobError('MEDIA_UNREACHABLE', "couldn't read the video's duration", false, 422)
   return { input, headers, durationMs, title: info.title ?? null, via: 'yt-dlp' }
@@ -223,6 +231,7 @@ export async function sliceRemote(
   output: string,
   startMs: number,
   durationMs: number,
+  signal?: AbortSignal,
 ): Promise<void> {
   const r = await run(
     bin.ffmpeg,
@@ -248,6 +257,7 @@ export async function sliceRemote(
       output,
     ],
     180_000,
+    signal,
   )
   if (r.code !== 0) {
     throw new JobError(

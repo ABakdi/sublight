@@ -16,7 +16,10 @@ import {
 } from '../src/asr/ahead'
 import type { WhisperWorker } from '../src/asr/whisper'
 import type { VerboseJson } from '../src/asr/words'
-import type { RunContext } from '../src/jobs/queue'
+import { EventBus } from '../src/events'
+import { JobQueue, type RunContext } from '../src/jobs/queue'
+import { JobStore } from '../src/jobs/store'
+import { run } from '../src/media/ffmpeg'
 import { SAMPLE_RATE, wavBytes } from '../src/live/session'
 import type { RemoteMedia } from '../src/media/remote'
 import type { ModelManager } from '../src/models/manager'
@@ -168,6 +171,69 @@ describe('url runner', () => {
       },
     )
     expect(partials[1]!.coverage).toEqual([{ startMs: 0, endMs: 60_000 }])
+  })
+})
+
+describe('a newer url job replaces one stuck fetching (Beta-1 checkpoint)', () => {
+  it('stops the older job at once, even mid-fetch, so the new video does not wait', async () => {
+    const models = {
+      entry: () => ({ role: 'asr', tasks: ['transcribe'] }),
+      isInstalled: () => true,
+      pathOf: () => '/m.bin',
+    } as unknown as ModelManager
+    let fetching = 0
+    const runner = aheadRunner({
+      models,
+      whisper: { ensure: async () => {} } as unknown as WhisperWorker,
+      ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
+      ytDlp: null,
+      resolve: async () => ({
+        input: 'https://example.test/a.mp4',
+        headers: {},
+        durationMs: 600_000,
+        title: null,
+        via: 'direct',
+      }),
+      // A slow site: the fetch only ends when the job is stopped.
+      slice: (_m, _out, _s, _d, signal) => {
+        fetching++
+        return new Promise((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true }),
+        )
+      },
+    })
+    const queue = new JobQueue(new JobStore(tmp()), new EventBus(), { autoRetry: false })
+    queue.register(runner)
+    queue.start()
+    const request = (v: string): UrlJob => ({
+      type: 'url',
+      pageUrl: `https://example.test/watch?v=${v}`,
+      model: 'whisper-small',
+      params: { language: 'en' },
+    })
+    const old = queue.create(request('old'))
+    const until = async (check: () => boolean) => {
+      const end = Date.now() + 2000
+      while (!check()) {
+        if (Date.now() > end) throw new Error('timed out')
+        await new Promise((r) => setTimeout(r, 5))
+      }
+    }
+    await until(() => fetching === 1)
+    const next = queue.create(request('next'))
+    await until(() => queue.get(old.id)!.state === 'cancelled')
+    await until(() => fetching === 2)
+    expect(queue.get(next.id)!.state).toBe('running')
+    queue.cancel(next.id)
+  })
+
+  it('kills a process when its job is cancelled', async () => {
+    const ac = new AbortController()
+    const start = Date.now()
+    const done = run('sleep', ['30'], 60_000, ac.signal)
+    setTimeout(() => ac.abort(), 50)
+    await expect(done).rejects.toThrow()
+    expect(Date.now() - start).toBeLessThan(2000)
   })
 })
 

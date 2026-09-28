@@ -25,6 +25,8 @@ export interface RunContext {
   partial(track: SubtitleTrack, companion?: SubtitleTrack): void
   /** Per-job scratch dir for resumable checkpoints. */
   chunkDir(): string
+  /** A line for the engine log and WS `job.log` (e.g. where the time went). */
+  log?(level: 'debug' | 'info' | 'warn' | 'error', message: string): void
 }
 
 export type RunOutput = Omit<JobResult, 'id' | 'state'>
@@ -361,6 +363,7 @@ export class JobQueue {
           ...(companion ? { companion } : {}),
         }),
       chunkDir: () => this.store.chunkDir(job.id),
+      log: (level, message) => this.bus.emit({ type: 'job.log', jobId: job.id, level, message }),
     }
 
     try {

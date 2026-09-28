@@ -13,10 +13,21 @@ export interface RunResult {
   stderr: string
 }
 
-/** Run a process to completion, killing it after `timeoutMs`. */
-export function run(cmd: string, args: string[], timeoutMs: number): Promise<RunResult> {
+/**
+ * Run a process to completion, killing it after `timeoutMs`, or as soon as
+ * `signal` aborts (then it rejects with the abort reason).
+ */
+export function run(
+  cmd: string,
+  args: string[],
+  timeoutMs: number,
+  signal?: AbortSignal,
+): Promise<RunResult> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(abortError(signal))
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const onAbort = () => child.kill('SIGKILL')
+    signal?.addEventListener('abort', onAbort, { once: true })
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', (d: Buffer) => (stdout += d.toString()))
@@ -27,13 +38,20 @@ export function run(cmd: string, args: string[], timeoutMs: number): Promise<Run
     const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs)
     child.on('error', (err) => {
       clearTimeout(timer)
+      signal?.removeEventListener('abort', onAbort)
       reject(err)
     })
     child.on('close', (code) => {
       clearTimeout(timer)
-      resolve({ code, stdout, stderr })
+      signal?.removeEventListener('abort', onAbort)
+      if (signal?.aborted) reject(abortError(signal))
+      else resolve({ code, stdout, stderr })
     })
   })
+}
+
+function abortError(signal: AbortSignal): unknown {
+  return signal.reason instanceof Error ? signal.reason : new DOMException('aborted', 'AbortError')
 }
 
 export interface ProbeResult {
