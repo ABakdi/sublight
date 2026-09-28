@@ -7,7 +7,7 @@
  * installed models. Not part of CI: it needs the network and real ASR.
  *
  *   node e2e/checkpoint/real-sites.mjs [--browser chromium|brave] [--url <watch url>] [--headed]
- *                                      [--shots <dir for failure screenshots>]
+ *                                      [--shots <dir for failure screenshots>] [--no-hold]
  *
  * Prints one JSON report: time to first caption, how many sampled on-screen
  * captions match the downloaded SRT at that moment (sync), seek and speed
@@ -178,6 +178,10 @@ try {
   // Pair.
   const options = await context.newPage()
   await options.goto(`${EXT}/options.html`)
+  // --no-hold: don't pause where captions aren't ready yet (Options default: on).
+  if (process.argv.includes('--no-hold'))
+    await options.evaluate(() => chrome.storage.local.set({ holdPlayback: false }))
+  report.hold = !process.argv.includes('--no-hold')
   await options.getByTestId('token-input').fill(token)
   await options.getByTestId('token-save').click()
   await options
@@ -221,7 +225,29 @@ try {
   await popup.getByTestId('captions-toggle').click()
   const clickedAt = Date.now()
   await site.bringToFront()
-  const first = await waitFor(async () => (await cueText(site)) || null, 180_000)
+  // What happens until the first caption: the video clock, paused or not, the
+  // status note ("Captioning this part…") and the caption, when they change.
+  const timeline = []
+  let lastState = ''
+  const first = await waitFor(async () => {
+    const state = await site.evaluate(() => {
+      const v = [...document.querySelectorAll('video')].find((x) => x.duration > 0)
+      return {
+        t: v ? Math.round(v.currentTime * 10) / 10 : null,
+        paused: v?.paused ?? null,
+        status: document.querySelector('[data-sublight-status]')?.textContent ?? null,
+        ad: Boolean(document.querySelector('#movie_player.ad-showing')),
+      }
+    })
+    const text = await cueText(site)
+    const key = JSON.stringify([state.paused, state.status, state.ad, Boolean(text)])
+    if (key !== lastState) {
+      lastState = key
+      timeline.push({ ms: Date.now() - clickedAt, ...state, caption: text || null })
+    }
+    return text || null
+  }, 180_000)
+  report.startTimeline = timeline
   report.firstCaptionMs = first ? Date.now() - clickedAt : null
   report.firstCaption = first?.value ?? null
 

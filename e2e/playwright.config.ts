@@ -1,7 +1,8 @@
 import { defineConfig } from '@playwright/test'
 import { E2E_PLAYER_URL, findBravePath } from './constants'
 
-const bravePath = findBravePath()
+// Brave when installed; E2E_CHROMIUM=1 runs Playwright's Chromium instead (the Chromium + Brave matrix).
+const bravePath = process.env.E2E_CHROMIUM ? null : findBravePath()
 
 export default defineConfig({
   testDir: './tests',
