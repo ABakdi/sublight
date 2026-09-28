@@ -393,6 +393,17 @@ test.describe('extension in Chromium (Spec 09)', () => {
             { timeout: 60_000 },
           )
           .toMatch(/country/i)
+        // YouTube-style: the same element gets a new URL and source. Exactly one
+        // more job: the URL check must not undo the follow and start a second.
+        await site.evaluate(() => {
+          history.pushState(null, '', '/third')
+          const v = document.querySelector('video')!
+          v.src = '/clip.mp4?third'
+          void v.play()
+        })
+        await expect.poll(urlJobs, { timeout: 60_000 }).toBe(before + 3)
+        await site.waitForTimeout(5000) // past the 2 s URL check
+        expect(await urlJobs()).toBe(before + 3)
       } finally {
         server.close()
       }

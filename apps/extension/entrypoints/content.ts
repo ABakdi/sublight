@@ -176,8 +176,11 @@ export default defineContentScript({
       if (videoKey(location.href) !== videoKey(lastUrl)) {
         lastUrl = location.href
         endLiveForNavigation()
-        endCaptionsForNavigation()
-        lastFollow = null
+        // Captions `follow` already moved to this video (its play event came
+        // first) stay: ending them would cancel their job and start another.
+        // `lastFollow` stays too: it names its page, so it can't block a new one.
+        if (!captions || captionsPage !== videoKey(videoPageUrl(captions.target)))
+          endCaptionsForNavigation()
         schedule(true)
       } else schedule()
       follow()
