@@ -123,7 +123,7 @@ The `docs/` folder is an **Obsidian vault** used as the living specification for
 
 ## Development status
 
-**M00–M05b are done, M06 (Beta 1) is under way**: caption local videos in the player (whisper.cpp on the GPU, 77 ms median sync error over 30 min), translate tracks with a local Qwen3-4B (Apache-2.0) or to English straight from the audio, and caption any website from the extension, ahead of playback where the site allows it (YouTube and others through yt-dlp) and live otherwise, with bilingual captions, quick in-video controls and SRT download, and hand any page's video over to the Player. The engine runs as one command (`sublight-engine start`, autostart at login), pairs in one click, and manages its models from the Player. To try it, follow [INSTALL.md](INSTALL.md). See [docs/plan/Roadmap.md](docs/plan/Roadmap.md).
+**M00–M05b are done; M06 (Beta 1) is built, and [M06b](docs/plan/milestones/06b-One-Install.md) (one install, one place) is nearly done**: install with one script ([INSTALL.md](INSTALL.md)) and load the extension, and the extension starts the engine by itself, with no terminal, token or pairing, and the engine turns itself off when idle. Captions for local videos in the Player (whisper.cpp on the GPU, 77 ms median sync error over 30 min), translation with a local Qwen3-4B or to English straight from the audio, captions on any website ahead of playback (YouTube and others through yt-dlp) or live, everything in the extension's popup, and a Player with VLC and YouTube controls in light and dark. The [website](site/) is ready for GitHub Pages. See [docs/plan/Roadmap.md](docs/plan/Roadmap.md).
 
 ## License & ethics notes
 

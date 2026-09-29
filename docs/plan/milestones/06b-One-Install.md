@@ -66,9 +66,9 @@ updated: 2026-09-29
   - The Options page opens the same UI full size. I'll try a side panel (`chrome.sidePanel`) for the same UI and keep whichever reads better.
   - _Accept:_ no flow in the Beta-1 matrix needs the Options page.
   - _Progress (2026-09-29):_ built: the popup's tabs and the full-page Options share the same sections. **Start with my computer** is a switch on the Engine tab (the native host's `autostart-*` commands: a systemd user unit, or a LaunchAgent). No side panel: the popup holds everything, and a second surface would only need keeping in step.
-- [ ] **M06b.8** — **Models from the extension**: install with progress, remove, installed size and free disk space, as in the Player's Models panel. The engine client moves to a shared package used by both the extension and the Player (the two copies have drifted: [Q-3](../../audits/2026-09-Code-Quality-Q3.md) Q7).
+- [x] **M06b.8** — **Models from the extension**: install with progress, remove, installed size and free disk space, as in the Player's Models panel. The engine client moves to a shared package used by both the extension and the Player (the two copies have drifted: [Q-3](../../audits/2026-09-Code-Quality-Q3.md) Q7).
   - _Accept:_ whisper-small and Qwen3-4B install and remove from the popup.
-  - _Progress (2026-09-29):_ the popup's Models tab (install with progress, remove, disk space, cached audio). Not yet: the shared engine client package; the extension and the Player still each have their own.
+  - _Progress (2026-09-29):_ the popup's Models tab (install with progress, remove, disk space, cached audio). Checked in Chromium against a real download: whisper-base installed from the popup in 6 s (progress shown, disk figures updated) and removed. The WebSocket client is shared ([Q-3](../../audits/2026-09-Code-Quality-Q3.md) Q7); the REST helpers stay two copies until M07.
 
 ### The Player
 
