@@ -31,6 +31,14 @@ async function tabStatus(tabId: number): Promise<TabStatus> {
   return { tabId, frames }
 }
 
+/** The toolbar icon shows whether the engine is on: the glint lit, or grey (M06b.14). */
+function showEngineState(online: boolean): void {
+  const dir = online ? 'icon' : 'icon-off'
+  void browser.action
+    .setIcon({ path: { 16: `/${dir}/16.png`, 32: `/${dir}/32.png`, 48: `/${dir}/48.png` } })
+    .catch(() => {})
+}
+
 /**
  * What the popup, Options and the offscreen document ask for. Content scripts
  * run inside web pages, so these are refused from them (baseline B4): a page
@@ -80,8 +88,11 @@ async function handle(
     case 'engine.pair':
       void pairWithEngine()
       return { ok: true }
-    case 'engine.status':
-      return probeEngine()
+    case 'engine.status': {
+      const status = await probeEngine()
+      showEngineState(status.state === 'online')
+      return status
+    }
     case 'captions.start': {
       const owner = ownerFrame(await readFrames(message.tabId))
       if (!owner)

@@ -446,24 +446,7 @@ export function PopupApp() {
 }
 
 function Logo() {
-  return (
-    <span
-      aria-hidden
-      style={{
-        width: 22,
-        height: 22,
-        borderRadius: 6,
-        background: colors.accent,
-        color: '#fff',
-        display: 'grid',
-        placeItems: 'center',
-        fontSize: 10,
-        fontWeight: 800,
-      }}
-    >
-      CC
-    </span>
-  )
+  return <img src="/icon/32.png" alt="" aria-hidden width={22} height={22} />
 }
 
 function VideoCard(props: {

@@ -49,7 +49,10 @@ export function App() {
     <div className="flex h-screen flex-col bg-zinc-950 text-zinc-100">
       <header className="flex items-center justify-between border-b border-zinc-800 px-6 py-3">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">sublight player</h1>
+          <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <img src="/favicon.svg" alt="" aria-hidden className="h-6 w-6" />
+            sublight player
+          </h1>
           <p className="text-xs text-zinc-400">
             Local AI subtitles for any video — engine{' '}
             <code className="text-zinc-300">{engineBaseUrl().replace(/^https?:\/\//, '')}</code>

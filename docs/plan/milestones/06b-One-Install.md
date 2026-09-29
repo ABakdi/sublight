@@ -118,12 +118,13 @@ updated: 2026-09-29
   - supported sites and limits (DRM, logins), privacy, FAQ, license
   - deployed by a Pages workflow from `master`
   - _Accept:_ live at the repository's Pages address; Lighthouse ≥ 90 in every category; links checked in CI.
-- [ ] **M06b.14** — **Logo**: the word **sub** with a small glint of light in the subscript position, as in x₁. The subscript _is_ the light, so it reads "sub" + "light", and it sits under the text as a caption does. Deliverables:
+- [x] **M06b.14** — **Logo**: the word **sub** with a small glint of light in the subscript position, as in x₁. The subscript _is_ the light, so it reads "sub" + "light", and it sits under the text as a caption does. Deliverables:
   - an SVG wordmark in colour and in mono
   - the glint alone as the icon (16/32/48/128 px, legible at 16)
   - a favicon, and the extension icon in on and off states to show the engine state (M06b.6)
   - used across the extension, Player, website and release
   - _Accept:_ the icons are crisp on light and dark toolbars.
+  - _Done (2026-09-29):_ [`brand/`](../../../brand/README.md): the wordmark (colour and mono), the icon and its greyed "off" twin, rendered to the extension's icons by `brand/render.mjs`; the toolbar icon greys while the engine is off; the Player has the favicon and the icon in its header. Checked at 16–128 px on light and dark.
 
 ### Gate
 
