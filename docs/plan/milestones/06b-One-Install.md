@@ -111,6 +111,8 @@ updated: 2026-09-29
 
 - [ ] **M06b.12** — **Release contents**: the GitHub release carries `install.sh`, the engine and Player archive, the extension zip and `SHA256SUMS`. The release workflow builds all of them (and the prebuilt runtimes), and `install.sh` fetches from the release matching its version. INSTALL.md is rewritten around "run `install.sh`, then load the extension".
   - _Accept:_ `e2e/checkpoint/packaged.mjs` runs the install-script path end to end.
+  - _Progress (2026-09-29):_ `scripts/package.mjs` builds the release (the archive with the engine, the Player, the extension and install.sh; install.sh pinned to the archive's hash; the extension zip; `SHA256SUMS`), and the release workflow uses it. INSTALL.md is rewritten around the script. `packaged.mjs` now runs the whole path in a fresh home, and passes in Brave and in Chromium 153: install.sh, the engine left off, the extension starting it and opening the Player (0.86 s), a local file captioned in the Player (4.8 s), a YouTube video captioned ahead of playback from the extension (first caption 10–12 s), no engine errors.
+  - Changed: the speech and translation engines are built on the user's machine (with CUDA when there's an NVIDIA card), as decided above. Prebuilt runtimes would only save the 15–20 min build: moved to M07. The Chrome Web Store listing: after Beta 1.
 - [ ] **M06b.13** — **Website on GitHub Pages** (`site/`, static):
   - what sublight does, with a short demo clip and screenshots
   - features, and how it works (local and private, with the diagram)

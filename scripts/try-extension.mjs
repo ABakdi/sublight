@@ -167,6 +167,20 @@ function registerDevHost(browserName) {
   return `development (${wrapper})`
 }
 const host = registerDevHost(browser.name)
+// Chromium reads hosts from its profile folder (Brave from its config folder):
+// this profile is a dedicated one, so it gets a copy.
+{
+  const config = process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config')
+  const product = { brave: 'BraveSoftware/Brave-Browser', chromium: 'chromium' }[browser.name]
+  const source = product && join(config, product, 'NativeMessagingHosts', 'sublight.engine.json')
+  if (source && existsSync(source)) {
+    mkdirSync(join(profile, 'NativeMessagingHosts'), { recursive: true })
+    writeFileSync(
+      join(profile, 'NativeMessagingHosts', 'sublight.engine.json'),
+      readFileSync(source),
+    )
+  }
+}
 
 const args = [
   `--user-data-dir=${profile}`,

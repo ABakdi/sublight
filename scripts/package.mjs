@@ -54,6 +54,8 @@ cpSync(player, join(stage, 'player'), { recursive: true })
 cpSync(extension, join(stage, 'extension'), { recursive: true })
 for (const f of ['INSTALL.md', 'CHANGELOG.md', 'LICENSE'])
   if (existsSync(join(ROOT, f))) cpSync(join(ROOT, f), join(stage, f))
+// Kept by the installer as ~/.sublight/app/install.sh, for updates and --uninstall.
+cpSync(join(ROOT, 'scripts/install.sh'), join(stage, 'install.sh'))
 
 run('tar', ['-czf', join(out, `${name}.tar.gz`), name], join(out, '.stage'))
 // The installer trusts only this archive (its hash written in, security review R10).

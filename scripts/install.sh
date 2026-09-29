@@ -300,6 +300,8 @@ install_files() {
   mkdir -p "$APP.new"
   cp "$RELEASE/sublight-engine.mjs" "$APP.new/"
   [[ -d $RELEASE/player ]] && cp -r "$RELEASE/player" "$APP.new/player"
+  # Itself, for updates and uninstalling: ~/.sublight/app/install.sh --uninstall
+  [[ -f $RELEASE/install.sh ]] && install -m 755 "$RELEASE/install.sh" "$APP.new/install.sh"
   cat >"$APP.new/sublight-engine" <<EOF
 #!/bin/sh
 SUBLIGHT_HOME="$HOME_DIR" exec "$NODE" "$APP/sublight-engine.mjs" "\$@"

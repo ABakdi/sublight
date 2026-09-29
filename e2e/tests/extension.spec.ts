@@ -181,6 +181,9 @@ test.describe('extension in Chromium (Spec 09)', () => {
   })
 
   test('takes the engine’s token from the native host: no pairing (M06b.3)', async () => {
+    // Playwright's own Chromium (Chrome for Testing) reads no user-level
+    // native messaging hosts; Brave and a system Chromium do.
+    test.skip(!!process.env.E2E_CHROMIUM, 'Chrome for Testing reads no native messaging hosts')
     // What install.sh does: register `sublight-engine native-host`, here run
     // from source against the e2e engine's home. Chromium looks for hosts in
     // its config home (not the profile), which XDG_CONFIG_HOME moves.
@@ -208,7 +211,11 @@ test.describe('extension in Chromium (Spec 09)', () => {
       writeFileSync(join(config, product, 'NativeMessagingHosts', 'sublight.engine.json'), manifest)
     }
     await context.close()
-    context = await launch(mkdtempSync(join(tmpdir(), 'sublight-ext-')), {
+    // Chromium reads hosts from its profile folder, Brave from its config folder.
+    const profile = mkdtempSync(join(tmpdir(), 'sublight-ext-'))
+    mkdirSync(join(profile, 'NativeMessagingHosts'))
+    writeFileSync(join(profile, 'NativeMessagingHosts', 'sublight.engine.json'), manifest)
+    context = await launch(profile, {
       XDG_CONFIG_HOME: config,
     })
     const options = await context.newPage()

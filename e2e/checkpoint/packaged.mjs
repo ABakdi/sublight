@@ -1,23 +1,32 @@
 #!/usr/bin/env node
 /* global document, chrome -- these callbacks run inside the browser page */
 /**
- * Checkpoint runner for the packaged release (M06.1, Beta-1 acceptance 1).
- * Packages the current build exactly as the release workflow does
- * (`sublight-<version>.tar.gz` with the engine and the Player, the extension
- * zip), unpacks both outside the repository, runs that engine with a fresh
- * home and loads that extension into a clean browser profile. Then the
- * journey a new user takes: pair from the popup, open the Player the engine
- * serves and pair it, caption a local file there, caption a YouTube video
- * from the extension.
+ * Checkpoint runner for the packaged release (M06.1, M06b.12, Beta-1
+ * acceptance 1): the path a new user takes. Packages the current build as the
+ * release workflow does (`scripts/package.mjs`), runs the shipped install.sh
+ * into a fresh home, and loads the extension from the folder it installed
+ * into a clean browser profile that finds the native host it registered.
+ * Then: the extension starts the engine by itself and takes its token (no
+ * pairing), opens the Player (which pairs by itself on its page), captions a
+ * local file there, and captions a YouTube video from the extension.
  *
  *   pnpm build && node e2e/checkpoint/packaged.mjs [--browser chromium|brave] [--url <watch url>] [--headed]
  *
- * Port 17421 must be free (stop your engine first). The models and worker
- * binaries are linked from ~/.sublight so nothing is downloaded or built;
- * everything else (token, config, caches) starts empty. Prints one JSON report.
+ * Port 17421 must be free (stop your engine first). The worker binaries'
+ * records are copied and the model files linked from ~/.sublight, so nothing
+ * is built or downloaded; everything else (token, config, caches) starts
+ * empty. Prints one JSON report.
  */
-import { execFileSync, spawn } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync } from 'node:fs'
+import { execFileSync, spawnSync } from 'node:child_process'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  symlinkSync,
+} from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -40,8 +49,11 @@ const realHome = process.env.SUBLIGHT_REAL_HOME ?? join(homedir(), '.sublight')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const BRAVE = ['/usr/bin/brave', '/usr/bin/brave-browser', '/opt/brave.com/brave/brave-browser']
-const executablePath = browserName === 'brave' ? BRAVE.find(existsSync) : undefined
-if (browserName === 'brave' && !executablePath) throw new Error('Brave not found')
+// A real Chromium: Playwright's own build (Chrome for Testing) doesn't read
+// user-level native messaging hosts, so it can't start the engine.
+const CHROMIUM = ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/snap/bin/chromium']
+const executablePath = (browserName === 'brave' ? BRAVE : CHROMIUM).find(existsSync)
+if (!executablePath) throw new Error(`${browserName} not found`)
 
 const up = await fetch(`${ENGINE}/v1/pair/info`).then(
   () => true,
@@ -54,62 +66,63 @@ const work = mkdtempSync(join(tmpdir(), 'sublight-packaged-'))
 const report = { browser: browserName, version, work, startedAt: new Date().toISOString() }
 
 // 1. Package, as .github/workflows/release.yml does.
-const name = `sublight-${version}`
-const staging = join(work, 'staging', name)
-mkdirSync(staging, { recursive: true })
-cpSync(join(repo, 'apps/engine/dist/sublight-engine.mjs'), join(staging, 'sublight-engine.mjs'))
-cpSync(join(repo, 'apps/player/dist'), join(staging, 'player'), { recursive: true })
-for (const f of ['INSTALL.md', 'CHANGELOG.md', 'LICENSE'])
-  if (existsSync(join(repo, f))) cpSync(join(repo, f), join(staging, f))
-const tarball = join(work, `${name}.tar.gz`)
-execFileSync('tar', ['-czf', tarball, '-C', join(work, 'staging'), name])
-const zip = join(work, `sublight-extension-${version}-chromium.zip`)
-// The workflow uses `zip -qr`; Python's zipfile makes the same archive where zip isn't installed.
-const zipDir = (dir, out) =>
-  execFileSync('python3', [
-    '-c',
-    'import os,sys,zipfile\nwith zipfile.ZipFile(sys.argv[2],"w",zipfile.ZIP_DEFLATED) as z:\n for r,_,fs in os.walk(sys.argv[1]):\n  for f in fs: p=os.path.join(r,f); z.write(p,os.path.relpath(p,sys.argv[1]))',
-    dir,
-    out,
-  ])
-zipDir(join(repo, 'apps/extension/.output/chrome-mv3'), zip)
+const release = join(work, 'release')
+execFileSync(process.execPath, [join(repo, 'scripts/package.mjs'), release], { stdio: 'ignore' })
+report.packages = Object.fromEntries(
+  readdirSync(release).map((f) => [
+    f,
+    Number((readFileSync(join(release, f)).length / 1e6).toFixed(2)),
+  ]),
+)
 
-// 2. Unpack where a user would, far from the repository.
-const install = join(work, 'install')
-mkdirSync(install)
-execFileSync('tar', ['-xzf', tarball, '-C', install])
-const extensionPath = join(work, 'extension')
-execFileSync('python3', ['-m', 'zipfile', '-e', zip, extensionPath])
-report.packages = {
-  tarballMb: Number((readFileSync(tarball).length / 1e6).toFixed(1)),
-  zipMb: Number((readFileSync(zip).length / 1e6).toFixed(1)),
-}
+// 2. A new user's home: the browsers' config folders exist (install.sh registers
+// the native host there); the worker binaries' records and the models come
+// from this machine, so nothing is rebuilt or downloaded.
+const userHome = join(work, 'home')
+const sub = join(userHome, '.sublight')
+for (const d of ['bin', 'models']) mkdirSync(join(sub, d), { recursive: true })
+for (const f of ['whisper.json', 'llama.json', 'yt-dlp.json'])
+  if (existsSync(join(realHome, 'bin', f)))
+    copyFileSync(join(realHome, 'bin', f), join(sub, 'bin', f))
+for (const f of readdirSync(join(realHome, 'models')))
+  if (f === 'installed.json') copyFileSync(join(realHome, 'models', f), join(sub, 'models', f))
+  else symlinkSync(join(realHome, 'models', f), join(sub, 'models', f))
+for (const b of ['chromium', 'google-chrome-for-testing', 'BraveSoftware/Brave-Browser'])
+  mkdirSync(join(userHome, '.config', b), { recursive: true })
+const userEnv = { ...process.env, HOME: userHome, XDG_CONFIG_HOME: join(userHome, '.config') }
+delete userEnv.SUBLIGHT_HOME
 
-// 3. The packaged engine, with a fresh home (only models and binaries linked in).
-const home = join(work, 'home')
-mkdirSync(home)
-for (const dir of ['models', 'bin'])
-  if (existsSync(join(realHome, dir))) symlinkSync(join(realHome, dir), join(home, dir), 'dir')
-const engineLog = []
-const engine = spawn(process.execPath, [join(install, name, 'sublight-engine.mjs'), 'start'], {
-  cwd: install,
-  env: { ...process.env, SUBLIGHT_HOME: home },
-  stdio: ['ignore', 'pipe', 'pipe'],
-})
-engine.stdout.on('data', (d) => engineLog.push(String(d)))
-engine.stderr.on('data', (d) => engineLog.push(String(d)))
-const engineStart = Date.now()
-for (;;) {
-  const ok = await fetch(`${ENGINE}/v1/pair/info`).then(
-    (r) => r.ok,
-    () => false,
-  )
-  if (ok) break
-  if (Date.now() - engineStart > 20_000 || engine.exitCode !== null)
-    throw new Error(`the packaged engine didn't start:\n${engineLog.join('')}`)
-  await sleep(250)
-}
-report.engineStartMs = Date.now() - engineStart
+// 3. The shipped installer, then the engine it started stopped: the extension
+// has to start it itself.
+const installStart = Date.now()
+const installed = spawnSync(
+  'bash',
+  [join(release, 'install.sh'), '--from', release, '--no-translation', '--no-browser'],
+  { env: userEnv, encoding: 'utf8', timeout: 600_000 },
+)
+if (installed.status !== 0)
+  throw new Error(`install.sh failed:\n${installed.stdout}\n${installed.stderr}`)
+report.installMs = Date.now() - installStart
+const launcher = join(userHome, '.local/bin/sublight-engine')
+execFileSync(launcher, ['stop'], { env: userEnv })
+const extensionPath = join(sub, 'extension')
+// Playwright's Chromium is Chrome for Testing, with a config folder of its
+// own: give it the host install.sh registered for Chromium (real browsers
+// read theirs).
+const hostDir = (b) => join(userHome, '.config', b, 'NativeMessagingHosts')
+mkdirSync(hostDir('google-chrome-for-testing'), { recursive: true })
+copyFileSync(
+  join(hostDir('chromium'), 'sublight.engine.json'),
+  join(hostDir('google-chrome-for-testing'), 'sublight.engine.json'),
+)
+// Chromium reads hosts from its profile folder (for a default profile, that is
+// ~/.config/chromium, where install.sh writes); this run's profile is elsewhere.
+const profile = join(work, 'profile')
+mkdirSync(join(profile, 'NativeMessagingHosts'), { recursive: true })
+copyFileSync(
+  join(hostDir('chromium'), 'sublight.engine.json'),
+  join(profile, 'NativeMessagingHosts', 'sublight.engine.json'),
+)
 
 async function waitFor(fn, timeoutMs, stepMs = 250) {
   const start = Date.now()
@@ -128,8 +141,10 @@ execFileSync('ffmpeg', [
   ...['-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', clip],
 ])
 
-const context = await chromium.launchPersistentContext(join(work, 'profile'), {
-  ...(executablePath ? { executablePath } : { channel: 'chromium' }),
+const context = await chromium.launchPersistentContext(profile, {
+  executablePath,
+  // The user's home: the browser finds the native host install.sh registered.
+  env: userEnv,
   headless: !headed,
   viewport: { width: 1280, height: 800 },
   args: [
@@ -165,21 +180,29 @@ const step = async (key, fn) => {
 }
 
 try {
-  // The extension: pinned ID, then one-click pairing from the popup.
-  await step('extensionPairs', async () => {
+  // The extension: pinned ID; the engine off, then started by the extension
+  // itself, with the token from the native host (no pairing).
+  await step('extensionStartsEngine', async () => {
     const popup = await context.newPage()
     await popup.goto(`${EXT}/popup.html`)
     const id = await popup.evaluate(() => chrome.runtime.id)
     if (id !== EXT_ID) throw new Error(`extension ID ${id}, expected ${EXT_ID}`)
-    const code = await approve(() => popup.getByTestId('pair-engine').first().click())
+    await popup.getByTestId('tab-engine').click()
+    await popup.locator('[data-testid=engine-card][data-state=off]').waitFor({ timeout: 15_000 })
+    const start = Date.now()
+    const [player] = await Promise.all([
+      context.waitForEvent('page'),
+      popup.getByTestId('open-player').click(),
+    ])
+    await player.waitForLoadState()
+    const startedMs = Date.now() - start
+    if (!player.url().startsWith(PLAYER)) throw new Error(`opened ${player.url()}`)
+    await popup.reload()
+    await popup.getByTestId('tab-engine').click()
+    await popup.locator('[data-testid=engine-card][data-state=on]').waitFor({ timeout: 15_000 })
     await popup.close()
-    const options = await context.newPage()
-    await options.goto(`${EXT}/options.html`)
-    await options
-      .locator('[data-testid=engine-status][data-state=online]')
-      .waitFor({ timeout: 15_000 })
-    await options.close()
-    return { extensionId: id, code }
+    await player.close()
+    return { extensionId: id, engineStartedAndPlayerOpenMs: startedMs }
   })
 
   // The Player the engine serves: pairs on its own, captions a local file.
@@ -278,12 +301,13 @@ try {
   })
 } finally {
   await context.close()
-  engine.kill('SIGTERM')
-  await new Promise((r) => engine.once('exit', r))
-  report.engineErrors = engineLog
-    .join('')
-    .split('\n')
-    .filter((l) => /"level":"(error|warn)"|Error:/.test(l))
-    .slice(0, 5)
+  spawnSync(launcher, ['stop'], { env: userEnv })
+  const log = join(sub, 'logs', 'engine.log')
+  report.engineErrors = existsSync(log)
+    ? readFileSync(log, 'utf8')
+        .split('\n')
+        .filter((l) => /"level":"(error|warn)"/.test(l))
+        .slice(0, 5)
+    : []
   console.log(JSON.stringify(report, null, 2))
 }

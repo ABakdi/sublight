@@ -1,99 +1,83 @@
-# Installing sublight (Beta 1)
+# Installing sublight
 
 sublight has three parts: the **engine** (runs the speech and translation
 models on your computer), the **browser extension** (captions on any video
-page) and the **Player** (a web app for local files and editing). Everything
-runs locally; nothing is uploaded.
+page, and everything else in one popup) and the **Player** (your own files,
+editing and export). Everything runs locally; nothing is uploaded.
+
+Installing is two steps: a script, then the extension. After that there is
+no terminal, token or pairing: the extension starts the engine when it
+needs it, and the engine turns itself off when idle.
 
 ## What you need
 
-- Linux (tested) or macOS; Windows works but autostart is manual.
-- Node.js 22 or newer, pnpm 10, `ffmpeg`, and for speech recognition cmake
-  plus a C++ compiler (CUDA is used when available).
-- Brave or Chromium (Chrome 137+ refuses unpacked extensions from the
-  command line, but loading by hand works).
-- About 2 GB of disk for the default speech model, 4 GB more for the local
-  translation model.
+- Linux, x64 or ARM (macOS and Windows: not yet).
+- Brave, Chromium, Google Chrome, Vivaldi or Edge.
+- About 2 GB of disk (the engine and the speech model), 2.5 GB more for the
+  translator if you want captions in languages other than English.
+- An NVIDIA graphics card is optional: with one, the models run on it.
 
-## 1. Build
+## 1. Run the installer
 
 ```sh
-git clone https://github.com/ABakdi/sublight && cd sublight
-pnpm install
-pnpm build
-pnpm engine:setup-whisper   # the speech recognizer (a few minutes)
-pnpm engine:setup-ytdlp     # captions ahead of playback for YouTube and others
+curl -fsSL https://github.com/ABakdi/sublight/releases/latest/download/install.sh | bash
 ```
 
-## 2. Start the engine
+It installs into `~/.sublight`, without root:
 
-```sh
-pnpm engine start --detach   # or: node apps/engine/dist/sublight-engine.mjs start --detach
-pnpm engine status           # running at http://127.0.0.1:17421 · …
-pnpm engine stop
-```
+- the engine and the Player, and Node 22 if you don't have it (pinned, checksum-checked)
+- what the engine needs from your system (ffmpeg, a compiler and cmake, and the
+  CUDA toolkit when there is an NVIDIA card with its driver), through your
+  package manager, after asking; it never runs itself as root
+- the speech recognizer (whisper.cpp, built for your GPU or processor),
+  yt-dlp and the speech model; the translator if you say yes
+- the extension, in `~/.sublight/extension`
+- the browser registration that lets the extension start the engine
 
-`apps/engine/dist/sublight-engine.mjs` is the whole engine in one file: copy
-it anywhere and run it with Node (put the Player's build next to it as
-`player/` to keep the Player). Its data (models, caches, logs, config)
-lives in `~/.sublight`.
+Run it again to update (or `~/.sublight/app/install.sh`). `--help` lists the options (`--cpu`, `--no-translation`,
+`--yes`…).
 
-### Start it when you log in
-
-```sh
-pnpm engine autostart enable          # Linux: systemd user unit; macOS: LaunchAgent
-pnpm engine autostart enable --print  # just show the file it would write
-pnpm engine autostart disable
-```
-
-The engine then starts at your next login and restarts if it crashes (not
-after `stop`). On Linux, to keep it running while you're logged out, also
-run `loginctl enable-linger`. On Windows, `sublight-engine autostart` prints
-Task Scheduler steps.
-
-## 3. Load the extension
+## 2. Load the extension
 
 Open `brave://extensions` (or `chrome://extensions`), switch on **Developer
-mode**, click **Load unpacked** and pick `apps/extension/.output/chrome-mv3`
-(or the folder you unzipped `sublight-extension-<version>-chromium.zip` from a
-release into). Keep Developer mode on.
+mode** (top right), click **Load unpacked** and choose `~/.sublight/extension`.
+Keep Developer mode on.
 
-Why not a one-click install: Chromium only installs packed extensions (`.crx`)
-from its web store, so until sublight is published there, loading the folder is
-the way. The extension's ID stays the same either way, so pairing survives
-updates: load the new folder over the old one.
+Why Developer mode: Chromium browsers install packed extensions only from their
+web store, where sublight isn't published yet. The folder stays the same across
+updates: after running the installer again, click the reload arrow on
+sublight's card.
 
-## 4. Open the Player
+## 3. Use it
 
-The engine serves it: open **http://127.0.0.1:17420**. (Developers can run
-`pnpm dev:player` for the live-reloading version on `:5173`.)
+On any page with a video, click the sublight icon: **Caption this video**. The
+engine starts by itself the first time (the icon lights up), and turns itself
+off after 20 minutes without use (the icon greys).
 
-## 5. Pair
+The popup holds everything: the video, the caption style, the models, the
+engine (on or off, and when it turns itself off) and the settings. **Open
+Sublight Player** in its footer opens the Player for your own files.
 
-Click the sublight toolbar icon → **Pair with the engine**. A tab from the
-engine opens with a 4-digit code: check it matches the one in the popup, and
-click **Approve**. The Player pairs the same way from its Caption tab. To
-unpair everything (a lost laptop, a token shared by mistake), use **Unpair
-every app** in the extension's Options or `pnpm engine token --rotate`.
+## Removing it
 
-## 6. Models
+```sh
+~/.sublight/app/install.sh --uninstall
+```
 
-The first caption asks to install the speech model; the Player's **Models**
-tab lists all of them with their size and the free disk space, and removes
-the ones you don't use.
+It asks before deleting your models and settings (`--purge` deletes them
+without asking). Then remove the extension from the browser's extensions page.
 
 ## Privacy and local servers
 
-Everything stays on your computer. Cached audio can be cleared from the
-Player's **Models** tab, and finished jobs are forgotten after 30 days. For
-safety the engine only fetches videos from the internet: to caption one from a
-media server on your own network, set `"allowPrivateNetworks": true` in
-`~/.sublight/config.json` and restart the engine.
+Everything stays on your computer. The engine listens on `127.0.0.1` only, and
+fetches nothing but the videos you caption and, once, the models (from pinned
+sources, checked). Cached audio can be cleared from the popup's **Models** tab,
+and finished jobs are forgotten after 30 days. For safety the engine only
+fetches videos from the internet: to caption one from a media server on your
+own network, set `"allowPrivateNetworks": true` in `~/.sublight/config.json`.
 
-## Releases
+## From the source code
 
-Tagged releases on GitHub carry `sublight-<version>.tar.gz` (the engine,
-`sublight-engine.mjs`, with the Player next to it), the extension zip and
-`SHA256SUMS`; check a download with `sha256sum -c SHA256SUMS
---ignore-missing`. Unpack it and run `node sublight-engine.mjs start`. You
-still need the repository for the setup scripts (whisper.cpp, yt-dlp).
+For development, see [CONTRIBUTING.md](CONTRIBUTING.md): `pnpm install`,
+`pnpm build`, `pnpm engine setup whisper`, and `pnpm ext:try` to open Brave or
+Chromium with the extension loaded and a development engine it can start.

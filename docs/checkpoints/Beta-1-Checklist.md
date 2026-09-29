@@ -106,6 +106,7 @@ updated: 2026-09-29
 2. **YouTube in a headless browser seeks like a real one.** After a seek YouTube's player stalls at the new time in headless Brave and Chromium, whether or not the engine is fetching the same video (probe: 4 runs, fetching and not). Automated YouTube seek checks aren't meaningful; I check T3 by hand.
 3. **A 4 GB card has room for Qwen next to a desktop.** It had at M04; with a few Electron apps open it doesn't (B6).
 4. **YouTube serves audio at network speed.** Usually; sometimes throttled (B7).
+5. **The extension e2e ran in Chromium and in Brave.** When Brave is installed, `playwright.config.ts` makes it the browser for every test, and the extension spec's own launch doesn't override that: the "Chromium" runs were Brave. Playwright's Chromium (Chrome for Testing) also reads no user-level native messaging hosts. Found while testing the install path (2026-09-29). The install-path checkpoint (`packaged.mjs`) now runs a system Chromium and Brave; the extension e2e's Chromium runs need a system Chromium too (M07.12).
 
 ## 8. Triage summary & actions
 

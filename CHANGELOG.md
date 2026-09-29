@@ -6,6 +6,22 @@ moves **Unreleased** under a new version.
 
 ## [Unreleased]
 
+### Install
+
+- One installer, `install.sh`: the engine, the Player, the speech engine (built for your NVIDIA GPU with the CUDA toolkit it installs, or your processor), yt-dlp, the speech model, the extension folder, and the browser registration. Re-run to update; `--uninstall`.
+- The extension starts the engine when it needs it and takes its token itself: no terminal, no pairing. The engine frees the graphics memory after 5 minutes idle and turns itself off after 20.
+
+### Extension
+
+- Everything in the popup: Video, Style, Models, Engine (on/off, idle delays) and Settings tabs; Developer mode chooses CPU or GPU; Open Sublight Player.
+- The toolbar icon greys while the engine is off.
+
+### Player
+
+- VLC and YouTube controls: click to play, double-click a side to skip 10 s (keep tapping), hold for 2×, the full VLC keyboard with a shortcut sheet (?), A–B loop, screenshots, frame steps, a seek bar with a frame preview.
+- Several videos play one after another; volume, speed and position are remembered.
+- Light, dark or system theme.
+
 ### Fixes (Beta-1 checkpoint)
 
 - A new video's captions no longer wait behind the previous video's audio fetch.

@@ -218,15 +218,17 @@ export function buildPinned(
 }
 
 export async function installYtDlp(force = false): Promise<void> {
-  if (!force && installed('yt-dlp')?.tag === YTDLP_TAG) {
+  const paths = enginePaths()
+  const target = join(paths.bin, platform() === 'win32' ? 'yt-dlp.exe' : 'yt-dlp')
+  // The engine runs the one in its own bin folder, whatever an old record says.
+  const record = installed('yt-dlp') as { tag?: string; path?: string } | null
+  if (!force && record?.tag === YTDLP_TAG && record.path === target) {
     console.log(`yt-dlp ${YTDLP_TAG} is already installed`)
     return
   }
   const key = `${platform()}-${arch()}`
   const asset = YTDLP_ASSETS[key]
   if (!asset) throw new SetupError(`no pinned yt-dlp build for ${key}`)
-  const paths = enginePaths()
-  const target = join(paths.bin, platform() === 'win32' ? 'yt-dlp.exe' : 'yt-dlp')
   const url = `https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_TAG}/${asset.name}`
   console.log(`downloading ${url}`)
   const res = await fetch(url)
