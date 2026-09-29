@@ -231,7 +231,7 @@ function IdleSettings() {
           Turn off after
           {select(
             idle.exitMinutes,
-            (v) => save({ exitMinutes: v }),
+            (v) => void save({ exitMinutes: v }),
             'idle-exit',
             [10, 20, 30, 60, 120],
           )}
@@ -242,7 +242,7 @@ function IdleSettings() {
         Free the graphics memory after
         {select(
           idle.unloadMinutes,
-          (v) => save({ unloadMinutes: v }),
+          (v) => void save({ unloadMinutes: v }),
           'idle-unload',
           [2, 5, 10, 30],
         )}

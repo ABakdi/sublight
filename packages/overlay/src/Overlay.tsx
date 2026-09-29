@@ -211,6 +211,8 @@ export function SubtitleOverlay({
         shadowRoots.delete(shadowRoot)
       }, 0)
     }
+    // Mount once with the first frame; the effect below sends every later one.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Update the shadow tree whenever the active frame changes.

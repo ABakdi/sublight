@@ -30,11 +30,13 @@
     "engine:setup-ytdlp": "pnpm --silent --filter @sublight/engine cli setup yt-dlp",
     "engine:transcribe": "pnpm --silent --filter @sublight/engine transcribe",
     "ext:try": "node scripts/try-extension.mjs",
-    "prepare": "husky"
+    "prepare": "husky",
+    "coverage": "pnpm -r --filter @sublight/core --filter @sublight/overlay --filter @sublight/engine coverage"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
     "eslint": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
     "globals": "catalog:",
     "husky": "catalog:",
     "lint-staged": "catalog:",

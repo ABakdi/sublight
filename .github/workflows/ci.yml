@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [master]
+  # Nightly: dependency advisories appear without a push (code quality plan).
+  schedule:
+    - cron: '17 3 * * *'
 
 env:
   HUSKY: 0
@@ -51,6 +54,12 @@ jobs:
         run: pnpm -r --filter "!@sublight/e2e" exec vitest run --reporter=default --reporter=github-actions
 
       # Playwright is a dependency of the e2e package, not the root.
+      - name: Coverage floors (core, overlay, job queue)
+        run: pnpm coverage
+
+      - name: Dependency advisories
+        run: pnpm audit --prod --audit-level high
+
       - name: Install Playwright browsers (Chromium + deps)
         run: pnpm --filter @sublight/e2e exec playwright install --with-deps chromium
 

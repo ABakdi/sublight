@@ -2,7 +2,7 @@
  * The extension's settings (Spec 09 §7), shared by the popup's tabs and the
  * full-size Options page (M06b.7).
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { resolveStyle, type SubtitleCue } from '@sublight/core'
 import { SubtitleOverlay } from '@sublight/overlay'
 import { ENGINE_BASE_URL } from '@sublight/protocol'
@@ -93,17 +93,20 @@ export function EnginePairing({ onStatus }: { onStatus?: (s: EngineStatus | null
   const [token, setTokenInput] = useState('')
   const [status, setStatusState] = useState<EngineStatus | null>(null)
   const [saved, setSaved] = useState(false)
-  const setStatus = (s: EngineStatus | null) => {
+  // The parent's callback may change on every render; the latest one is used.
+  const onStatusRef = useRef(onStatus)
+  onStatusRef.current = onStatus
+  const setStatus = useCallback((s: EngineStatus | null) => {
     setStatusState(s)
-    onStatus?.(s)
-  }
+    onStatusRef.current?.(s)
+  }, [])
 
   useEffect(() => {
     void getToken().then((t) => {
       setTokenInput(t ?? '')
       void probeEngine(t ?? undefined).then(setStatus)
     })
-  }, [])
+  }, [setStatus])
 
   const test = async () => {
     setStatus(null)

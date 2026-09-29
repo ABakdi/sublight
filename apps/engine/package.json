@@ -18,7 +18,8 @@
     "test": "vitest run",
     "token": "tsx src/main.ts token",
     "transcribe": "tsx src/main.ts transcribe",
-    "cli": "tsx src/main.ts"
+    "cli": "tsx src/main.ts",
+    "coverage": "vitest run --project unit --coverage"
   },
   "dependencies": {
     "@hono/node-server": "catalog:",
@@ -30,6 +31,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "esbuild": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Subtitle data model, validation, SRT format, cue construction — pure TS, framework-free (ADR-0001)",
+  "description": "Subtitle data model, validation, SRT format, cue construction \u2014 pure TS, framework-free (ADR-0001)",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -12,9 +12,11 @@
   "scripts": {
     "build": "pnpm typecheck",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

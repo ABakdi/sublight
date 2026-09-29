@@ -105,7 +105,7 @@ export function VideoStage(props: {
   queue: (dir: 1 | -1) => boolean
   children: ReactNode
 }) {
-  const { videoRef, containerRef, captions } = props
+  const { videoRef, containerRef, captions, title, queue } = props
   const [playing, setPlaying] = useState(false)
   const [time, setTime] = useState(0)
   const [duration, setDuration] = useState(0)
@@ -187,7 +187,6 @@ export function VideoStage(props: {
 
   // --- actions (keyboard, gestures, buttons) ------------------------------------
 
-  const video = () => videoRef.current
   const seekTo = useCallback(
     (s: number) => {
       const v = videoRef.current
@@ -255,7 +254,7 @@ export function VideoStage(props: {
         if (!blob) return
         const a = document.createElement('a')
         a.href = URL.createObjectURL(blob)
-        a.download = `${props.title || 'sublight'} ${fmtTime(v.currentTime).replace(/:/g, '-')}.png`
+        a.download = `${title || 'sublight'} ${fmtTime(v.currentTime).replace(/:/g, '-')}.png`
         a.click()
         setTimeout(() => URL.revokeObjectURL(a.href), 1000)
         flash('Screenshot saved')
@@ -264,11 +263,11 @@ export function VideoStage(props: {
       // Another site's video without CORS: the browser won't let a page read its pixels.
       flash('This video’s site doesn’t allow screenshots')
     }
-  }, [videoRef, props.title, flash])
+  }, [videoRef, title, flash])
 
   const perform = useCallback(
     (a: PlayerAction) => {
-      const v = video()
+      const v = videoRef.current
       switch (a.type) {
         case 'togglePlay':
           return togglePlay()
@@ -334,8 +333,7 @@ export function VideoStage(props: {
         case 'screenshot':
           return screenshot()
         case 'queue':
-          if (!props.queue(a.dir))
-            flash(a.dir > 0 ? 'No next video in the queue' : 'No previous video')
+          if (!queue(a.dir)) flash(a.dir > 0 ? 'No next video in the queue' : 'No previous video')
           return
         case 'help':
           return setHelp((h) => !h)
@@ -356,9 +354,28 @@ export function VideoStage(props: {
       captions,
       loop,
       screenshot,
-      props.queue,
+      queue,
+      videoRef,
     ],
   )
+
+  // --- the control bar hides itself while playing ----------------------------------
+
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const overBar = useRef(false)
+  const wake = useCallback(() => {
+    setControls(true)
+    clearTimeout(hideTimer.current)
+    hideTimer.current = setTimeout(() => {
+      if (!overBar.current) setControls(false)
+    }, 2500)
+  }, [])
+  useEffect(() => {
+    if (!playing) {
+      clearTimeout(hideTimer.current)
+      setControls(true)
+    } else wake()
+  }, [playing, wake])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -378,25 +395,7 @@ export function VideoStage(props: {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [perform])
-
-  // --- the control bar hides itself while playing ----------------------------------
-
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const overBar = useRef(false)
-  const wake = useCallback(() => {
-    setControls(true)
-    clearTimeout(hideTimer.current)
-    hideTimer.current = setTimeout(() => {
-      if (!overBar.current) setControls(false)
-    }, 2500)
-  }, [])
-  useEffect(() => {
-    if (!playing) {
-      clearTimeout(hideTimer.current)
-      setControls(true)
-    } else wake()
-  }, [playing, wake])
+  }, [perform, wake])
 
   // --- gestures ---------------------------------------------------------------------
 
@@ -473,10 +472,13 @@ export function VideoStage(props: {
   const previewRef = useRef<HTMLVideoElement>(null)
   const [hover, setHover] = useState<{ x: number; t: number } | null>(null)
   const [dragging, setDragging] = useState(false)
-  const timeAt = (clientX: number) => {
-    const r = barRef.current!.getBoundingClientRect()
-    return Math.min(1, Math.max(0, (clientX - r.left) / r.width)) * duration
-  }
+  const timeAt = useCallback(
+    (clientX: number) => {
+      const r = barRef.current!.getBoundingClientRect()
+      return Math.min(1, Math.max(0, (clientX - r.left) / r.width)) * duration
+    },
+    [duration],
+  )
   useEffect(() => {
     const p = previewRef.current
     if (p && hover && Number.isFinite(hover.t)) p.currentTime = hover.t
@@ -491,7 +493,7 @@ export function VideoStage(props: {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
     }
-  }, [dragging, seekTo])
+  }, [dragging, seekTo, timeAt])
 
   const pct = (s: number) => (duration > 0 ? `${(s / duration) * 100}%` : '0%')
   const shownVolume = muted ? 0 : volume

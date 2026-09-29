@@ -8,6 +8,12 @@ export default defineConfig({
     // shared CI runner can stall long enough to miss one; retry there, stay
     // strict locally so a real regression still fails.
     retry: process.env.CI ? 2 : 0,
+    // Coverage floor from the code quality plan: the job queue ≥ 85 % (`pnpm coverage`, CI).
+    coverage: {
+      provider: 'v8',
+      include: ['src/jobs/**'],
+      thresholds: { statements: 85, lines: 85 },
+    },
     projects: [
       {
         extends: true,
