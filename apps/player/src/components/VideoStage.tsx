@@ -869,7 +869,7 @@ export function ShortcutSheet({ onClose }: { onClose: () => void }) {
         <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
           {groups.map((g) => (
             <section key={g}>
-              <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">
                 {g}
               </h3>
               {SHORTCUTS.filter((s) => s.group === g && s.keys.length > 0).map((s) => (
@@ -893,7 +893,7 @@ export function ShortcutSheet({ onClose }: { onClose: () => void }) {
             </section>
           ))}
           <section>
-            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">
               With the mouse
             </h3>
             {[

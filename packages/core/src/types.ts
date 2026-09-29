@@ -96,8 +96,10 @@ export interface SubtitleProjectMedia {
   directUrl?: string
   /** Engine media id when relayed. */
   relayId?: string
-  /** Position migrated mid-play. */
+  /** Position migrated mid-play, then the position watched to (the library's progress). */
   resumeAtMs?: number
+  /** A small frame of the video for the library, as a data: URL (M06b.10). */
+  thumbnail?: string
   /**
    * How the engine should fetch the page again (from the extension's hand-over):
    * the browser's user agent and, when the viewer opted in, which browser's login

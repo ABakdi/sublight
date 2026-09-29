@@ -10,9 +10,24 @@ import { StylePanel } from './StylePanel'
 import { CaptionPanel } from './CaptionPanel'
 import { useCaptionStore } from '../store/caption'
 import { VideoStage, type CaptionControls } from './VideoStage'
+import { JobToast } from './JobProgress'
 
 const ICON_BTN =
   'rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 transition hover:border-zinc-500 disabled:opacity-40 disabled:hover:border-zinc-700'
+
+/** A small JPEG of the video's current frame, or undefined when the browser won't allow it. */
+function frameOf(v: HTMLVideoElement): string | undefined {
+  if (!v.videoWidth) return undefined
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = 320
+    canvas.height = Math.round((320 * v.videoHeight) / v.videoWidth)
+    canvas.getContext('2d')!.drawImage(v, 0, 0, canvas.width, canvas.height)
+    return canvas.toDataURL('image/jpeg', 0.7)
+  } catch {
+    return undefined
+  }
+}
 
 export function PlayerView() {
   const project = usePlayerStore((s) => s.project)
@@ -22,6 +37,7 @@ export function PlayerView() {
   const backToLibrary = usePlayerStore((s) => s.backToLibrary)
   const nudgeActiveTrack = usePlayerStore((s) => s.nudgeActiveTrack)
   const savePosition = usePlayerStore((s) => s.savePosition)
+  const rememberMedia = usePlayerStore((s) => s.rememberMedia)
   const pickVideo = usePlayerStore((s) => s.pickVideo)
   const attachFile = usePlayerStore((s) => s.attachFile)
   const preparing = usePlayerStore((s) => s.preparing)
@@ -222,7 +238,7 @@ export function PlayerView() {
           >
             Panels
           </button>
-          <span className="text-xs text-zinc-500">Sync</span>
+          <span className="text-xs text-zinc-400">Sync</span>
           <button
             type="button"
             data-testid="nudge-minus"
@@ -294,6 +310,14 @@ export function PlayerView() {
                 src={videoObjectUrl ?? undefined}
                 className="h-full w-full object-contain"
                 playsInline
+                onLoadedData={(e) => {
+                  // A frame for the library: another site's video without CORS refuses it.
+                  const v = e.currentTarget
+                  void rememberMedia({
+                    durationMs: Number.isFinite(v.duration) ? v.duration * 1000 : undefined,
+                    thumbnail: project.media.thumbnail ? undefined : frameOf(v),
+                  })
+                }}
                 onLoadedMetadata={(e) => {
                   const resume = project.media.resumeAtMs
                   if (resume && resume > 0 && resume < e.currentTarget.duration * 1000) {
@@ -357,7 +381,7 @@ export function PlayerView() {
                     {pageError.message}
                   </p>
                   {pageError.captionOnPage && (
-                    <p className="max-w-md text-xs text-zinc-500">
+                    <p className="max-w-md text-xs text-zinc-400">
                       On its page: sublight’s popup → Caption this video.
                     </p>
                   )}
@@ -460,6 +484,12 @@ export function PlayerView() {
           </aside>
         )}
       </div>
+      <JobToast
+        onOpen={() => {
+          if (!drawer) toggleDrawer()
+          setPanel('caption')
+        }}
+      />
     </main>
   )
 }

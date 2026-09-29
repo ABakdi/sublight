@@ -106,6 +106,22 @@ test.describe('player (M01)', () => {
     await expect(title).toHaveText('second-clip', { timeout: 10_000 })
   })
 
+  test('the library shows a frame of each video and how far it was watched (M06b.10)', async ({
+    page,
+  }) => {
+    await openFixture(page)
+    await page.evaluate(async () => {
+      const v = document.querySelector('video')!
+      v.currentTime = 2
+      await new Promise((r) => v.addEventListener('seeked', r, { once: true }))
+      v.dispatchEvent(new Event('pause')) // saves the position, as pausing does
+    })
+    await page.getByTestId('back-to-library').click()
+    const card = page.getByTestId('library-project').first()
+    await expect(card.locator('img')).toHaveAttribute('src', /^data:image\/jpeg;base64,/)
+    await expect(card.getByTestId('library-progress')).toBeVisible()
+  })
+
   test('switches between the system, light and dark themes, remembered (M06b.10)', async ({
     page,
   }) => {

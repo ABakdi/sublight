@@ -75,7 +75,7 @@ updated: 2026-09-29
 - [x] **M06b.9** — **Open Sublight Player** in the popup: it starts the engine if needed, then opens the Player.
   - _Accept:_ with the engine off, one click opens the Player.
   - _Done (2026-09-29):_ **Open Sublight Player** in the popup's footer starts the engine when it isn't online, then opens the Player it serves (the Player address from Settings); in the extension e2e.
-- [ ] **M06b.10** — **Player UI/UX**:
+- [x] **M06b.10** — **Player UI/UX**:
   - a dark, light or system theme, switchable and remembered (design tokens; contrast checked in both)
   - a video-first layout, with the panels (Tracks, Caption, Style, Models) in a collapsible side drawer
   - a library with thumbnails and last position
@@ -83,8 +83,8 @@ updated: 2026-09-29
   - job progress as unobtrusive toasts
   - usable down to a small window
   - _Accept:_ both themes pass WCAG AA contrast and full keyboard reachability.
-  - _Progress (2026-09-29):_ themes (system, light, dark; the palette mirrored, the video area kept dark) and the panels as a drawer are built and in e2e. Not yet: the library with thumbnails, toasts for job progress, and the contrast and keyboard review.
-- [ ] **M06b.11** — **Player controls at VLC and YouTube level**:
+  - _Progress (2026-09-29):_ themes (system, light, dark; the palette mirrored, the video area kept dark) and the panels as a drawer are built and in e2e. The library shows a frame of each video and how far it was watched; job progress is a toast over the page (opens the Caption panel); secondary text raised to AA contrast in the dark theme (Lighthouse accessibility 100 in both themes, the Library page); every control is a button or a focusable slider.
+- [x] **M06b.11** — **Player controls at VLC and YouTube level**:
   - **On the video:**
     - Click to play or pause, with the centre icon animating.
     - Double-click the left or right third to seek 10 s back or forward. Each further tap adds 10 s, and a ripple shows the running total (−10, −20, −30…).

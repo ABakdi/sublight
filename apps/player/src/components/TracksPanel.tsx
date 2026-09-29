@@ -48,7 +48,7 @@ export function TracksPanel() {
       </div>
 
       {project.tracks.length === 0 && (
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-zinc-400">
           No tracks yet — caption the video in the Caption tab, or import an SRT or VTT file.
         </p>
       )}
@@ -79,18 +79,18 @@ export function TracksPanel() {
                     draft
                   </span>
                 )}
-                <span className="text-xs text-zinc-500">{track.cues.length} cues</span>
+                <span className="text-xs text-zinc-400">{track.cues.length} cues</span>
               </button>
               <button
                 type="button"
                 aria-label={`Remove ${track.language} track`}
-                className="text-xs text-zinc-500 transition hover:text-red-300"
+                className="text-xs text-zinc-400 transition hover:text-red-300"
                 onClick={() => void removeTrack(track.id)}
               >
                 ✕
               </button>
             </div>
-            {track.title && <p className="mt-0.5 text-xs text-zinc-500">{track.title}</p>}
+            {track.title && <p className="mt-0.5 text-xs text-zinc-400">{track.title}</p>}
             <TrackActions
               track={track}
               hasSource={project.tracks.some((t) => t.id === track.derivedFrom?.trackId)}

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useCaptionStore, type CaptionPhase } from '../store/caption'
 import { BTN } from './ui'
 
@@ -41,7 +42,7 @@ export function JobProgress({ testId }: { testId: 'caption' | 'translate' }) {
           <div className="h-1.5 overflow-hidden rounded bg-zinc-800">
             <div className="h-full bg-zinc-300 transition-[width]" style={{ width: `${pct}%` }} />
           </div>
-          {detail && <p className="text-xs text-zinc-500">{detail}</p>}
+          {detail && <p className="text-xs text-zinc-400">{detail}</p>}
           <button
             type="button"
             data-testid={`${testId}-cancel`}
@@ -69,5 +70,48 @@ export function JobProgress({ testId }: { testId: 'caption' | 'translate' }) {
         </p>
       )}
     </>
+  )
+}
+
+/**
+ * The current run as a small toast over the page (M06b.10): visible with the
+ * panels closed, and the moment a run ends (done or failed) for a few seconds.
+ */
+export function JobToast({ onOpen }: { onOpen: () => void }) {
+  const { activity, phase, progress, error, resultNote } = useCaptionStore()
+  const [shownEnd, setShownEnd] = useState<CaptionPhase | null>(null)
+  useEffect(() => {
+    if (phase !== 'done' && phase !== 'error') return
+    setShownEnd(phase)
+    const t = setTimeout(() => setShownEnd(null), 5000)
+    return () => clearTimeout(t)
+  }, [phase])
+  const running = isRunning(phase)
+  if (!running && !shownEnd) return null
+  const pct = Math.round(progress * 100)
+  const text = running
+    ? `${LABEL[activity][phase]}… ${pct}%`
+    : phase === 'error'
+      ? `${activity === 'caption' ? 'Captioning' : 'Translation'} failed: ${error?.message ?? ''}`
+      : `${activity === 'caption' ? 'Captions' : 'Translation'} ready${resultNote ? ` · ${resultNote}` : ''}`
+  return (
+    <button
+      type="button"
+      data-testid="job-toast"
+      data-phase={phase}
+      onClick={onOpen}
+      className={`fixed right-4 bottom-4 z-30 flex max-w-sm items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm shadow-xl ${
+        phase === 'error'
+          ? 'border-red-900/60 bg-red-950 text-red-200'
+          : 'border-zinc-700 bg-zinc-900 text-zinc-100'
+      }`}
+    >
+      {running && (
+        <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded bg-zinc-700">
+          <span className="block h-full bg-indigo-500" style={{ width: `${pct}%` }} />
+        </span>
+      )}
+      <span className="min-w-0 truncate">{text}</span>
+    </button>
   )
 }

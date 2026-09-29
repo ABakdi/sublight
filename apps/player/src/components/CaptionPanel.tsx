@@ -242,7 +242,7 @@ export function CaptionPanel() {
           English (translated)
         </label>
         {!canTranslate && selected && (
-          <span className="text-xs text-zinc-500">
+          <span className="text-xs text-zinc-400">
             {selected.name} can’t translate; pick small or medium.
           </span>
         )}

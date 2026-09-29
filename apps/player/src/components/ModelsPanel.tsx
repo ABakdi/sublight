@@ -89,7 +89,7 @@ export function ModelsPanel() {
       )}
       {GROUPS.map(([role, title]) => (
         <section key={role} className="flex flex-col gap-2">
-          <h3 className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">{title}</h3>
+          <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">{title}</h3>
           {models
             .filter((m) => m.role === role)
             .map((m) => {
@@ -104,9 +104,9 @@ export function ModelsPanel() {
                 >
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-sm text-zinc-100">{m.name}</span>
-                    <span className="text-xs text-zinc-500">{size ? gb(size) : ''}</span>
+                    <span className="text-xs text-zinc-400">{size ? gb(size) : ''}</span>
                   </div>
-                  <p className="text-[11px] text-zinc-500">
+                  <p className="text-[11px] text-zinc-400">
                     {m.license}
                     {m.vramClass ? ` · ${m.vramClass}` : ''}
                   </p>

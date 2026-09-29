@@ -118,7 +118,7 @@ export function TranslateForm({ track }: { track: SubtitleTrack }) {
         />
       </label>
 
-      <p className="text-xs text-zinc-500" data-testid="translate-route" data-path={path}>
+      <p className="text-xs text-zinc-400" data-testid="translate-route" data-path={path}>
         {path === 'whisper-translate'
           ? 'English straight from the audio with Whisper (no extra download).'
           : `With the local translation model${llm ? ` (${llm.name})` : ''}.`}

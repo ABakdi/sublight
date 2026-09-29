@@ -121,13 +121,13 @@ export function Library() {
       </section>
 
       <section className="mt-10">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-zinc-500">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-zinc-400">
           Recent projects
         </h2>
         {recent === null ? (
-          <p className="mt-4 text-sm text-zinc-500">Loading…</p>
+          <p className="mt-4 text-sm text-zinc-400">Loading…</p>
         ) : recent.length === 0 ? (
-          <p className="mt-4 text-sm text-zinc-500">
+          <p className="mt-4 text-sm text-zinc-400">
             No projects yet. Open a video and the rest of the magic is local too.
           </p>
         ) : (
@@ -137,19 +137,48 @@ export function Library() {
                 <button
                   type="button"
                   onClick={() => void loadProjectFromLibrary(project.id)}
-                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-left transition hover:border-zinc-600"
+                  data-testid="library-project"
+                  className="flex w-full gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 text-left transition hover:border-zinc-600"
                 >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="truncate font-medium text-zinc-100">{project.title}</span>
-                    <span className="shrink-0 text-xs text-zinc-500">
-                      {timeAgo(project.updatedAt)}
-                    </span>
+                  <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded-md bg-zinc-800">
+                    {project.media.thumbnail ? (
+                      <img
+                        src={project.media.thumbnail}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-full items-center justify-center text-xl text-zinc-600">
+                        ▶
+                      </span>
+                    )}
+                    {!!project.media.durationMs && !!project.media.resumeAtMs && (
+                      <div
+                        className="absolute inset-x-0 bottom-0 h-1 bg-black/50"
+                        data-testid="library-progress"
+                      >
+                        <div
+                          className="h-full bg-indigo-500"
+                          style={{
+                            width: `${Math.min(100, (project.media.resumeAtMs / project.media.durationMs) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
-                  <div className="mt-1 flex items-center justify-between gap-3 text-sm text-zinc-400">
-                    <span className="truncate">{project.media.source ?? 'page video'}</span>
-                    <span className="shrink-0 text-xs text-zinc-500">
-                      {project.tracks.length} track{project.tracks.length === 1 ? '' : 's'}
-                    </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="truncate font-medium text-zinc-100">{project.title}</span>
+                      <span className="shrink-0 text-xs text-zinc-400">
+                        {timeAgo(project.updatedAt)}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-3 text-sm text-zinc-400">
+                      <span className="truncate">{project.media.source ?? 'page video'}</span>
+                      <span className="shrink-0 text-xs text-zinc-400">
+                        {project.tracks.length} track{project.tracks.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
                   </div>
                 </button>
               </li>

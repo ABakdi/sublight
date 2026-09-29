@@ -79,6 +79,8 @@ export interface PlayerState {
   removeTrack: (trackId: string) => Promise<void>
   exportActiveSrt: () => Promise<void>
   savePosition: (ms: number) => Promise<void>
+  /** What the library shows of a video once it has loaded: its length and a frame (M06b.10). */
+  rememberMedia: (info: { durationMs?: number; thumbnail?: string }) => Promise<void>
   /** Remember the engine's normalized-audio hash so re-captioning skips the upload (Spec 04 §4). */
   setMediaHash: (mediaHash: string) => Promise<void>
   /** Add an engine-produced track to the project and make it active. */
@@ -634,6 +636,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       } catch (err) {
         set({ error: `Could not save playback position: ${msg(err)}` })
       }
+    },
+
+    rememberMedia: async ({ durationMs, thumbnail }) => {
+      const project = get().project
+      if (!project) return
+      const media = { ...project.media }
+      if (durationMs && durationMs > 0 && !media.durationMs)
+        media.durationMs = Math.round(durationMs)
+      if (thumbnail && !media.thumbnail) media.thumbnail = thumbnail
+      if (
+        media.durationMs === project.media.durationMs &&
+        media.thumbnail === project.media.thumbnail
+      )
+        return
+      const next = { ...project, media }
+      set({ project: next })
+      await saveProjectRow(next).catch(() => {})
     },
 
     setMediaHash: async (mediaHash) => {
