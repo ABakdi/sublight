@@ -30,7 +30,7 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
 
 - **One resident model at a time.** A state machine: `none → asr → translate → none`; a job of type B while A is resident either waits (queued) or triggers a swap after A's current job yields (between jobs, never mid-job).
 - Swap: unload binary (kill whisper-server/llama-server or `--no-warm`) → load target → warm (e.g. llama `--preload`) → run.
-- VRAM hints from NVML when available (`nvidia-smi` parse fallback) drive decisions: if free < model need → offload layers to CPU (`-ngl` fraction) with a `slow` flag surfaced in job logs; if even that fails → `GPU_OOM` retryable failure, engine retries once with `base` model. CPU-only fallback: engine uses a CPU build of whisper.cpp with no VRAM check.
+- VRAM hints from NVML when available (`nvidia-smi` parse fallback) drive decisions: if free < model need → offload layers to CPU (`-ngl` fraction) with a `slow` flag surfaced in job logs; (planned: a `GPU_OOM` failure retried with a smaller model; not built, see _As built_ below). CPU-only fallback: engine uses a CPU build of whisper.cpp with no VRAM check.
 - The budget table is [Requirements §4](../architecture/Requirements.md).
 - **As built (M04):** one GPU slot shared by all GPU jobs; before a job loads its worker, `GpuResidency` stops the other one (whisper ↔ llama), so exactly one model is resident and swaps happen between jobs. `nvidia-smi` VRAM figures in health, `residentModel` = the loaded model id. Measured on the T1000 (desktop using ~0.7 GB): whisper-small ~0.85 GB; Qwen3-4B fully offloaded with a q8_0 KV cache ~2.9 GB. The llama worker tries full offload first and falls back to llama.cpp's `-ngl auto --fit on` when that can't load (VRAM taken by other apps); a `GPU_OOM` code for mid-job failures isn't needed yet.
 
@@ -46,7 +46,7 @@ _The local Node process that owns AI. Everything here is defined against [Protoc
 
 - `PUT /v1/media/:mediaId` → stream to a temp file under the upload cap → `ffprobe` (no audio stream → `AUDIO_UNSUPPORTED`) → normalize `-vn -ac 1 -ar 16000 -c:a pcm_s16le` (any codec/container, any channel layout) → SHA-256 of the **normalized** WAV → `media-cache/{sha256}.wav` + `{sha256}.json` sidecar `{ durationMs, normalizedBytes, sourceName, createdAt, lastUsedAt }`. The client's `mediaId` is an alias (`ids/`); the same audio in another container dedupes to one entry.
 - Empty/silent audio (`volumedetect` mean < −60 dB) → `AUDIO_EMPTY` early failure (no ASR wasted).
-- Very long inputs: normalize in one pass (16 kHz mono PCM is ~1.9 MB/min → 2 h ≈ 230 MB, fine); ASR chunks at 10-min boundaries internally with overlap handling (see [07 §1](07-ASR-And-Translation.md)).
+- Very long inputs: normalize in one pass (16 kHz mono PCM is ~1.9 MB/min → 2 h ≈ 230 MB, fine); ASR runs in 2-minute chunks with a 1 s overlap (see [07 §1](07-ASR-And-Translation.md)).
 - `GET /v1/media/:ref` (id or hash) returns the sidecar; `DELETE /v1/media/:hash` removes it and its aliases; LRU eviction by `lastUsedAt` down to `cacheLimits.mediaBytes` after each upload (never the upload just made).
 
 ### 4.1 Media resolve & relay (open-in-player)

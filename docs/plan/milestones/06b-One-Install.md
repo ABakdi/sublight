@@ -127,7 +127,7 @@ updated: 2026-09-29
 
 ### Gate
 
-- [ ] **M06b.15** — **Pre-beta audits closed**: every P0–P2 from [code quality Q-3](../../audits/2026-09-Code-Quality-Q3.md) and [security pass 2](../../audits/2026-09-Security-Baseline-Pass-2.md) fixed, and the P3s fixed or scheduled. Security is re-checked after the native host (M06b.3) and `install.sh` (M06b.2).
+- [x] **M06b.15** — **Pre-beta audits closed**: every P0–P2 from [code quality Q-3](../../audits/2026-09-Code-Quality-Q3.md) and [security pass 2](../../audits/2026-09-Security-Baseline-Pass-2.md) fixed, and the P3s fixed or scheduled. Security is re-checked after the native host (M06b.3) and `install.sh` (M06b.2). _Done (2026-09-29):_ [security pass 2](../../audits/2026-09-Security-Baseline-Pass-2.md) closed (S1–S11, and R1–R11 on the install path; R6 accepted), [code quality Q-3](../../audits/2026-09-Code-Quality-Q3.md) closed (every P1 and P2; the rest scheduled for M07).
 - [ ] **M06b.16** — **Re-run the Beta-1 matrix** on the install-script path (Chromium and Brave), including the rows I check by hand (T1, T3, T9). Then close the [Beta-1 checkpoint](../../checkpoints/Beta-1-Checklist.md) and release 0.1.0.
 
 ## Acceptance criteria
