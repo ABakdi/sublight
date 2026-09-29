@@ -278,7 +278,7 @@ export class RelayStore {
   }
 
   /** Videos being saved right now. */
-  private active(): number {
+  active(): number {
     return [...this.relays.values()].filter((r) =>
       r.kind === 'file' ? r.state === 'downloading' : r.copy?.state === 'downloading',
     ).length

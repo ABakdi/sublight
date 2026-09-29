@@ -681,7 +681,7 @@ function TranslationModel({ online }: { online: boolean }) {
   useEffect(() => {
     if (!online) return
     const load = () =>
-      engineRequest<ModelsResponse>('/v1/models').then(
+      engineRequest<ModelsResponse>('/v1/models', {}, { start: false }).then(
         (r) => setInfo(r.models.find((m) => m.id === TRANSLATE_MODEL) ?? null),
         () => {},
       )

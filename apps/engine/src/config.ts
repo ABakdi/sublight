@@ -1,3 +1,4 @@
+import type { IdleConfig } from './idle'
 import {
   chmodSync,
   existsSync,
@@ -60,6 +61,8 @@ export interface EngineConfig {
    * home media server). Off: web pages choose those URLs (baseline A10).
    */
   allowPrivateNetworks: boolean
+  /** Smart idle (M06b.5): unload models, then exit (background engines only); 0 = never. */
+  idle: IdleConfig
   /** The built Player, served on its own origin (`0` turns it off; Spec 06 §1). */
   player: {
     port: number
@@ -81,6 +84,7 @@ const DEFAULTS: Omit<EngineConfig, 'token'> = {
   llama: { port: 17423, gpu: 'auto', threads: 4, contextTokens: 4096 },
   ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
   player: { port: PLAYER_DEFAULT_PORT },
+  idle: { unloadMinutes: 5, exitMinutes: 20 },
   devOrigins: false,
   allowPrivateNetworks: false,
 }
@@ -128,6 +132,7 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
     llama: { ...DEFAULTS.llama, ...(raw?.llama ?? {}) },
     ffmpeg: { ...DEFAULTS.ffmpeg, ...(raw?.ffmpeg ?? {}) },
     player: { ...DEFAULTS.player, ...(raw?.player ?? {}) },
+    idle: { ...DEFAULTS.idle, ...(raw?.idle ?? {}) },
   }
   // A freshly generated token must survive restarts, or every paired client breaks.
   if (!hasToken)
@@ -143,6 +148,7 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
     llama: { ...base.llama, ...(overrides?.llama ?? {}) },
     ffmpeg: { ...base.ffmpeg, ...(overrides?.ffmpeg ?? {}) },
     player: { ...base.player, ...(overrides?.player ?? {}) },
+    idle: { ...base.idle, ...(overrides?.idle ?? {}) },
   }
   const port = Number(envPort)
   if (envPort && Number.isInteger(port) && port > 0 && port < 65536) merged.port = port

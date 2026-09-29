@@ -25,6 +25,7 @@ export function buildHealth(
           residentModel: services.gpu.resident,
           mediaCacheBytes: services.media.all().reduce((n, m) => n + m.normalizedBytes, 0),
           binaries: services.binaries,
+          ...(services.idle ? { idle: services.idle.state() } : {}),
         }
       : {}),
     metrics: {

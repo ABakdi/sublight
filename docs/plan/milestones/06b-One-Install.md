@@ -48,6 +48,7 @@ updated: 2026-09-29
   - Exit after 20 min without a job, live session, lease or relay download. Open WebSockets don't count.
   - The delays can be set, and there is a **Keep the engine running** switch. They are shorter on battery. The engine never stops during work.
   - _Accept:_ unit tests for each kind of activity; idle CPU ~0 % and VRAM freed after unload, measured; the exit is logged with its reason.
+  - _Progress (2026-09-29):_ built as specified (Spec 06 §1, `idle.ts`): work never stops it, status reads don't count as activity, background engines exit and terminal ones stay, halved on battery; unit tests for each case, and a background engine with short delays exited by itself and logged why. The extension's background polls no longer start an idle engine. Not yet: the delays and the switch in the popup (M06b.6/7), and the idle CPU and VRAM measurement.
 - [ ] **M06b.6** — **Engine status in the popup**: _Off · Starting · On · Busy · Idle (models unloaded)_, with an on/off switch. When the host is missing, the popup explains how to run `install.sh`.
   - _Accept:_ each state appears in the extension e2e (the host is faked in tests).
 

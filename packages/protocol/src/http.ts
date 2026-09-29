@@ -28,6 +28,8 @@ export interface HealthResponse {
   mediaCacheBytes?: number
   /** Worker binaries checked at startup (empty until the check finishes). */
   binaries?: BinaryCheck[]
+  /** Smart idle (M06b.5): how long nothing happened, whether the models were unloaded, and when it exits. */
+  idle?: { idleMs: number; unloaded: boolean; exitInMs: number | null }
   /** Simple counters feeding checkpoints (Spec 06 §8). */
   metrics?: {
     jobsTotal: number

@@ -38,7 +38,13 @@ export async function answer(req: NativeRequest): Promise<NativeResponse> {
         version: h?.version ?? ENGINE_VERSION,
         port,
         ...(h
-          ? { activeJobs: h.activeJobs, queuedJobs: h.queuedJobs ?? 0, uptimeMs: h.engineUptimeMs }
+          ? {
+              activeJobs: h.activeJobs,
+              queuedJobs: h.queuedJobs ?? 0,
+              uptimeMs: h.engineUptimeMs,
+              residentModel: h.residentModel ?? null,
+              ...(h.idle ? { idle: h.idle } : {}),
+            }
           : {}),
       }
     }

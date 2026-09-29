@@ -131,8 +131,16 @@ export class EngineRequestError extends Error {
   }
 }
 
-/** Authenticated engine call from the SW or an extension page (never content scripts). */
-export async function engineRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+/**
+ * Authenticated engine call from the SW or an extension page (never content
+ * scripts). An engine that is off is started first, unless `start: false`
+ * (background polls, which must not keep waking an idle engine).
+ */
+export async function engineRequest<T>(
+  path: string,
+  init: RequestInit = {},
+  opts: { start?: boolean } = {},
+): Promise<T> {
   const token = await getToken()
   if (!token)
     throw new EngineRequestError(
@@ -150,7 +158,7 @@ export async function engineRequest<T>(path: string, init: RequestInit = {}): Pr
     }).catch(() => null)
   let res = await send(token)
   // Off (idle, or not started yet): start it and try again (M06b.4).
-  if (!res && (await startEngine())) res = await send(token)
+  if (!res && opts.start !== false && (await startEngine())) res = await send(token)
   if (!res)
     throw new EngineRequestError('OFFLINE', 'The engine isn’t running and couldn’t be started.', 0)
   if (res.status === 401) {

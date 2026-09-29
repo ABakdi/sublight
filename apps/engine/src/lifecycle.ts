@@ -59,7 +59,8 @@ export async function startDetached(): Promise<StartResult> {
   const child = spawn(process.execPath, [...process.execArgv, process.argv[1]!, 'start'], {
     detached: true,
     stdio: ['ignore', out, out],
-    env: process.env,
+    // Started in the background: it may exit when idle (M06b.5).
+    env: { ...process.env, SUBLIGHT_IDLE_EXIT: '1' },
   })
   child.unref()
   for (let i = 0; i < 60; i++) {

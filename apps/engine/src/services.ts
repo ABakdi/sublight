@@ -8,6 +8,7 @@ import { LlamaWorker } from './llm/llama'
 import { translateRunner } from './translate/runner'
 import { LiveHub } from './live/hub'
 import { liveRunner } from './live/runner'
+import { IdleMonitor, onBattery } from './idle'
 import { GpuResidency } from './workers/gpu'
 import type { EngineConfig } from './config'
 import { EventBus } from './events'
@@ -34,6 +35,8 @@ export interface EngineServices {
   relays: RelayStore
   /** yt-dlp, when installed. */
   ytDlp: string | null
+  /** Smart idle (M06b.5). */
+  idle: IdleMonitor
   /** Worker binaries against their recorded checksums, filled in at startup (baseline E2). */
   binaries: BinaryCheck[]
   paths: EnginePaths
@@ -109,6 +112,23 @@ export function createServices(config: EngineConfig, paths: EnginePaths): Engine
   })
   jobs.register(ahead)
   const ytDlp = findYtDlp(paths.bin)
+  const idle = new IdleMonitor({
+    config: config.idle,
+    busy: () => {
+      const { activeJobs, queued } = jobs.stats()
+      if (activeJobs + queued > 0) return `${activeJobs + queued} jobs`
+      if (relays.active() > 0) return 'preparing a video'
+      if (models.installing() > 0) return 'installing a model'
+      return null
+    },
+    unload: async () => {
+      const loaded = gpu.resident !== null
+      await whisper.stop()
+      await llama.stop()
+      return loaded
+    },
+    onBattery: () => onBattery(),
+  })
   return {
     bus,
     models,
@@ -121,6 +141,7 @@ export function createServices(config: EngineConfig, paths: EnginePaths): Engine
     ahead,
     relays,
     ytDlp,
+    idle,
     paths,
     binaries: [],
   }

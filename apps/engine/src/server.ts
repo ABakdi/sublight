@@ -108,7 +108,12 @@ export function runServer(): Promise<{ port: number }> {
   async function shutdown(signal: string) {
     if (shuttingDown) return
     shuttingDown = true
-    log.info(`${signal}: interrupting running jobs and exiting`)
+    log.info(
+      signal.startsWith('idle')
+        ? `${signal}: exiting (the extension starts it again when needed)`
+        : `${signal}: interrupting running jobs and exiting`,
+    )
+    services.idle.touch()
     // Hard-exit guard if anything hangs.
     setTimeout(() => process.exit(1), 8000).unref()
     await services.jobs.shutdown()
@@ -118,6 +123,12 @@ export function runServer(): Promise<{ port: number }> {
     player?.close()
     server.close(() => process.exit(0))
   }
+
+  // Smart idle (M06b.5): an engine started in the background (by the extension
+  // or `start --detach`) exits when idle; one run in a terminal stays.
+  if (process.env.SUBLIGHT_IDLE_EXIT === '1')
+    services.idle.exitWith((reason) => void shutdown(reason))
+  setInterval(() => void services.idle.tick(), 30_000).unref()
 
   process.on('SIGTERM', () => void shutdown('SIGTERM'))
   process.on('SIGINT', () => void shutdown('SIGINT'))

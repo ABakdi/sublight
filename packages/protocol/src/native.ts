@@ -22,6 +22,10 @@ export interface NativeStatus {
   activeJobs?: number
   queuedJobs?: number
   uptimeMs?: number
+  /** The model loaded right now (null: none, e.g. unloaded while idle). */
+  residentModel?: string | null
+  /** Smart idle: how long nothing happened, and when the engine exits if nothing does. */
+  idle?: { idleMs: number; unloaded: boolean; exitInMs: number | null }
 }
 
 export type NativeResponse =

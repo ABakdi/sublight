@@ -174,6 +174,11 @@ export class ModelManager {
   }
 
   /** Start (or join) an install. Resolves when the model is installed; rejects on failure. */
+  /** Installs in progress. */
+  installing(): number {
+    return this.inflight.size
+  }
+
   install(id: string): Promise<void> {
     const entry = this.entry(id)
     if (this.isInstalled(id)) return Promise.resolve()

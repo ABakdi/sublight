@@ -14,6 +14,7 @@ const config: EngineConfig = {
   llama: { port: 17423, gpu: 'off', threads: 4, contextTokens: 4096 },
   ffmpeg: { ffmpeg: 'ffmpeg', ffprobe: 'ffprobe' },
   player: { port: 17420 },
+  idle: { unloadMinutes: 0, exitMinutes: 0 },
   devOrigins: true,
   allowPrivateNetworks: true,
 }

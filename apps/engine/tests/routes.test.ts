@@ -27,6 +27,7 @@ import { JobStore } from '../src/jobs/store'
 import { SYSTEM_FFMPEG } from '../src/media/ffmpeg'
 import { MediaStore } from '../src/media/store'
 import { ModelManager } from '../src/models/manager'
+import { IdleMonitor } from '../src/idle'
 import { enginePaths } from '../src/paths'
 import type { EngineServices } from '../src/services'
 
@@ -43,6 +44,7 @@ const config: EngineConfig = {
   llama: { port: 17998, gpu: 'off', threads: 2, contextTokens: 4096 },
   ffmpeg: SYSTEM_FFMPEG,
   player: { port: 0 },
+  idle: { unloadMinutes: 0, exitMinutes: 0 },
   devOrigins: true,
   allowPrivateNetworks: true,
 }
@@ -88,6 +90,7 @@ function services(runner?: JobRunner): EngineServices {
     ahead,
     relays,
     ytDlp: null,
+    idle: new IdleMonitor({ config: config.idle, busy: () => null, unload: async () => false }),
     paths,
     binaries: [],
   }

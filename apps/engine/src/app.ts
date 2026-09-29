@@ -120,6 +120,16 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
     if (!c.res.headers.has('cache-control')) c.header('cache-control', 'no-store')
   })
 
+  // Requests are activity for smart idle (M06b.5). Status reads (what a
+  // forgotten page polls) are not; watching a relayed video is.
+  app.use('/v1/*', async (c, next) => {
+    const probe =
+      c.req.method === 'GET' &&
+      /^\/v1\/(health|version|pair\/info|models|media\/relay\/[^/]+)$/.test(c.req.path)
+    if (!probe) s?.idle?.touch()
+    await next()
+  })
+
   // Unauthenticated pairing probe (Protocol §2) — only advertises *presence*.
   app.get('/v1/pair/info', (c) => c.json({ requiresToken: true }))
 
