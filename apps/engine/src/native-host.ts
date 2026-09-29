@@ -4,7 +4,10 @@ import {
   type NativeRequest,
   type NativeResponse,
 } from '@sublight/protocol'
+import { join } from 'node:path'
 import { clientOrigins } from './auth'
+import { autostart, currentLaunch } from './autostart'
+import { enginePaths } from './paths'
 import { loadConfig } from './config'
 import { ENGINE_VERSION } from './health'
 import { health, startDetached, stopEngine } from './lifecycle'
@@ -20,7 +23,16 @@ import { health, startDetached, stopEngine } from './lifecycle'
  * the protocol, so nothing else may print there.
  */
 
-const COMMANDS: NativeCommand[] = ['status', 'start', 'stop', 'token', 'version']
+const COMMANDS: NativeCommand[] = [
+  'status',
+  'start',
+  'stop',
+  'token',
+  'version',
+  'autostart-status',
+  'autostart-enable',
+  'autostart-disable',
+]
 /** Requests are tiny; anything bigger is not from the extension. */
 const MAX_MESSAGE = 64 * 1024
 
@@ -70,6 +82,18 @@ export async function answer(req: NativeRequest): Promise<NativeResponse> {
         version: ENGINE_VERSION,
         protocol: PROTOCOL_VERSION,
       }
+    case 'autostart-status':
+    case 'autostart-enable':
+    case 'autostart-disable': {
+      // The same as `sublight-engine autostart …`; its messages go to stderr here.
+      const action = req.command.slice('autostart-'.length)
+      const launch = currentLaunch(join(enginePaths().logs, 'engine.out'))
+      const code = autostart([action], launch)
+      if (action === 'status') return { ...id, ok: true, command: 'autostart', enabled: code === 0 }
+      return code === 0
+        ? { ...id, ok: true, command: 'autostart', enabled: action === 'enable' }
+        : { ...id, ok: false, error: `couldn't ${action} starting with the computer` }
+    }
     default:
       return { ...id, ok: false, error: `unknown command (one of ${COMMANDS.join(', ')})` }
   }

@@ -26,7 +26,11 @@ function host(origin: string, requests: NativeRequest[]): Promise<NativeResponse
     const child = spawn(
       process.execPath,
       ['--import', 'tsx', 'src/main.ts', 'native-host', origin],
-      { env: { ...process.env, SUBLIGHT_HOME: home }, stdio: ['pipe', 'pipe', 'inherit'] },
+      {
+        // Its own config folder: autostart status looks for a systemd unit there.
+        env: { ...process.env, SUBLIGHT_HOME: home, XDG_CONFIG_HOME: home },
+        stdio: ['pipe', 'pipe', 'inherit'],
+      },
     )
     let out: Buffer = Buffer.alloc(0)
     child.stdout.on('data', (d: Buffer) => (out = Buffer.concat([out, d])))
@@ -92,6 +96,10 @@ describe('native host', () => {
     expect(status).toMatchObject({ ok: true, running: true, activeJobs: 0 })
     const [again] = await host(EXTENSION, [{ command: 'start' }])
     expect(again).toMatchObject({ ok: true, started: false })
+
+    // Start with the computer: not enabled in this fresh config folder.
+    const [autostart] = await host(EXTENSION, [{ command: 'autostart-status' }])
+    expect(autostart).toEqual({ ok: true, command: 'autostart', enabled: false })
 
     const [stopped] = await host(EXTENSION, [{ command: 'stop' }])
     expect(stopped).toEqual({ ok: true, command: 'stop', stopped: true })

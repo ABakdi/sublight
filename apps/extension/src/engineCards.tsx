@@ -248,8 +248,39 @@ function IdleSettings() {
         )}
       </label>
       <span style={{ ...small, fontSize: 11 }}>Halved on battery.</span>
+      <StartWithComputer />
       {error && <span style={{ color: colors.bad }}>{error}</span>}
     </div>
+  )
+}
+
+/** Start the engine when you log in (a systemd user unit), through the native host. */
+function StartWithComputer() {
+  const [on, setOn] = useState<boolean | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    void native('autostart-status').then((r) =>
+      setOn(r?.ok && r.command === 'autostart' ? r.enabled : null),
+    )
+  }, [])
+  if (on === null) return null
+  const change = async (enable: boolean) => {
+    setError(null)
+    const r = await native(enable ? 'autostart-enable' : 'autostart-disable')
+    if (r?.ok && r.command === 'autostart') setOn(r.enabled)
+    else setError(r && !r.ok ? r.error : 'the engine didn’t answer')
+  }
+  return (
+    <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <input
+        type="checkbox"
+        data-testid="start-with-computer"
+        checked={on}
+        onChange={(e) => void change(e.target.checked)}
+      />
+      Start with my computer (otherwise it starts when needed)
+      {error && <span style={{ color: colors.bad }}>{error}</span>}
+    </label>
   )
 }
 

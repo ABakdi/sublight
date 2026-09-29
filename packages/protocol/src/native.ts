@@ -6,7 +6,16 @@
  */
 export const NATIVE_HOST_NAME = 'sublight.engine'
 
-export type NativeCommand = 'status' | 'start' | 'stop' | 'token' | 'version'
+export type NativeCommand =
+  | 'status'
+  | 'start'
+  | 'stop'
+  | 'token'
+  | 'version'
+  /** Start with the computer (a systemd user unit or a LaunchAgent). */
+  | 'autostart-status'
+  | 'autostart-enable'
+  | 'autostart-disable'
 
 export interface NativeRequest {
   id?: string
@@ -34,4 +43,5 @@ export type NativeResponse =
   | { id?: string; ok: true; command: 'stop'; stopped: boolean }
   | { id?: string; ok: true; command: 'token'; token: string; port: number }
   | { id?: string; ok: true; command: 'version'; version: string; protocol: number }
+  | { id?: string; ok: true; command: 'autostart'; enabled: boolean }
   | { id?: string; ok: false; error: string }
