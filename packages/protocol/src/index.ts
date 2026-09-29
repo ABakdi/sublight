@@ -19,3 +19,5 @@ export {
   PROTOCOL_VERSION,
   WS_BASE_URL,
 } from './version'
+export { NATIVE_HOST_NAME } from './native'
+export type { NativeCommand, NativeRequest, NativeResponse, NativeStatus } from './native'

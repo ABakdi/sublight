@@ -28,7 +28,7 @@ export interface RemoteDeps {
   signal?: AbortSignal
 }
 
-/** The installed yt-dlp: `~/.sublight/bin/yt-dlp` (pnpm engine:setup-ytdlp), else none. */
+/** The installed yt-dlp: `~/.sublight/bin/yt-dlp` (`sublight-engine setup yt-dlp`), else none. */
 export function findYtDlp(binDir: string): string | null {
   const local = join(binDir, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp')
   return existsSync(local) ? local : null
@@ -177,7 +177,7 @@ export async function resolveRemote(
       'MEDIA_UNREACHABLE',
       direct
         ? directFailure(direct)
-        : 'this video has no direct media URL and yt-dlp is not installed (pnpm engine:setup-ytdlp)',
+        : 'this video has no direct media URL and yt-dlp is not installed (sublight-engine setup yt-dlp)',
       false,
       422,
     )

@@ -99,7 +99,7 @@ export function describeError(err: unknown): CaptionError {
     MEDIA_TOO_LARGE: 'The file is larger than the engine’s upload limit.',
     MODEL_NOT_INSTALLED: 'That model isn’t installed yet. Install it, then try again.',
     WORKER_UNAVAILABLE:
-      'The speech engine (whisper-server) couldn’t start. Build it once with `pnpm engine:setup-whisper`.',
+      'The speech engine (whisper-server) couldn’t start. Install it once with `sublight-engine setup whisper`.',
   }
   return { code: err.code, message: messages[err.code] ?? err.message }
 }

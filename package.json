@@ -25,9 +25,9 @@
     "dev:extension": "pnpm --filter @sublight/extension dev",
     "engine": "pnpm --silent --filter @sublight/engine cli",
     "engine:token": "pnpm --silent --filter @sublight/engine token",
-    "engine:setup-whisper": "node scripts/setup-whisper.mjs",
-    "engine:setup-llama": "node scripts/setup-llama.mjs",
-    "engine:setup-ytdlp": "node scripts/setup-ytdlp.mjs",
+    "engine:setup-whisper": "pnpm --silent --filter @sublight/engine cli setup whisper",
+    "engine:setup-llama": "pnpm --silent --filter @sublight/engine cli setup llama",
+    "engine:setup-ytdlp": "pnpm --silent --filter @sublight/engine cli setup yt-dlp",
     "engine:transcribe": "pnpm --silent --filter @sublight/engine transcribe",
     "ext:try": "node scripts/try-extension.mjs",
     "prepare": "husky"

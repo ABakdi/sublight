@@ -45,7 +45,7 @@ interface BuildInfo {
 }
 
 /**
- * A model server built by `pnpm engine:setup-<name>` (~/.sublight/bin/<name>.json),
+ * A model server built by `sublight-engine setup <name>` (~/.sublight/bin/<name>.json),
  * unless config names a binary. GPU only for CUDA builds, and never with `gpu: "off"`.
  */
 export function runtimeBinary(

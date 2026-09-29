@@ -34,7 +34,7 @@ export interface EngineConfig {
     uploadBytes: number
   }
   whisper: {
-    /** whisper-server binary; default from `pnpm engine:setup-whisper` (~/.sublight/bin). */
+    /** whisper-server binary; default from `sublight-engine setup whisper` (~/.sublight/bin). */
     binary?: string
     port: number
     /** 'auto' uses the GPU when the binary was built with CUDA; 'off' forces CPU. */
@@ -42,7 +42,7 @@ export interface EngineConfig {
     threads: number
   }
   llama: {
-    /** llama-server binary; default from `pnpm engine:setup-llama` (~/.sublight/bin). */
+    /** llama-server binary; default from `sublight-engine setup llama` (~/.sublight/bin). */
     binary?: string
     port: number
     gpu: 'auto' | 'off'

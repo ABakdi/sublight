@@ -3,7 +3,7 @@
  * Versions and releases (M06.5, CONTRIBUTING "Releasing").
  *
  *   node scripts/release.mjs 0.2.0        set every package to 0.2.0, the engine's
- *                                         ENGINE_VERSION too, and move the changelog's
+ *                                         ENGINE_VERSION and install.sh too, and move the changelog's
  *                                         Unreleased notes under [0.2.0]
  *   node scripts/release.mjs --check [--tag v0.2.0]
  *                                         versions agree (and match the tag), and the
@@ -26,6 +26,8 @@ const PACKAGES = [
   'packages/protocol/package.json',
 ]
 const HEALTH = 'apps/engine/src/health.ts'
+const INSTALLER = 'scripts/install.sh'
+const INSTALLER_VERSION_RE = /^SUBLIGHT_VERSION="([^"]+)"/m
 const CHANGELOG = 'CHANGELOG.md'
 const ENGINE_VERSION_RE = /export const ENGINE_VERSION = '([^']+)'/
 const SEMVER_RE = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/
@@ -44,6 +46,7 @@ function section(changelog, version) {
 function versions() {
   const found = PACKAGES.map((p) => [p, JSON.parse(read(p)).version])
   found.push([HEALTH, read(HEALTH).match(ENGINE_VERSION_RE)?.[1]])
+  found.push([INSTALLER, read(INSTALLER).match(INSTALLER_VERSION_RE)?.[1]])
   return found
 }
 
@@ -77,6 +80,7 @@ function bump(version) {
     HEALTH,
     read(HEALTH).replace(ENGINE_VERSION_RE, `export const ENGINE_VERSION = '${version}'`),
   )
+  write(INSTALLER, read(INSTALLER).replace(INSTALLER_VERSION_RE, `SUBLIGHT_VERSION="${version}"`))
   let changelog = read(CHANGELOG)
   if (!section(changelog, version)) {
     if (!/^## \[Unreleased\]/m.test(changelog)) {

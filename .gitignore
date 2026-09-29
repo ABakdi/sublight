@@ -31,6 +31,9 @@ docs/.obsidian/workspace.json
 test-results/
 playwright-report/
 
+# Release packages (scripts/package.mjs)
+release/
+
 # WXT / extension build output
 apps/extension/.output/
 apps/extension/.wxt/

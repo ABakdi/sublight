@@ -33,11 +33,13 @@ updated: 2026-09-29
 
 - [ ] **M06b.2** — **`install.sh`** as described in _Decisions_: user-local (no sudo), idempotent (re-running it updates), and `--uninstall`. It checks the GPU and picks a CUDA, Vulkan or CPU runtime, checks every download against SHA-256, and ends by opening the extensions page with the steps to load the extension.
   - _Accept:_ on a clean Linux user without Node, cmake or a CUDA toolkit, the script plus loading the extension caption a YouTube video with GPU ASR.
+  - _Progress (2026-09-29):_ `scripts/install.sh` installs from a release (`--from` a local one, else GitHub) checked against `SHA256SUMS`: system packages through the package manager (asks first), Node 22 when missing (pinned, checksum-checked), the engine, Player and extension, whisper.cpp, yt-dlp, whisper-small, llama.cpp if wanted, and the native host. Re-running it updates; `--uninstall` removes it. `sublight-engine setup` and `model` do the work, and `scripts/package.mjs` builds the release it installs. Tested in a throwaway home (install, update, uninstall). Still missing: prebuilt runtimes, so a machine without a CUDA toolkit builds for the CPU.
 
 ### The extension runs the engine
 
 - [ ] **M06b.3** — **Native host**: `sublight-engine native-host` handles `status`, `start`, `stop`, `token` and `version`. Only the extension's pinned ID may connect. The extension gets the `nativeMessaging` permission, takes the token from the host and stops pairing.
   - _Accept:_ after the install, the extension captions a video with no pairing step; a rotated token re-syncs on its own.
+  - _Progress (2026-09-29):_ the engine side is done: `sublight-engine native-host`, registered by install.sh, tested (framing, refusing other extensions, start/status/token/stop). The extension doesn't use it yet.
 - [ ] **M06b.4** — **Start on demand**: an engine request that finds it offline starts it through the host, shows _Starting…_, and retries once it answers.
   - _Accept:_ with the engine stopped, "Caption this video" captions with no other click.
 - [ ] **M06b.5** — **Smart idle** in the engine:
