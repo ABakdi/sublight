@@ -15,6 +15,8 @@ import type {
 } from '../../src/messages'
 import { modeOf, OVERLAY_STYLE_KEY, type QuickStyle } from '../../src/overlayFrame'
 import { send } from '../../src/send'
+import { startEngine } from '../../src/engine'
+import { DEFAULT_PLAYER_URL, PLAYER_URL_KEY } from '../../src/openInPlayer'
 import { EngineCard, ModelsCard } from '../../src/engineCards'
 import {
   CaptionStyleSettings,
@@ -415,6 +417,29 @@ export function PopupApp() {
           onClick={() => void browser.runtime.openOptionsPage()}
         >
           Open full page
+        </button>
+        <button
+          data-testid="open-player"
+          style={{
+            ...button,
+            border: 'none',
+            padding: 0,
+            background: 'none',
+            color: colors.accent,
+          }}
+          title="The Sublight Player: your own videos, and editing captions"
+          onClick={() =>
+            void run(async () => {
+              // The engine serves the Player: start it first if it's off (M06b.9).
+              if (engine?.state !== 'online') await startEngine()
+              const got = await browser.storage.local.get(PLAYER_URL_KEY)
+              await browser.tabs.create({
+                url: (got[PLAYER_URL_KEY] as string | undefined) || DEFAULT_PLAYER_URL,
+              })
+            })
+          }
+        >
+          Open Sublight Player
         </button>
         <span>v{browser.runtime.getManifest().version}</span>
       </footer>

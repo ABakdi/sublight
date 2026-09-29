@@ -72,8 +72,9 @@ updated: 2026-09-29
 
 ### The Player
 
-- [ ] **M06b.9** — **Open Sublight Player** in the popup: it starts the engine if needed, then opens the Player.
+- [x] **M06b.9** — **Open Sublight Player** in the popup: it starts the engine if needed, then opens the Player.
   - _Accept:_ with the engine off, one click opens the Player.
+  - _Done (2026-09-29):_ **Open Sublight Player** in the popup's footer starts the engine when it isn't online, then opens the Player it serves (the Player address from Settings); in the extension e2e.
 - [ ] **M06b.10** — **Player UI/UX**:
   - a dark, light or system theme, switchable and remembered (design tokens; contrast checked in both)
   - a video-first layout, with the panels (Tracks, Caption, Style, Models) in a collapsible side drawer

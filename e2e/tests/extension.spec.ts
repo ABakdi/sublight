@@ -249,6 +249,13 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await popup.getByTestId('developer-mode').check()
     await expect(popup.getByTestId('device-gpu')).toBeVisible()
     await expect(popup.getByTestId('token-input')).toBeVisible() // pairing by hand
+
+    // Open Sublight Player (M06b.9): the Player the engine serves, in a new tab.
+    const opened = context.waitForEvent('page')
+    await popup.getByTestId('open-player').click()
+    const player = await opened
+    await expect(player).toHaveURL(/127\.0\.0\.1:17420/)
+    await expect(player.getByRole('heading', { name: 'sublight player' })).toBeVisible()
   })
 
   test('loads with the pinned dev ID and pairs with the engine', async () => {
