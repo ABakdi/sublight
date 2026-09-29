@@ -15,6 +15,15 @@ import type {
 } from '../../src/messages'
 import { modeOf, OVERLAY_STYLE_KEY, type QuickStyle } from '../../src/overlayFrame'
 import { send } from '../../src/send'
+import { EngineCard, ModelsCard } from '../../src/engineCards'
+import {
+  CaptionStyleSettings,
+  EnginePairing,
+  FetchSettings,
+  LiveSettings,
+  Shortcuts,
+  TranslationModel,
+} from '../../src/settings'
 import { button, card, clock, colors, label, primaryButton } from '../../src/ui'
 
 const POLL_MS = 1000
@@ -51,7 +60,50 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
  * ahead of playback, exact timing, ADR-0020), how captions look, the SRT
  * download for the whole video, and live/test captions under "More".
  */
+/** The popup's tabs (M06b.7): everything the extension does, in one place. */
+const TABS = [
+  ['video', 'Video'],
+  ['style', 'Style'],
+  ['models', 'Models'],
+  ['engine', 'Engine'],
+  ['settings', 'Settings'],
+] as const
+type Tab = (typeof TABS)[number][0]
+
+function TabBar({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
+  return (
+    <nav
+      role="tablist"
+      style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${colors.border}` }}
+    >
+      {TABS.map(([id, name]) => (
+        <button
+          key={id}
+          role="tab"
+          aria-selected={tab === id}
+          data-testid={`tab-${id}`}
+          onClick={() => onTab(id)}
+          style={{
+            ...button,
+            border: 'none',
+            borderRadius: 0,
+            background: 'none',
+            padding: '6px 8px',
+            fontWeight: tab === id ? 650 : 500,
+            color: tab === id ? colors.accent : colors.muted,
+            borderBottom: `2px solid ${tab === id ? colors.accent : 'transparent'}`,
+            marginBottom: -1,
+          }}
+        >
+          {name}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
 export function PopupApp() {
+  const [view, setView] = useState<Tab>('video')
   const [tabId, setTabId] = useState<number | null>(null)
   const [title, setTitle] = useState('')
   const [engine, setEngine] = useState<EngineStatus | null>(null)
@@ -143,8 +195,11 @@ export function PopupApp() {
   return (
     <main
       style={{
-        width: 360,
+        width: 380,
+        boxSizing: 'border-box',
         padding: 14,
+        // Children never wider than the popup: settings sections wrap instead.
+        gridTemplateColumns: 'minmax(0, 1fr)',
         fontFamily: 'system-ui, sans-serif',
         color: colors.text,
         background: colors.surface,
@@ -157,12 +212,17 @@ export function PopupApp() {
         <h1 style={{ margin: 0, fontSize: 15, fontWeight: 700, flex: 1 }}>sublight</h1>
         <button
           style={{ ...button, border: 'none', background: 'none', padding: 0, textAlign: 'right' }}
-          onClick={refreshEngine}
-          title="Check the engine again"
+          onClick={() => {
+            refreshEngine()
+            setView('engine')
+          }}
+          title="The engine: on, off, and its settings"
         >
           <EngineBadge status={engine} compact />
         </button>
       </header>
+
+      <TabBar tab={view} onTab={setView} />
 
       {stale && (
         <section
@@ -184,138 +244,162 @@ export function PopupApp() {
         </section>
       )}
 
-      {(engine?.state === 'no-token' || engine?.state === 'unauthorized') && (
-        <section style={card} data-testid="pair-card">
-          <div style={{ fontSize: 12, lineHeight: 1.45 }}>
-            {engine.state === 'no-token'
-              ? 'Pair sublight with the engine on this computer to caption videos.'
-              : 'The engine no longer accepts the saved token. Pair again.'}
-          </div>
-          <PairButton onPaired={refreshEngine} />
-        </section>
+      {view === 'style' && <CaptionStyleSettings />}
+      {view === 'models' && <ModelsCard />}
+      {view === 'engine' && <EngineCard />}
+      {view === 'settings' && (
+        <>
+          <LiveSettings online={engine?.state === 'online'} />
+          <FetchSettings />
+          <TranslationModel online={engine?.state === 'online'} />
+          <Shortcuts />
+          <details style={{ ...card, gap: 0 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              Advanced: pairing by hand
+            </summary>
+            <EnginePairing onStatus={() => refreshEngine()} />
+          </details>
+        </>
       )}
 
-      <VideoCard
-        reported={reported}
-        frame={frame}
-        videoCount={videoCount}
-        title={pageTitle}
-        now={now}
-      />
-
-      <button
-        data-testid="open-in-player"
-        style={frame ? button : { ...button, opacity: 0.5, cursor: 'default' }}
-        disabled={!frame}
-        title="Play this video in the Sublight Player: edit, translate and export its captions"
-        onClick={() =>
-          void run(async () => {
-            if (tabId === null) return
-            const r = (await send({ type: 'player.open', tabId })) as
-              { ok: boolean; error?: string } | undefined
-            if (r === undefined) throw new Error(NO_ANSWER)
-            if (!r.ok) throw new Error(r.error ?? 'Couldn’t open the Player.')
-          })
-        }
-      >
-        Open in Sublight Player
-      </button>
-
-      <CaptionsCard
-        captions={captions}
-        frame={frame}
-        now={now}
-        canCaption={canCaption}
-        disabledReason={
-          engine?.state !== 'online'
-            ? 'Needs the engine: see the badge at the top.'
-            : !frame
-              ? 'No video found on this page (reload it if sublight was just installed).'
-              : null
-        }
-        onToggle={() => void toggleCaptions()}
-        onUseLive={() => void toggleLive()}
-      />
-
-      <DisplayCard />
-
-      {tabId !== null && (
-        <DownloadCard
-          tabId={tabId}
-          captions={captions}
-          canCaption={canCaption}
-          onState={setCaptions}
-          onError={setError}
-        />
-      )}
-
-      {error && (
-        <div data-testid="popup-error" style={{ fontSize: 12, color: colors.bad }}>
-          {error}
-        </div>
-      )}
-
-      <details style={{ ...card, gap: 0 }} open={liveActive || demoOn || undefined}>
-        <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>More</summary>
-        <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
-          <div style={label}>Live captions</div>
-          <div style={{ fontSize: 11, color: colors.muted, lineHeight: 1.4 }}>
-            For live streams and videos the engine can’t fetch: follows the sound as it plays, about
-            3 s behind.
-          </div>
-          <button
-            data-testid="live-toggle"
-            style={canCaption ? button : { ...button, opacity: 0.5, cursor: 'default' }}
-            disabled={!canCaption}
-            onClick={() => void toggleLive()}
-          >
-            {liveActive ? 'Stop live captions' : 'Caption live'}
-          </button>
-          <LiveLine live={live} />
-          {live?.notice && liveActive && (
-            <div
-              data-testid="live-notice"
-              style={{ fontSize: 11, color: colors.warn, lineHeight: 1.4 }}
-            >
-              {live.notice}
-            </div>
+      {view === 'video' && (
+        <>
+          {(engine?.state === 'no-token' || engine?.state === 'unauthorized') && (
+            <section style={card} data-testid="pair-card">
+              <div style={{ fontSize: 12, lineHeight: 1.45 }}>
+                {engine.state === 'no-token'
+                  ? 'The sublight engine isn’t installed on this computer yet: run install.sh (see the sublight website), then reopen this. Or pair with an engine you started yourself:'
+                  : 'The engine no longer accepts the saved token. Pair again.'}
+              </div>
+              <PairButton onPaired={refreshEngine} />
+            </section>
           )}
-          {tabId !== null && live && live.phase !== 'starting' && <LiveDownload tabId={tabId} />}
 
-          <div style={{ ...label, marginTop: 6 }}>Test captions</div>
+          <VideoCard
+            reported={reported}
+            frame={frame}
+            videoCount={videoCount}
+            title={pageTitle}
+            now={now}
+          />
+
           <button
-            data-testid="demo-toggle"
+            data-testid="open-in-player"
             style={frame ? button : { ...button, opacity: 0.5, cursor: 'default' }}
             disabled={!frame}
-            onClick={() => void toggleDemo()}
+            title="Play this video in the Sublight Player: edit, translate and export its captions"
+            onClick={() =>
+              void run(async () => {
+                if (tabId === null) return
+                const r = (await send({ type: 'player.open', tabId })) as
+                  { ok: boolean; error?: string } | undefined
+                if (r === undefined) throw new Error(NO_ANSWER)
+                if (!r.ok) throw new Error(r.error ?? 'Couldn’t open the Player.')
+              })
+            }
           >
-            {demoOn ? 'Hide test captions' : 'Show test captions'}
+            Open in Sublight Player
           </button>
-          <div style={{ fontSize: 11, color: colors.muted, lineHeight: 1.4 }}>
-            Shows the video clock every 2.5 s, to check position and sync on this site.
-          </div>
 
-          <div style={{ ...label, marginTop: 6 }}>On the video</div>
-          <div style={{ fontSize: 11, color: colors.muted, lineHeight: 1.5 }}>
-            The <b>CC</b> button on the video opens quick controls: captions on/off, translate,
-            delay. Keys: Alt+Shift+V on/off · Alt+Shift+, and . delay ∓100 ms · Alt+Shift+T
-            translate · Alt+Shift+K controls.{' '}
-            <button
-              style={{
-                ...button,
-                border: 'none',
-                padding: 0,
-                background: 'none',
-                color: colors.accent,
-                fontSize: 11,
-              }}
-              onClick={() => void browser.runtime.openOptionsPage()}
-            >
-              All shortcuts
-            </button>
-          </div>
-        </div>
-      </details>
+          <CaptionsCard
+            captions={captions}
+            frame={frame}
+            now={now}
+            canCaption={canCaption}
+            disabledReason={
+              engine?.state !== 'online'
+                ? 'Needs the engine: see the badge at the top.'
+                : !frame
+                  ? 'No video found on this page (reload it if sublight was just installed).'
+                  : null
+            }
+            onToggle={() => void toggleCaptions()}
+            onUseLive={() => void toggleLive()}
+          />
+
+          <DisplayCard />
+
+          {tabId !== null && (
+            <DownloadCard
+              tabId={tabId}
+              captions={captions}
+              canCaption={canCaption}
+              onState={setCaptions}
+              onError={setError}
+            />
+          )}
+
+          {error && (
+            <div data-testid="popup-error" style={{ fontSize: 12, color: colors.bad }}>
+              {error}
+            </div>
+          )}
+
+          <details style={{ ...card, gap: 0 }} open={liveActive || demoOn || undefined}>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>More</summary>
+            <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+              <div style={label}>Live captions</div>
+              <div style={{ fontSize: 11, color: colors.muted, lineHeight: 1.4 }}>
+                For live streams and videos the engine can’t fetch: follows the sound as it plays,
+                about 3 s behind.
+              </div>
+              <button
+                data-testid="live-toggle"
+                style={canCaption ? button : { ...button, opacity: 0.5, cursor: 'default' }}
+                disabled={!canCaption}
+                onClick={() => void toggleLive()}
+              >
+                {liveActive ? 'Stop live captions' : 'Caption live'}
+              </button>
+              <LiveLine live={live} />
+              {live?.notice && liveActive && (
+                <div
+                  data-testid="live-notice"
+                  style={{ fontSize: 11, color: colors.warn, lineHeight: 1.4 }}
+                >
+                  {live.notice}
+                </div>
+              )}
+              {tabId !== null && live && live.phase !== 'starting' && (
+                <LiveDownload tabId={tabId} />
+              )}
+
+              <div style={{ ...label, marginTop: 6 }}>Test captions</div>
+              <button
+                data-testid="demo-toggle"
+                style={frame ? button : { ...button, opacity: 0.5, cursor: 'default' }}
+                disabled={!frame}
+                onClick={() => void toggleDemo()}
+              >
+                {demoOn ? 'Hide test captions' : 'Show test captions'}
+              </button>
+              <div style={{ fontSize: 11, color: colors.muted, lineHeight: 1.4 }}>
+                Shows the video clock every 2.5 s, to check position and sync on this site.
+              </div>
+
+              <div style={{ ...label, marginTop: 6 }}>On the video</div>
+              <div style={{ fontSize: 11, color: colors.muted, lineHeight: 1.5 }}>
+                The <b>CC</b> button on the video opens quick controls: captions on/off, translate,
+                delay. Keys: Alt+Shift+V on/off · Alt+Shift+, and . delay ∓100 ms · Alt+Shift+T
+                translate · Alt+Shift+K controls.{' '}
+                <button
+                  style={{
+                    ...button,
+                    border: 'none',
+                    padding: 0,
+                    background: 'none',
+                    color: colors.accent,
+                    fontSize: 11,
+                  }}
+                  onClick={() => void browser.runtime.openOptionsPage()}
+                >
+                  All shortcuts
+                </button>
+              </div>
+            </div>
+          </details>
+        </>
+      )}
 
       <footer
         style={{
@@ -335,7 +419,7 @@ export function PopupApp() {
           }}
           onClick={() => void browser.runtime.openOptionsPage()}
         >
-          Options & pairing
+          Open full page
         </button>
         <span>v{browser.runtime.getManifest().version}</span>
       </footer>

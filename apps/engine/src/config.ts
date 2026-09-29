@@ -161,6 +161,29 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
 }
 
 /**
+ * Save settings the extension changes (M06b.7: the idle delays) to
+ * config.json and into the running `config`, touching only those fields, so
+ * env overrides never get written into the file.
+ */
+export function saveSettings(config: EngineConfig, patch: { idle?: Partial<IdleConfig> }): void {
+  const file = join(sublightHome(), 'config.json')
+  let raw: Record<string, unknown> = {}
+  try {
+    raw = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+  } catch {
+    raw = { ...config }
+  }
+  if (patch.idle) {
+    // In place: the idle monitor holds this object.
+    Object.assign(config.idle, patch.idle)
+    raw.idle = { ...config.idle }
+  }
+  const tmp = `${file}.tmp`
+  writeFileSync(tmp, JSON.stringify(raw, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 })
+  renameSync(tmp, file)
+}
+
+/**
  * A new token, saved to config.json (M06.3, "unpair everything"): every
  * client must pair again. Only the token field changes in the file, so env
  * overrides never get written into it.

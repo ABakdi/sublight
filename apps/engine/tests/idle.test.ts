@@ -134,3 +134,35 @@ describe('what counts as activity', () => {
     expect(touched).toBe(2)
   })
 })
+
+describe('idle delays from the extension (M06b.7)', () => {
+  it('are read and saved to config.json, validated, in the running config too', async () => {
+    const { createApp } = await import('../src/app')
+    const { loadConfig } = await import('../src/config')
+    const { readFileSync } = await import('node:fs')
+    const home = mkdtempSync(join(tmpdir(), 'sublight-settings-'))
+    process.env.SUBLIGHT_HOME = home
+    const config = { ...loadConfig(), port: 17421 }
+    const app = createApp(config)
+    const h = { host: '127.0.0.1:17421', authorization: `Bearer ${config.token}` }
+    expect(await (await app.request('/v1/settings', { headers: h })).json()).toEqual({
+      idle: { unloadMinutes: 5, exitMinutes: 20 },
+    })
+    const put = (idle: unknown) =>
+      app.request('/v1/settings', {
+        method: 'PUT',
+        headers: { ...h, 'content-type': 'application/json' },
+        body: JSON.stringify({ idle }),
+      })
+    expect((await put({ exitMinutes: 0 })).status).toBe(200)
+    expect(config.idle).toEqual({ unloadMinutes: 5, exitMinutes: 0 })
+    const saved = JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')) as {
+      idle: unknown
+      token: string
+    }
+    expect(saved.idle).toEqual({ unloadMinutes: 5, exitMinutes: 0 })
+    expect(saved.token).toBe(config.token)
+    expect((await put({ unloadMinutes: -1 })).status).toBe(400)
+    expect((await put({ unloadMinutes: 'soon' })).status).toBe(400)
+  })
+})

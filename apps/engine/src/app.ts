@@ -16,7 +16,7 @@ import type {
   RelayStatusResponse,
 } from '@sublight/protocol'
 import { COOKIE_BROWSERS, IDEMPOTENCY_KEY_HEADER } from '@sublight/protocol'
-import { rotateToken, type EngineConfig } from './config'
+import { rotateToken, saveSettings, type EngineConfig } from './config'
 import {
   bearerAuth,
   clientOrigins,
@@ -177,6 +177,21 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
     return bearerAuth(config.token)(c, next)
   })
 
+  // Settings the extension changes (M06b.7): the idle delays, in minutes (0 = never).
+  app.get('/v1/settings', (c) => c.json({ idle: config.idle }))
+  app.put('/v1/settings', async (c) => {
+    const body = await c.req.json<{ idle?: Record<string, unknown> }>().catch(() => null)
+    const idle: Partial<{ unloadMinutes: number; exitMinutes: number }> = {}
+    for (const key of ['unloadMinutes', 'exitMinutes'] as const) {
+      const v = body?.idle?.[key]
+      if (v === undefined) continue
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 24 * 60)
+        return jsonError(c, 'JOB_INVALID', `idle.${key} must be 0-1440 minutes`, 400)
+      idle[key] = v
+    }
+    saveSettings(config, { idle })
+    return c.json({ idle: config.idle })
+  })
   app.get('/v1/health', async (c) => c.json(buildHealth(bootedAt, s, s ? await gpu() : undefined)))
   app.get('/v1/version', (c) => c.json(buildVersion()))
 

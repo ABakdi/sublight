@@ -229,6 +229,21 @@ test.describe('extension in Chromium (Spec 09)', () => {
       }
     })
     expect(where).toEqual({ session: E2E_TOKEN, local: undefined })
+
+    // Everything in one place (M06b.6-8): the engine and its models in the popup.
+    const popup = await context.newPage()
+    await popup.goto(`${EXT}/popup.html`)
+    await popup.getByTestId('tab-engine').click()
+    await expect(popup.getByTestId('engine-card')).toHaveAttribute('data-state', 'on', {
+      timeout: 15_000,
+    })
+    await expect(popup.getByTestId('engine-switch')).toHaveText('Turn off')
+    await expect(popup.getByTestId('keep-running')).toBeVisible()
+    await popup.getByTestId('tab-models').click()
+    await expect(popup.getByTestId('models-card')).toHaveAttribute('data-state', 'on')
+    await expect(popup.getByTestId('model-whisper-small')).toBeVisible()
+    await popup.getByTestId('tab-settings').click()
+    await expect(popup.getByTestId('caption-model-select')).toBeVisible()
   })
 
   test('loads with the pinned dev ID and pairs with the engine', async () => {

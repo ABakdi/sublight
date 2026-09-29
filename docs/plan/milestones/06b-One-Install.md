@@ -51,6 +51,7 @@ updated: 2026-09-29
   - _Progress (2026-09-29):_ built as specified (Spec 06 §1, `idle.ts`): work never stops it, status reads don't count as activity, background engines exit and terminal ones stay, halved on battery; unit tests for each case, and a background engine with short delays exited by itself and logged why. The extension's background polls no longer start an idle engine. Not yet: the delays and the switch in the popup (M06b.6/7), and the idle CPU and VRAM measurement.
 - [ ] **M06b.6** — **Engine status in the popup**: _Off · Starting · On · Busy · Idle (models unloaded)_, with an on/off switch. When the host is missing, the popup explains how to run `install.sh`.
   - _Accept:_ each state appears in the extension e2e (the host is faked in tests).
+  - _Progress (2026-09-29):_ the popup's Engine tab ([Spec 09 §7](../../specification/09-Browser-Extension.md#7-popup--options)) with the switch and the idle delays; the extension e2e checks it with the real host (on, the switch, the settings). Still to do: the Off and Starting states in e2e, and the action icon showing the state (M06b.14).
 
 ### Everything in one place
 
@@ -62,8 +63,10 @@ updated: 2026-09-29
   - _Settings_: browser login, English via Whisper or LLM, Player address, idle delays, start with the computer
   - The Options page opens the same UI full size. I'll try a side panel (`chrome.sidePanel`) for the same UI and keep whichever reads better.
   - _Accept:_ no flow in the Beta-1 matrix needs the Options page.
+  - _Progress (2026-09-29):_ built: the popup's tabs and the full-page Options share the same sections. The side panel is not tried yet. "Start with my computer" isn't in Settings yet (autostart stays a command).
 - [ ] **M06b.8** — **Models from the extension**: install with progress, remove, installed size and free disk space, as in the Player's Models panel. The engine client moves to a shared package used by both the extension and the Player (the two copies have drifted: [Q-3](../../audits/2026-09-Code-Quality-Q3.md) Q7).
   - _Accept:_ whisper-small and Qwen3-4B install and remove from the popup.
+  - _Progress (2026-09-29):_ the popup's Models tab (install with progress, remove, disk space, cached audio). Not yet: the shared engine client package; the extension and the Player still each have their own.
 
 ### The Player
 
