@@ -21,7 +21,7 @@ export default defineContentScript({
   matches: ['<all_urls>'],
   allFrames: true,
   runAt: 'document_idle',
-  main() {
+  main(ctx) {
     const isTop = window.self === window.top
     const watched = new WeakSet<HTMLVideoElement>()
     let videos: HTMLVideoElement[] = []
@@ -76,7 +76,14 @@ export default defineContentScript({
       timer = setTimeout(() => report(force), 150)
     }
 
-    new MutationObserver(() => schedule()).observe(document.documentElement, {
+    // An updated or reloaded extension leaves this script behind: it stops
+    // watching and polling then (code quality Q-3, Q9).
+    const observer = new MutationObserver(() => schedule())
+    ctx.onInvalidated(() => {
+      observer.disconnect()
+      clearTimeout(timer)
+    })
+    observer.observe(document.documentElement, {
       childList: true,
       subtree: true,
     })
@@ -133,7 +140,7 @@ export default defineContentScript({
 
     // Reload, a real navigation or closing: nobody will see these captions.
     // (In-page URL changes don't fire pagehide; `follow` handles those.)
-    window.addEventListener('pagehide', () => {
+    ctx.addEventListener(window, 'pagehide', () => {
       if (!captions && !live) return
       void browser.runtime.sendMessage({ type: 'page.gone' } satisfies Message).catch(() => {})
     })
@@ -141,7 +148,8 @@ export default defineContentScript({
     // Keyboard (Spec 09 §7): Alt+Shift+V captions on/off, Alt+Shift+, and . delay
     // −/+100 ms, Alt+Shift+0 no delay, Alt+Shift+T translate on/off,
     // Alt+Shift+K open/close the controls, Alt+Shift+B original + translation. Physical keys (e.code), so any layout works.
-    window.addEventListener(
+    ctx.addEventListener(
+      window,
       'keydown',
       (e) => {
         if (!e.altKey || !e.shiftKey || e.ctrlKey || e.metaKey) return
@@ -168,10 +176,10 @@ export default defineContentScript({
         e.stopImmediatePropagation()
         act()
       },
-      true,
+      { capture: true },
     )
 
-    setInterval(() => {
+    ctx.setInterval(() => {
       // A real move to another video, not YouTube dropping `&t=` from the URL.
       if (videoKey(location.href) !== videoKey(lastUrl)) {
         lastUrl = location.href
@@ -186,7 +194,7 @@ export default defineContentScript({
       follow()
     }, RESCAN_MS)
 
-    browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+    const onMessage = (message: unknown, _sender: unknown, sendResponse: (r: unknown) => void) => {
       if (!isMessage(message)) return undefined
       switch (message.type) {
         case 'demo.set':
@@ -277,7 +285,9 @@ export default defineContentScript({
         default:
           return undefined
       }
-    })
+    }
+    browser.runtime.onMessage.addListener(onMessage)
+    ctx.onInvalidated(() => browser.runtime.onMessage.removeListener(onMessage))
 
     console.info(
       '[sublight] content script loaded',

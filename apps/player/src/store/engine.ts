@@ -68,7 +68,7 @@ export const useEngineStore = create<EngineState>((set, get) => {
         hasToken: engineToken() !== null,
       })
       if (result.state === 'online') {
-        socket.connect()
+        void socket.connect()
         await get().refreshModels()
       }
     },

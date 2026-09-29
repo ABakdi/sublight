@@ -7,8 +7,8 @@ import {
   renameSync,
   rmSync,
   statSync,
-  writeFileSync,
   statfsSync,
+  writeFileSync,
 } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
@@ -80,9 +80,18 @@ export class ModelManager {
   }
 
   private readRegistry(): Registry {
+    if (!existsSync(this.registryFile)) return {}
     try {
-      return JSON.parse(readFileSync(this.registryFile, 'utf8')) as Registry
-    } catch {
+      const data: unknown = JSON.parse(readFileSync(this.registryFile, 'utf8'))
+      if (data && typeof data === 'object' && !Array.isArray(data)) return data as Registry
+      throw new Error('not an object')
+    } catch (err) {
+      // Kept aside, not overwritten by the next install (code quality Q-3, Q13).
+      const aside = `${this.registryFile}.corrupt-${Date.now()}`
+      renameSync(this.registryFile, aside)
+      console.error(
+        `[engine] ${this.registryFile} was unreadable (${String(err)}): moved to ${aside}`,
+      )
       return {}
     }
   }

@@ -7,15 +7,13 @@ import type {
   ModelInfo,
   ModelsResponse,
   UploadResult,
-  WsClientMessage,
-  WsControlMessage,
-  WsEvent,
   MediaResolveRequest,
   MediaResolveResponse,
   RelayStatusResponse,
   PairClaimResponse,
   PairRequestResponse,
 } from '@sublight/protocol'
+import { EngineSocket as SharedEngineSocket } from '@sublight/protocol'
 
 const ENGINE_URL_KEY = 'sublight.engineUrl'
 const TOKEN_KEY = 'sublight.token'
@@ -214,80 +212,18 @@ export async function fetchEngineHealth(): Promise<HealthResult> {
   }
 }
 
-type Listener = (event: WsEvent) => void
-
 /**
- * WS event stream (Protocol §4): authenticates with the first message,
- * resubscribes and reconnects with backoff. REST stays the source of truth;
- * callers also poll, so a dropped socket only makes updates slower.
+ * WS event stream (Protocol §4): the shared client (`@sublight/protocol`),
+ * pointed at this Player's engine. REST stays the source of truth; callers
+ * also poll, so a dropped socket only makes updates slower.
  */
-export class EngineSocket {
-  private ws: WebSocket | null = null
-  private listeners = new Set<Listener>()
-  private jobIds = new Set<string>()
-  private retry = 0
-  private timer: ReturnType<typeof setTimeout> | undefined
-  private closed = false
-
-  connect(): void {
-    this.closed = false
-    const token = engineToken()
-    if (!token || this.ws) return
-    const url = `${engineBaseUrl().replace(/^http/, 'ws')}/ws`
-    let ws: WebSocket
-    try {
-      ws = new WebSocket(url)
-    } catch {
-      return this.scheduleReconnect()
-    }
-    this.ws = ws
-    ws.onopen = () => this.send({ type: 'auth', token })
-    ws.onmessage = (msg) => {
-      const data = JSON.parse(String(msg.data)) as WsEvent | WsControlMessage
-      if (data.type === 'auth.ok') {
-        this.retry = 0
-        if (this.jobIds.size) this.send({ type: 'subscribe', jobIds: [...this.jobIds] })
-        return
-      }
-      if (data.type === 'error') return
-      this.dispatch(data)
-    }
-    ws.onclose = () => {
-      this.ws = null
-      if (!this.closed) this.scheduleReconnect()
-    }
-  }
-
-  private scheduleReconnect(): void {
-    clearTimeout(this.timer)
-    const delay = Math.min(10_000, 500 * 2 ** this.retry++)
-    this.timer = setTimeout(() => this.connect(), delay)
-  }
-
-  private send(msg: WsClientMessage): void {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg))
-  }
-
-  /** Deliver an event to listeners (the socket's own messages, or tests). */
-  dispatch(event: WsEvent): void {
-    for (const l of this.listeners) l(event)
-  }
-
-  on(listener: Listener): () => void {
-    this.listeners.add(listener)
-    return () => this.listeners.delete(listener)
-  }
-
-  subscribe(jobId: string): void {
-    this.jobIds.add(jobId)
-    this.send({ type: 'subscribe', jobIds: [jobId] })
-  }
-
-  close(): void {
-    this.closed = true
-    clearTimeout(this.timer)
-    this.ws?.close()
-    this.ws = null
+export class EngineSocket extends SharedEngineSocket {
+  constructor() {
+    super({
+      url: () => `${engineBaseUrl().replace(/^http/, 'ws')}/ws`,
+      token: engineToken,
+      onError: (err) => console.error('[sublight] engine event handler failed', err),
+    })
   }
 }
 

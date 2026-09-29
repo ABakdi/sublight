@@ -1,13 +1,14 @@
 import { browser } from 'wxt/browser'
 import { cuesForMode, serializeSrt, type CaptionMode, type SubtitleTrack } from '@sublight/core'
 import {
+  EngineSocket,
   isEnglish,
   WS_BASE_URL,
   type JobResult,
   type JobSummary,
   type WsEvent,
 } from '@sublight/protocol'
-import { engineRequest, getToken } from './engine'
+import { bestEffort, engineRequest, getToken } from './engine'
 import {
   describe,
   LIVE_LANGUAGE_KEY,
@@ -76,7 +77,7 @@ const whisperTarget = (target: string) => isEnglish(target) && englishVia === 'w
  */
 class CaptionsController {
   state: Stored
-  private ws: WebSocket | null = null
+  private socket: EngineSocket | null = null
   private keepalive: ReturnType<typeof setInterval> | undefined
   /** The page moved on while a download waits: keep transcribing, stop showing. */
   detached = false
@@ -125,32 +126,52 @@ class CaptionsController {
   }
 
   async connect(): Promise<void> {
-    const token = await getToken()
-    const ws = new WebSocket(`${WS_BASE_URL}/ws`)
-    this.ws = ws
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'auth', token }))
-      ws.send(JSON.stringify({ type: 'subscribe', jobIds: [this.jobId] }))
-    }
-    ws.onmessage = (m) => void this.onEvent(JSON.parse(String(m.data)) as WsEvent)
+    this.socket?.close()
+    // Reconnects by itself; what happened meanwhile is read back over REST (Q3),
+    // and a handler that fails shows as an error instead of a stuck "captioning" (Q4).
+    const socket = new EngineSocket({
+      url: () => `${WS_BASE_URL}/ws`,
+      token: getToken,
+      onReconnect: () => void this.resync(),
+      onError: (err) =>
+        void this.fail(`Captioning stopped: ${err instanceof Error ? err.message : String(err)}`),
+    })
+    this.socket = socket
+    socket.on((e) => this.onEvent(e))
+    socket.subscribe(this.jobId)
+    await socket.connect()
     clearInterval(this.keepalive)
     // Leased jobs: the engine cancels them if we stop checking in (tab or browser closed).
     this.keepalive = setInterval(() => {
       const ids = [this.translation?.jobId]
       if (this.state.phase === 'starting' || this.state.phase === 'captioning') ids.push(this.jobId)
       for (const id of ids)
-        if (id) void engineRequest(`/v1/jobs/${id}/keepalive`, { method: 'POST' }).catch(() => {})
+        if (id)
+          void engineRequest(`/v1/jobs/${id}/keepalive`, { method: 'POST' }).catch(
+            bestEffort('keepalive'),
+          )
     }, KEEPALIVE_MS)
-    // Missed events (SW restart, or a job that finished before we subscribed).
-    const job = await engineRequest<JobSummary>(`/v1/jobs/${this.jobId}`).catch(() => null)
+    await this.resync()
+  }
+
+  /** Missed events (SW restart, a dropped socket, a job that finished before we subscribed). */
+  private async resync(): Promise<void> {
+    const job = await engineRequest<JobSummary>(
+      `/v1/jobs/${this.jobId}`,
+      {},
+      { start: false },
+    ).catch(() => null)
     if (job?.state === 'done') await this.finish()
+    else if (job?.state === 'failed')
+      await this.fail(
+        job.error?.message ?? 'Captioning failed.',
+        job.error?.code === 'MEDIA_UNREACHABLE',
+      )
     else if (job?.partial) await this.draft(job.partial)
   }
 
   private subscribe(jobId: string): void {
-    const send = () => this.ws?.send(JSON.stringify({ type: 'subscribe', jobIds: [jobId] }))
-    if (this.ws?.readyState === WebSocket.OPEN) send()
-    else this.ws?.addEventListener('open', send, { once: true })
+    this.socket?.subscribe(jobId)
   }
 
   private async draft(track: SubtitleTrack, companion?: SubtitleTrack): Promise<void> {
@@ -395,14 +416,15 @@ class CaptionsController {
   async cancelTranslation(): Promise<void> {
     const id = this.translation?.jobId ?? this.state.translateJobId
     this.translation = null
-    if (id) await engineRequest(`/v1/jobs/${id}/cancel`, { method: 'POST' }).catch(() => {})
+    if (id)
+      await engineRequest(`/v1/jobs/${id}/cancel`, { method: 'POST' }).catch(bestEffort('cancel'))
     await this.save({ translateJobId: undefined })
   }
 
   close(): void {
     clearInterval(this.keepalive)
-    this.ws?.close()
-    this.ws = null
+    this.socket?.close()
+    this.socket = null
     if (controllers.get(this.tabId) === this) controllers.delete(this.tabId)
   }
 }
@@ -556,7 +578,7 @@ export async function startCaptions(
     })
     .catch(() => null)) as { ok: boolean; reason?: string } | null
   if (!reply?.ok && !opts.pendingDownload) {
-    await engineRequest(`/v1/jobs/${job.id}/cancel`, { method: 'POST' }).catch(() => {})
+    await engineRequest(`/v1/jobs/${job.id}/cancel`, { method: 'POST' }).catch(bestEffort('cancel'))
     await c.fail(
       reply?.reason === 'player'
         ? 'This is the Sublight Player: use its Caption tab instead.'
@@ -577,7 +599,7 @@ export async function stopCaptions(
   if (!c) return captionsStatus(tabId)
   if (!opts.quiet) c.toPage({ type: 'captions.end' })
   await c.cancelTranslation()
-  await engineRequest(`/v1/jobs/${c.jobId}/cancel`, { method: 'POST' }).catch(() => {})
+  await engineRequest(`/v1/jobs/${c.jobId}/cancel`, { method: 'POST' }).catch(bestEffort('cancel'))
   await c.save({ phase: 'stopped', pendingDownload: undefined })
   c.close()
   return c.state
@@ -602,11 +624,13 @@ export async function cancelCaptionsForTab(tabId: number): Promise<void> {
     c.close()
   } else if (state?.translateJobId) {
     await engineRequest(`/v1/jobs/${state.translateJobId}/cancel`, { method: 'POST' }).catch(
-      () => {},
+      bestEffort('cancel'),
     )
   }
   if (state?.jobId && (state.phase === 'starting' || state.phase === 'captioning'))
-    await engineRequest(`/v1/jobs/${state.jobId}/cancel`, { method: 'POST' }).catch(() => {})
+    await engineRequest(`/v1/jobs/${state.jobId}/cancel`, { method: 'POST' }).catch(
+      bestEffort('cancel'),
+    )
   await browser.storage.session.remove([
     stateKey(tabId),
     captionsTrackKey(tabId),

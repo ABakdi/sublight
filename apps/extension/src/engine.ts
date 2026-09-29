@@ -11,6 +11,18 @@ import {
 } from '@sublight/protocol'
 import type { EngineStatus } from './messages'
 
+/** How long an engine request may take before it counts as failed. */
+const REQUEST_TIMEOUT_MS = 20_000
+
+/**
+ * For calls whose failure changes nothing for the viewer (a keep-alive, a
+ * cancel): logged for diagnosis instead of dropped silently (Q-3, Q5).
+ */
+export const bestEffort =
+  (what: string) =>
+  (err: unknown): void =>
+    console.debug(`[sublight] ${what} failed:`, err instanceof Error ? err.message : err)
+
 /** A token pasted or paired by hand (Settings → Advanced): storage.local. */
 export const TOKEN_KEY = 'engineToken'
 /**
@@ -150,6 +162,8 @@ export async function engineRequest<T>(
     )
   const send = (t: string) =>
     fetch(`${ENGINE_BASE_URL}${path}`, {
+      // A stalled engine can't hang the service worker's flows (code quality Q-3, Q6).
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       ...init,
       headers: {
         authorization: `Bearer ${t}`,

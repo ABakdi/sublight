@@ -6,6 +6,7 @@ import {
   type PointerEvent,
   type SyntheticEvent,
 } from 'react'
+import { LANGUAGES } from '@sublight/protocol'
 
 export type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 
@@ -16,24 +17,8 @@ export interface ControlsPrefs {
   expanded?: boolean
 }
 
-/** "Translate to" choices: the spoken language, or one of these. */
-export const TARGETS: [string, string][] = [
-  ['original', 'Original'],
-  ['en', 'English'],
-  ['ar', 'Arabic'],
-  ['fr', 'French'],
-  ['es', 'Spanish'],
-  ['de', 'German'],
-  ['it', 'Italian'],
-  ['pt', 'Portuguese'],
-  ['nl', 'Dutch'],
-  ['ru', 'Russian'],
-  ['tr', 'Turkish'],
-  ['hi', 'Hindi'],
-  ['ja', 'Japanese'],
-  ['ko', 'Korean'],
-  ['zh', 'Chinese'],
-]
+/** "Translate to" choices: the spoken language, or one of the shared list. */
+export const TARGETS: [string, string][] = [['original', 'Original'], ...LANGUAGES]
 
 export const DELAY_STEP_MS = 100
 export const MAX_DELAY_MS = 30_000

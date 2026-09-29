@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { resolveStyle, type SubtitleCue } from '@sublight/core'
 import { SubtitleOverlay } from '@sublight/overlay'
-import { ENGINE_BASE_URL } from '@sublight/protocol'
+import { ENGINE_BASE_URL, LANGUAGES } from '@sublight/protocol'
 import { browser } from 'wxt/browser'
 import {
   AUTO_LIVE_KEY,
@@ -197,19 +197,8 @@ export function EnginePairing({ onStatus }: { onStatus?: (s: EngineStatus | null
   )
 }
 
-const LANGUAGES: [string, string][] = [
-  ['', 'Detect automatically'],
-  ['en', 'English'],
-  ['de', 'German'],
-  ['fr', 'French'],
-  ['es', 'Spanish'],
-  ['it', 'Italian'],
-  ['pt', 'Portuguese'],
-  ['ru', 'Russian'],
-  ['ar', 'Arabic'],
-  ['ja', 'Japanese'],
-  ['zh', 'Chinese'],
-]
+/** Spoken language: detected, or one of the shared list. */
+const SPOKEN: [string, string][] = [['', 'Detect automatically'], ...LANGUAGES]
 
 /** Live-caption defaults (M05): speech model and spoken language. */
 export function LiveSettings({ online }: { online: boolean }) {
@@ -370,7 +359,7 @@ export function LiveSettings({ online }: { online: boolean }) {
               save({ [LIVE_LANGUAGE_KEY]: e.target.value })
             }}
           >
-            {LANGUAGES.map(([code, name]) => (
+            {SPOKEN.map(([code, name]) => (
               <option key={code} value={code}>
                 {name}
               </option>

@@ -6,25 +6,8 @@ export const PRIMARY =
 export const FIELD =
   'w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100'
 
-/** Common languages first; whisper detects ~100 and the LLM covers 100+. */
-export const LANGUAGES: [string, string][] = [
-  ['en', 'English'],
-  ['de', 'German'],
-  ['fr', 'French'],
-  ['es', 'Spanish'],
-  ['it', 'Italian'],
-  ['pt', 'Portuguese'],
-  ['nl', 'Dutch'],
-  ['ru', 'Russian'],
-  ['ar', 'Arabic'],
-  ['tr', 'Turkish'],
-  ['ja', 'Japanese'],
-  ['zh', 'Chinese'],
-  ['ko', 'Korean'],
-  ['hi', 'Hindi'],
-  ['pl', 'Polish'],
-  ['uk', 'Ukrainian'],
-]
+/** The shared list (`@sublight/protocol`). */
+export { LANGUAGES } from '@sublight/protocol'
 
 export function mb(bytes: number | null): string {
   return bytes ? `${Math.round(bytes / 1024 / 1024)} MB` : ''

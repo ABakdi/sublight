@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser'
 import type { SubtitleTrack } from '@sublight/core'
 import {
+  EngineSocket,
   WS_BASE_URL,
   type JobResult,
   type JobSummary,
@@ -8,7 +9,7 @@ import {
   type ModelsResponse,
   type WsEvent,
 } from '@sublight/protocol'
-import { engineRequest, EngineRequestError, getToken } from './engine'
+import { bestEffort, engineRequest, EngineRequestError, getToken } from './engine'
 import type { CaptureSource, LiveState, Message } from './messages'
 import { base64ToBytes, levelDb } from './pcm'
 import { followJob, JobEnded, languageName, TRANSLATE_MODEL, type FollowedJob } from './translation'
@@ -63,7 +64,7 @@ const NO_SOUND_NOTICE =
  */
 class LiveController {
   state: LiveState
-  private ws: WebSocket | null = null
+  private socket: EngineSocket | null = null
   /** Audio posts stay in order: each waits for the previous one. */
   private audioChain: Promise<unknown> = Promise.resolve()
   /** The page moved on: keep the result for download but don't show it there. */
@@ -95,14 +96,33 @@ class LiveController {
   }
 
   async connect(): Promise<void> {
-    const token = await getToken()
-    const ws = new WebSocket(`${WS_BASE_URL}/ws`)
-    this.ws = ws
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'auth', token }))
-      ws.send(JSON.stringify({ type: 'subscribe', jobIds: [this.jobId] }))
-    }
-    ws.onmessage = (m) => void this.onEvent(JSON.parse(String(m.data)) as WsEvent)
+    this.socket?.close()
+    // Reconnects by itself; what happened meanwhile is read back over REST (Q3).
+    const socket = new EngineSocket({
+      url: () => `${WS_BASE_URL}/ws`,
+      token: getToken,
+      onReconnect: () => void this.resync(),
+      onError: (err) =>
+        void this.fail(
+          `Live captions stopped: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+    })
+    this.socket = socket
+    socket.on((e) => this.onEvent(e))
+    socket.subscribe(this.jobId)
+    await socket.connect()
+  }
+
+  /** What the socket missed while it was down. */
+  private async resync(): Promise<void> {
+    const job = await engineRequest<JobSummary>(
+      `/v1/jobs/${this.jobId}`,
+      {},
+      { start: false },
+    ).catch(() => null)
+    if (job?.state === 'done') await this.finish()
+    else if (job?.state === 'failed')
+      await this.fail(job.error?.message ?? 'Live captioning failed.')
   }
 
   private async onEvent(e: WsEvent): Promise<void> {
@@ -143,7 +163,7 @@ class LiveController {
       notice: undefined,
       cues: track?.cues.length ?? 0,
     })
-    this.ws?.close()
+    this.socket?.close()
   }
 
   /** Show the refined track, or `translation` of it, and keep it for "Download SRT". */
@@ -239,14 +259,16 @@ class LiveController {
     this.translation = null
     if (!t) return
     t.follow?.close()
-    await engineRequest(`/v1/jobs/${t.jobId}/cancel`, { method: 'POST' }).catch(() => {})
+    await engineRequest(`/v1/jobs/${t.jobId}/cancel`, { method: 'POST' }).catch(
+      bestEffort('cancel'),
+    )
   }
 
   async fail(message: string): Promise<void> {
     await this.save({ phase: 'error', error: message })
     this.toPage({ type: 'live.end' })
     await stopOffscreen()
-    this.ws?.close()
+    this.socket?.close()
   }
 
   audio(wallMs: number, pcm: string): void {
@@ -292,7 +314,7 @@ class LiveController {
     this.toPage({ type: 'live.end' })
     await stopOffscreen()
     await this.audioChain
-    await engineRequest(`/v1/live/${this.jobId}/stop`, { method: 'POST' }).catch(() => {})
+    await engineRequest(`/v1/live/${this.jobId}/stop`, { method: 'POST' }).catch(bestEffort('stop'))
     await this.save({ phase: 'refining', detail: 'refining' })
   }
 }
@@ -408,7 +430,7 @@ export async function startLive(tabId: number, frameId: number): Promise<LiveSta
     if (reply.captured) await c.useSource('element')
     else await startTabCapture(c)
   } catch (err) {
-    await engineRequest(`/v1/jobs/${job.id}/cancel`, { method: 'POST' }).catch(() => {})
+    await engineRequest(`/v1/jobs/${job.id}/cancel`, { method: 'POST' }).catch(bestEffort('cancel'))
     await c.fail(describe(err))
     controllers.delete(tabId)
   }
@@ -442,7 +464,7 @@ export async function cancelLive(tabId: number): Promise<void> {
   await dropFinished(tabId)
   for (const id of jobIds) {
     finishing.delete(id)
-    await engineRequest(`/v1/jobs/${id}/cancel`, { method: 'POST' }).catch(() => {})
+    await engineRequest(`/v1/jobs/${id}/cancel`, { method: 'POST' }).catch(bestEffort('cancel'))
   }
   if (c || state?.phase === 'listening' || state?.phase === 'starting') await stopOffscreen()
   await browser.storage.session.remove([liveKey(tabId), liveTrackKey(tabId)])

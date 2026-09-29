@@ -1,6 +1,6 @@
 import type { SubtitleTrack } from '@sublight/core'
-import { WS_BASE_URL, type JobResult, type JobSummary, type WsEvent } from '@sublight/protocol'
-import { engineRequest, getToken } from './engine'
+import { EngineSocket, WS_BASE_URL, type JobResult, type JobSummary } from '@sublight/protocol'
+import { bestEffort, engineRequest, getToken } from './engine'
 import { TARGETS } from './quickControls'
 
 /** The LLM translator for targets other than English (ADR-0018/0019). */
@@ -36,17 +36,19 @@ export function followJob(
   jobId: string,
   on: { partial?: (track: SubtitleTrack) => void; progress?: (progress: number) => void } = {},
 ): FollowedJob {
-  let ws: WebSocket | null = null
+  let socket: EngineSocket | null = null
   let settled = false
   let rejectDone: (err: Error) => void = () => {}
   const keepalive = setInterval(() => {
-    void engineRequest(`/v1/jobs/${jobId}/keepalive`, { method: 'POST' }).catch(() => {})
+    void engineRequest(`/v1/jobs/${jobId}/keepalive`, { method: 'POST' }).catch(
+      bestEffort('keepalive'),
+    )
   }, KEEPALIVE_MS)
   const stop = () => {
     settled = true
     clearInterval(keepalive)
-    ws?.close()
-    ws = null
+    socket?.close()
+    socket = null
   }
   const done = new Promise<JobResult>((resolve, reject) => {
     rejectDone = reject
@@ -65,25 +67,29 @@ export function followJob(
         reject(new JobEnded(state, job?.error?.message ?? state))
       }
     }
-    void getToken().then((token) => {
-      if (settled) return
-      ws = new WebSocket(`${WS_BASE_URL}/ws`)
-      ws.onopen = () => {
-        ws?.send(JSON.stringify({ type: 'auth', token }))
-        ws?.send(JSON.stringify({ type: 'subscribe', jobIds: [jobId] }))
-        // A job that finished before we subscribed (a cached translation).
-        void engineRequest<JobSummary>(`/v1/jobs/${jobId}`)
-          .then((job) => end(job.state))
-          .catch(() => {})
-      }
-      ws.onmessage = (m) => {
-        const e = JSON.parse(String(m.data)) as WsEvent
-        if (!('jobId' in e) || e.jobId !== jobId) return
-        if (e.type === 'job.partial') on.partial?.(e.draft)
-        else if (e.type === 'job.progress') on.progress?.(e.progress)
-        else if (e.type === 'job.state') void end(e.state)
-      }
+    socket = new EngineSocket({
+      url: () => `${WS_BASE_URL}/ws`,
+      token: getToken,
+      // Missed while disconnected, or finished before we subscribed (a cached translation).
+      onReconnect: () => void check(),
+      onError: (err) => {
+        if (settled) return
+        stop()
+        reject(err instanceof Error ? err : new Error(String(err)))
+      },
     })
+    socket.on((e) => {
+      if (!('jobId' in e) || e.jobId !== jobId) return
+      if (e.type === 'job.partial') on.partial?.(e.draft)
+      else if (e.type === 'job.progress') on.progress?.(e.progress)
+      else if (e.type === 'job.state') return end(e.state)
+    })
+    socket.subscribe(jobId)
+    const check = () =>
+      engineRequest<JobSummary>(`/v1/jobs/${jobId}`)
+        .then((job) => end(job.state))
+        .catch(() => {})
+    void socket.connect().then(check)
   })
   const close = () => {
     if (settled) return
