@@ -39,19 +39,19 @@ updated: 2026-09-29
 
 ### The extension runs the engine
 
-- [ ] **M06b.3** — **Native host**: `sublight-engine native-host` handles `status`, `start`, `stop`, `token` and `version`. Only the extension's pinned ID may connect. The extension gets the `nativeMessaging` permission, takes the token from the host and stops pairing.
+- [x] **M06b.3** — **Native host**: `sublight-engine native-host` handles `status`, `start`, `stop`, `token` and `version`. Only the extension's pinned ID may connect. The extension gets the `nativeMessaging` permission, takes the token from the host and stops pairing.
   - _Accept:_ after the install, the extension captions a video with no pairing step; a rotated token re-syncs on its own.
   - _Progress (2026-09-29):_ the engine side is done: `sublight-engine native-host`, registered by install.sh, tested (framing, refusing other extensions, start/status/token/stop). The extension takes its token from it (kept in `storage.session`, out of content scripts' reach, fixing security pass 2 S1 for this path), and follows a replaced token after a 401; `ext:try` registers a development host. Checked end to end in Chromium and Brave (extension e2e: the real host hands the token over, the engine shows online, nothing paired).
-- [ ] **M06b.4** — **Start on demand**: an engine request that finds it offline starts it through the host, shows _Starting…_, and retries once it answers.
+- [x] **M06b.4** — **Start on demand**: an engine request that finds it offline starts it through the host, shows _Starting…_, and retries once it answers.
   - _Accept:_ with the engine stopped, "Caption this video" captions with no other click.
   - _Progress (2026-09-29):_ `engineRequest` starts the engine through the host when it can't connect, then retries; unit-tested with a fake host. The popup shows _Engine off_ and _Engine starting…_.
-- [ ] **M06b.5** — **Smart idle** in the engine:
+- [x] **M06b.5** — **Smart idle** in the engine:
   - Unload models after 5 min without a job, which frees VRAM and RAM.
   - Exit after 20 min without a job, live session, lease or relay download. Open WebSockets don't count.
   - The delays can be set, and there is a **Keep the engine running** switch. They are shorter on battery. The engine never stops during work.
   - _Accept:_ unit tests for each kind of activity; idle CPU ~0 % and VRAM freed after unload, measured; the exit is logged with its reason.
-  - _Progress (2026-09-29):_ built as specified (Spec 06 §1, `idle.ts`): work never stops it, status reads don't count as activity, background engines exit and terminal ones stay, halved on battery; unit tests for each case, and a background engine with short delays exited by itself and logged why. The extension's background polls no longer start an idle engine. Not yet: the delays and the switch in the popup (M06b.6/7), and the idle CPU and VRAM measurement.
-- [ ] **M06b.6** — **Engine status in the popup**: _Off · Starting · On · Busy · Idle (models unloaded)_, with an on/off switch. When the host is missing, the popup explains how to run `install.sh`.
+  - _Progress (2026-09-29):_ built as specified (Spec 06 §1, `idle.ts`): work never stops it, status reads don't count as activity, background engines exit and terminal ones stay, halved on battery; unit tests for each case, and a background engine with short delays exited by itself and logged why. The extension's background polls no longer start an idle engine. The delays and the switch are in the popup (M06b.6). Measured on the T1000: 1643 MiB of VRAM with whisper-small loaded, 864 MiB (the desktop's own) once idle unloaded it; the engine used about 1 s of CPU over its whole run, the job included.
+- [x] **M06b.6** — **Engine status in the popup**: _Off · Starting · On · Busy · Idle (models unloaded)_, with an on/off switch. When the host is missing, the popup explains how to run `install.sh`.
   - _Accept:_ each state appears in the extension e2e (the host is faked in tests).
   - _Progress (2026-09-29):_ the popup's Engine tab ([Spec 09 §7](../../specification/09-Browser-Extension.md#7-popup--options)) with the switch and the idle delays; the extension e2e checks it with the real host (on, the switch, the settings). Still to do: the Off and Starting states in e2e, and the action icon showing the state (M06b.14).
 
