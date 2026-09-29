@@ -11,7 +11,8 @@ import { COOKIE_BROWSERS, type UrlJob } from '@sublight/protocol'
 import { JobError, type JobRunner, type RunOutput } from '../jobs/queue'
 import { levelDb, SAMPLE_RATE, wavBytes } from '../live/session'
 import type { FfmpegBinaries } from '../media/ffmpeg'
-import { resolveRemote, sliceRemote, type RemoteMedia } from '../media/remote'
+import type { Download } from '../media/relay'
+import { probeMedia, resolveRemote, sliceRemote, type RemoteMedia } from '../media/remote'
 import { SILENCE_DB } from '../media/store'
 import type { ModelManager } from '../models/manager'
 import { isWhisperLanguage, whisperLanguageCode } from './languages'
@@ -221,6 +222,8 @@ export interface AheadDeps {
   ffmpeg: FfmpegBinaries
   ytDlp: string | null
   allowPrivateNetworks?: boolean
+  /** The Player's relays: a saved copy is captioned instead of the page's link. */
+  relays?: { localCopy(id: string): Download | null }
   /** Tests: skip the network. */
   resolve?: (req: UrlJob) => Promise<RemoteMedia>
   slice?: (
@@ -246,6 +249,38 @@ export interface AheadRunner extends JobRunner<UrlJob> {
 export function aheadRunner(deps: AheadDeps): AheadRunner {
   const focusOf = new Map<string, { ms: number; moved: boolean }>()
 
+  /**
+   * The relay's copy of the video, waiting while it is still being saved;
+   * null without one (or when saving it failed), so the page's link is tried.
+   */
+  async function savedCopy(
+    relayId: string,
+    ctx: { signal: AbortSignal; progress(p: number, detail?: string): void },
+  ): Promise<RemoteMedia | null> {
+    for (;;) {
+      const copy = deps.relays?.localCopy(relayId)
+      if (!copy || copy.state === 'failed') return null
+      if (copy.state === 'ready') {
+        const { durationMs } = await probeMedia(deps.ffmpeg, copy.path, {}, ctx.signal)
+        return durationMs
+          ? { input: copy.path, headers: {}, durationMs, title: null, via: 'copy' }
+          : null
+      }
+      ctx.progress(0, `saving the video (${Math.round(copy.progress * 100)} %)`)
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(resolve, 1000)
+        ctx.signal.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(t)
+            reject(new JobError('CANCELLED', 'cancelled'))
+          },
+          { once: true },
+        )
+      })
+    }
+  }
+
   return {
     type: 'url',
     gpu: true,
@@ -263,6 +298,8 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
     validate(req) {
       if (!req.pageUrl || !/^https?:\/\//i.test(req.pageUrl))
         throw new JobError('JOB_INVALID', 'pageUrl must be an http(s) URL')
+      if (req.relayId !== undefined && !/^[0-9a-f]{32}$/.test(req.relayId))
+        throw new JobError('JOB_INVALID', 'relayId must be a relay id')
       if (
         req.cookiesFromBrowser !== undefined &&
         !(COOKIE_BROWSERS as readonly string[]).includes(req.cookiesFromBrowser)
@@ -308,20 +345,23 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
       try {
         ctx.progress(0, 'finding the audio')
         const began = Date.now()
-        const media = await (deps.resolve?.(req) ??
-          resolveRemote(
-            {
-              ffmpeg: deps.ffmpeg,
-              ytDlp: deps.ytDlp,
-              allowPrivateNetworks: deps.allowPrivateNetworks ?? false,
-              // A newer job (the viewer moved on) or a lost lease stops the fetch too.
-              signal: ctx.signal,
-            },
-            req.pageUrl,
-            req.mediaUrl,
-            req.userAgent,
-            req.cookiesFromBrowser,
-          ))
+        const copied = req.relayId ? await savedCopy(req.relayId, ctx) : null
+        const media =
+          copied ??
+          (await (deps.resolve?.(req) ??
+            resolveRemote(
+              {
+                ffmpeg: deps.ffmpeg,
+                ytDlp: deps.ytDlp,
+                allowPrivateNetworks: deps.allowPrivateNetworks ?? false,
+                // A newer job (the viewer moved on) or a lost lease stops the fetch too.
+                signal: ctx.signal,
+              },
+              req.pageUrl,
+              req.mediaUrl,
+              req.userAgent,
+              req.cookiesFromBrowser,
+            )))
         const slice =
           deps.slice ?? ((m, out, s, d, signal) => sliceRemote(deps.ffmpeg, m, out, s, d, signal))
         const resolvedAt = Date.now()

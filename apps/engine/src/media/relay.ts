@@ -26,24 +26,40 @@ export const PLAYABLE_FORMAT =
 export const DOWNLOAD_FORMAT =
   'bv*[height<=720][ext=mp4]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]/b'
 
+/** A video being saved to the relay directory. */
+export interface Download {
+  path: string
+  state: 'downloading' | 'ready' | 'failed'
+  /** 0..1 while downloading. */
+  progress: number
+  error?: string
+}
+
 export type Relay =
-  | { kind: 'stream'; media: RemoteMedia; expiresAt: number }
   | {
+      kind: 'stream'
+      media: RemoteMedia
+      /**
+       * A copy saved while the page's link still works: some sites' links stop
+       * working minutes after their page stops playing (the Beta-1 checkpoint,
+       * B8). Served, and captioned, once ready.
+       */
+      copy?: Download
+      expiresAt: number
+    }
+  | (Download & {
       kind: 'file'
-      path: string
-      state: 'downloading' | 'ready' | 'failed'
-      /** 0..1 while downloading. */
-      progress: number
-      error?: string
       title: string | null
       durationMs: number | null
       expiresAt: number
-    }
+    })
 
 export interface RelayStatus {
   state: 'ready' | 'downloading' | 'failed'
   progress: number
   error?: string
+  /** A streamed relay's saved copy. */
+  copy?: { state: Download['state']; progress: number; error?: string }
 }
 
 /**
@@ -64,11 +80,27 @@ export class RelayStore {
     }
   }
 
-  add(media: RemoteMedia, now = Date.now()): string {
+  /**
+   * Stream `media` straight through. With `copyWith` (ffmpeg), also save a
+   * copy in the background, when there is room for another download.
+   */
+  add(media: RemoteMedia, now = Date.now(), opts: { copyWith?: string } = {}): string {
     this.prune(now)
     const id = randomBytes(16).toString('hex')
-    this.relays.set(id, { kind: 'stream', media, expiresAt: now + RELAY_TTL_MS })
+    const relay: Relay = { kind: 'stream', media, expiresAt: now + RELAY_TTL_MS }
+    if (opts.copyWith && this.dir && this.active() < MAX_ACTIVE_DOWNLOADS) {
+      relay.copy = { path: join(this.dir, `${id}.mp4`), state: 'downloading', progress: 0 }
+      this.ffmpegCopy(media, opts.copyWith, relay.copy)
+    }
+    this.relays.set(id, relay)
     return id
+  }
+
+  /** The relay's video on this computer (a download, a remux or a copy), if it has one. */
+  localCopy(id: string): Download | null {
+    const r = this.get(id)
+    if (!r) return null
+    return r.kind === 'file' ? r : (r.copy ?? null)
   }
 
   /** Download and merge with yt-dlp; the relay serves the file once it's ready. */
@@ -186,6 +218,12 @@ export class RelayStore {
       expiresAt: now + RELAY_TTL_MS,
     }
     this.relays.set(id, relay)
+    this.ffmpegCopy(media, ffmpeg, relay)
+    return id
+  }
+
+  /** Copy `media` into `into.path` with ffmpeg (no re-encode), seekable from the start. */
+  private ffmpegCopy(media: RemoteMedia, ffmpeg: string, into: Download): void {
     const child = spawn(
       ffmpeg,
       [
@@ -195,7 +233,7 @@ export class RelayStore {
         'error',
         '-progress',
         'pipe:1',
-        ...headerArgs(media.headers),
+        ...headerArgs(media.headers, media.input),
         '-i',
         media.input,
         '-c',
@@ -204,7 +242,7 @@ export class RelayStore {
         '+faststart',
         '-fs',
         String(MAX_DOWNLOAD_BYTES),
-        path,
+        into.path,
       ],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     )
@@ -213,32 +251,42 @@ export class RelayStore {
     child.stdout.on('data', (d: Buffer) => {
       const m = /out_time_us=(\d+)/.exec(d.toString())
       if (m && media.durationMs)
-        relay.progress = Math.min(0.99, Number(m[1]) / 1000 / media.durationMs)
+        into.progress = Math.min(0.99, Number(m[1]) / 1000 / media.durationMs)
     })
     child.stderr.on('data', (d: Buffer) => {
       stderr = (stderr + d.toString()).slice(-4000)
     })
+    child.on('error', (err) => {
+      clearTimeout(timedOut.timer)
+      into.state = 'failed'
+      into.error = err.message
+    })
     child.on('close', (code) => {
       clearTimeout(timedOut.timer)
+      if (into.state === 'failed') return
       if (timedOut.fired) {
-        relay.state = 'failed'
-        relay.error = 'preparing this video took too long'
-      } else if (code === 0 && existsSync(path)) {
-        relay.state = 'ready'
-        relay.progress = 1
+        into.state = 'failed'
+        into.error = 'preparing this video took too long'
+      } else if (code === 0 && existsSync(into.path)) {
+        into.state = 'ready'
+        into.progress = 1
       } else {
-        relay.state = 'failed'
-        relay.error = stderr.trim().split('\n').pop() || `ffmpeg exited ${code}`
+        into.state = 'failed'
+        into.error = stderr.trim().split('\n').pop() || `ffmpeg exited ${code}`
       }
     })
-    return id
+  }
+
+  /** Videos being saved right now. */
+  private active(): number {
+    return [...this.relays.values()].filter((r) =>
+      r.kind === 'file' ? r.state === 'downloading' : r.copy?.state === 'downloading',
+    ).length
   }
 
   /** At most `MAX_ACTIVE_DOWNLOADS` videos being prepared at once. */
   private assertRoom(): void {
-    const active = [...this.relays.values()].filter(
-      (r) => r.kind === 'file' && r.state === 'downloading',
-    ).length
+    const active = this.active()
     if (active >= MAX_ACTIVE_DOWNLOADS)
       throw new JobError(
         'MEDIA_UNREACHABLE',
@@ -272,13 +320,28 @@ export class RelayStore {
   status(id: string): RelayStatus | null {
     const r = this.get(id)
     if (!r) return null
-    if (r.kind === 'stream') return { state: 'ready', progress: 1 }
+    if (r.kind === 'stream') {
+      const c = r.copy
+      return {
+        state: 'ready',
+        progress: 1,
+        ...(c
+          ? {
+              copy: {
+                state: c.state,
+                progress: c.progress,
+                ...(c.error ? { error: c.error } : {}),
+              },
+            }
+          : {}),
+      }
+    }
     return { state: r.state, progress: r.progress, ...(r.error ? { error: r.error } : {}) }
   }
 
   private drop(id: string, r: Relay): void {
     this.relays.delete(id)
-    if (!r.kind || r.kind !== 'file' || !this.dir) return
+    if ((r.kind !== 'file' && !r.copy) || !this.dir) return
     // The merged file and any parts yt-dlp left (id.f140.m4a, …).
     for (const f of readdirSync(this.dir))
       if (f.startsWith(id)) rmSync(join(this.dir, f), { force: true })
@@ -337,6 +400,8 @@ export async function relayResponse(relay: Relay, request: Request): Promise<Res
       return new Response(null, { status: 503, headers: { 'retry-after': '2' } })
     return fileResponse(relay.path, request)
   }
+  // The saved copy, once there: it works after the page's own link stops.
+  if (relay.copy?.state === 'ready') return fileResponse(relay.copy.path, request)
   const headers: Record<string, string> = { ...relay.media.headers }
   const range = request.headers.get('range')
   if (range) headers.Range = range

@@ -131,7 +131,7 @@ interface OpenInPlayerPayload {
 ### 9.4 Captioning a migrated video
 
 - **Relayed media** (engine owns the file) → identical to the [local-file pipeline (§4)](04-Player-App.md#4-file-handling-per-adr-0011): T₀ = 0, offline batch, best possible sync.
-- **Direct/HLS media**: the player asks the engine to fetch the audio (`mediaHash` path). Cross-origin media without CORS can neither be fetched by the engine nor captured from the player (tainted `captureStream`) — in that case the UI offers the **in-page live caption path** and never fails silently ([08 §7](08-Audio-Capture.md)).
+- **Direct/HLS media**: the player asks the engine to fetch the audio (a `url` job). While the Player plays the page's own link, the engine saves a copy ([06 §4.1](06-Engine-Server.md#41-media-resolve--relay-open-in-player)): the `url` job carries its `relayId` and captions the copy, and when the link stops working (`<video>` error) the Player switches to the copy, so links that expire once their page stops playing (Beta-1 checkpoint B8) still play and caption. Cross-origin media without CORS can neither be fetched by the engine nor captured from the player (tainted `captureStream`) — in that case the UI offers the **in-page live caption path** and never fails silently ([08 §7](08-Audio-Capture.md)).
 
 ### 9.5 Testing (M05b)
 

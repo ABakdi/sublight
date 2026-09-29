@@ -46,4 +46,10 @@ export interface RelayStatusResponse {
   /** 0..1 while downloading. */
   progress: number
   error?: string
+  /**
+   * A streamed page video's copy on the engine, saved while the page's link
+   * works (some links stop soon after their page stops playing). The relay
+   * serves it once `ready`.
+   */
+  copy?: { state: RelayState; progress: number; error?: string }
 }

@@ -11,6 +11,7 @@ moves **Unreleased** under a new version.
 - A new video's captions no longer wait behind the previous video's audio fetch.
 - Following the next video of a feed starts one captioning job instead of two.
 - A translation that repeats a line for a different source is retried instead of shifting the lines after it.
+- Page videos whose link stops working once their page stops playing (vinovo.to) play and caption in the Player: the engine keeps a copy while the link works, and names a refused link instead of "Unsupported URL".
 
 ### Extension
 

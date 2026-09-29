@@ -27,7 +27,7 @@ describe('open in Sublight Player (M05b)', () => {
   afterEach(() => vi.restoreAllMocks())
 
   it('plays a page’s own file directly, resuming where the page was', async () => {
-    const resolve = vi.spyOn(engine, 'resolveMedia')
+    const resolve = vi.spyOn(engine, 'resolveMedia').mockRejectedValue(new Error('offline'))
     await usePlayerStore
       .getState()
       .openFromPage(payload([{ kind: 'https-direct', url: 'https://cdn.test/a.mp4' }]))
@@ -41,8 +41,58 @@ describe('open in Sublight Player (M05b)', () => {
       resumeAtMs: 12_000,
     })
     expect(s.project!.title).toBe('A talk')
-    expect(resolve).not.toHaveBeenCalled()
+    // Only in the background: the engine saves a copy in case the link stops working.
+    expect(resolve).toHaveBeenCalledWith({
+      pageUrl: 'https://site.test/watch?v=1',
+      mediaUrl: 'https://cdn.test/a.mp4',
+      userAgent: 'UA',
+      cookiesFromBrowser: 'brave',
+    })
   })
+
+  // The store polls the copy every 1.5 s while the engine saves it.
+  it(
+    'plays and captions the engine’s copy once the page’s link stops working (B8)',
+    { timeout: 15_000 },
+    async () => {
+      const relayId = 'a'.repeat(32)
+      vi.spyOn(engine, 'resolveMedia').mockResolvedValue({
+        mediaId: relayId,
+        relayPath: `/v1/relay/${relayId}`,
+        durationMs: 60_000,
+        title: null,
+        via: 'direct',
+        state: 'ready',
+      })
+      await usePlayerStore
+        .getState()
+        .openFromPage(payload([{ kind: 'https-direct', url: 'https://cdn.test/stream/token' }]))
+      await vi.waitFor(() => expect(usePlayerStore.getState().project!.media.relayId).toBe(relayId))
+      vi.spyOn(engine, 'relayStatus')
+        .mockResolvedValueOnce({
+          state: 'ready',
+          progress: 1,
+          copy: { state: 'downloading', progress: 0.5 },
+        })
+        .mockResolvedValue({ state: 'ready', progress: 1, copy: { state: 'ready', progress: 1 } })
+      // The site's link now answers 403: the <video> errors.
+      await usePlayerStore.getState().playbackFailed()
+      const s = usePlayerStore.getState()
+      expect(s.videoObjectUrl).toBe(engine.relayUrl(`/v1/relay/${relayId}`))
+      expect(s.preparing).toBeNull()
+      expect(s.project!.media.transport).toBe('engine-relay')
+
+      const create = vi.spyOn(engine, 'createJob').mockRejectedValue(new Error('stop here'))
+      await useCaptionStore
+        .getState()
+        .start({ model: 'whisper-small', language: null, task: 'transcribe' })
+      expect(create.mock.calls[0]![0]).toMatchObject({
+        type: 'url',
+        mediaUrl: 'https://cdn.test/stream/token',
+        relayId,
+      })
+    },
+  )
 
   // The store polls the relay every 1.5 s while the engine downloads.
   it(
@@ -156,7 +206,8 @@ describe('open in Sublight Player (M05b)', () => {
     let s = usePlayerStore.getState()
     expect(s.stream).toEqual({ kind: 'hls', url: 'https://cdn.test/master.m3u8' })
     expect(s.project!.media.transport).toBe('hls')
-    expect(resolve).not.toHaveBeenCalled()
+    // The background copy only; playback doesn't wait for the engine.
+    expect(resolve).toHaveBeenCalledTimes(1)
     // hls.js gave up (no CORS on the CDN): the engine fetches the manifest.
     await s.playbackFailed()
     s = usePlayerStore.getState()

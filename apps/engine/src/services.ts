@@ -97,6 +97,7 @@ export function createServices(config: EngineConfig, paths: EnginePaths): Engine
   jobs.register(translateRunner({ models, llama, gpu }))
   const live = new LiveHub(join(paths.jobs, 'live'))
   jobs.register(liveRunner({ models, whisper, gpu, hub: live }))
+  const relays = new RelayStore(join(paths.mediaCache, 'relay'))
   const ahead = aheadRunner({
     models,
     whisper,
@@ -104,9 +105,9 @@ export function createServices(config: EngineConfig, paths: EnginePaths): Engine
     ffmpeg: config.ffmpeg,
     ytDlp: findYtDlp(paths.bin),
     allowPrivateNetworks: config.allowPrivateNetworks,
+    relays,
   })
   jobs.register(ahead)
-  const relays = new RelayStore(join(paths.mediaCache, 'relay'))
   const ytDlp = findYtDlp(paths.bin)
   return {
     bus,

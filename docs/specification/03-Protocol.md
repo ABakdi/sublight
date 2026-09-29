@@ -66,15 +66,15 @@ Job creation bodies (discriminated by `type`):
 
 ### Media upload & relay
 
-| Endpoint                                | Notes                                                                                                                                                                                       |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PUT /v1/media/:mediaId`                | streaming upload (octet-stream, `X-Source-Name`, `X-Source-MediaHash?`); engine normalizes to 16 kHz mono PCM, stores under `sha256`, responds `{ mediaHash, durationMs, normalizedBytes }` |
-| `GET /v1/media/:ref`                    | metadata for a media id or `sha256:` hash: `{ mediaHash, durationMs, normalizedBytes, sourceName, createdAt, lastUsedAt }`                                                                  |
-| `DELETE /v1/media/:mediaHash`           | free cache (and the id aliases pointing at it)                                                                                                                                              |
-| `POST /v1/media/clear`                  | deletes cached audio no queued or running job needs; `{ ok, freedBytes }` (Player: Models → Clear)                                                                                          |
-| `POST /v1/media/resolve` _(M05b)_       | `{ pageUrl, mediaUrl?, userAgent?, cookiesFromBrowser? }` → `{ mediaId, relayPath, durationMs, title, via, state: "ready" \| "downloading" }`; used by "Open in Sublight Player"            |
-| `GET /v1/media/relay/:mediaId` _(M05b)_ | `{ state, progress, error? }` while a relayed video downloads ("Preparing media…")                                                                                                          |
-| `GET /v1/relay/:mediaId` _(M05b)_       | `Range`-aware byte stream for the Player's `<video>`; **no token** (the 128-bit id is the capability, 6 h expiry); `503` while downloading                                                  |
+| Endpoint                                | Notes                                                                                                                                                                                                                                              |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUT /v1/media/:mediaId`                | streaming upload (octet-stream, `X-Source-Name`, `X-Source-MediaHash?`); engine normalizes to 16 kHz mono PCM, stores under `sha256`, responds `{ mediaHash, durationMs, normalizedBytes }`                                                        |
+| `GET /v1/media/:ref`                    | metadata for a media id or `sha256:` hash: `{ mediaHash, durationMs, normalizedBytes, sourceName, createdAt, lastUsedAt }`                                                                                                                         |
+| `DELETE /v1/media/:mediaHash`           | free cache (and the id aliases pointing at it)                                                                                                                                                                                                     |
+| `POST /v1/media/clear`                  | deletes cached audio no queued or running job needs; `{ ok, freedBytes }` (Player: Models → Clear)                                                                                                                                                 |
+| `POST /v1/media/resolve` _(M05b)_       | `{ pageUrl, mediaUrl?, userAgent?, cookiesFromBrowser? }` → `{ mediaId, relayPath, durationMs, title, via, state: "ready" \| "downloading" }`; used by "Open in Sublight Player"; `GET /v1/media/relay/:id` → `{ state, progress, error?, copy? }` |
+| `GET /v1/media/relay/:mediaId` _(M05b)_ | `{ state, progress, error? }` while a relayed video downloads ("Preparing media…")                                                                                                                                                                 |
+| `GET /v1/relay/:mediaId` _(M05b)_       | `Range`-aware byte stream for the Player's `<video>`; **no token** (the 128-bit id is the capability, 6 h expiry); `503` while downloading                                                                                                         |
 
 ### Live capture (M05)
 
@@ -90,10 +90,10 @@ Drafts arrive as `job.partial` in media time; audio/anchors for a job that isn't
 
 ### Captions ahead of playback (ADR-0020)
 
-| Endpoint                                                                                                                               | Notes                                                                                                                                                                   |
-| -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /v1/jobs {type:"url", pageUrl, mediaUrl?, userAgent?, cookiesFromBrowser?, model, params:{language, task?, fromMs?}, priority?}` | the engine fetches the audio (direct URL, else yt-dlp) and transcribes around `fromMs`; one `url` job at a time (a newer one cancels it); cached per canonical page URL |
-| `POST /v1/url/:jobId/focus`                                                                                                            | `{ mediaMs }`: the viewer seeked; the next piece starts there. `409` unless running                                                                                     |
+| Endpoint                                                                                                                                         | Notes                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/jobs {type:"url", pageUrl, mediaUrl?, relayId?, userAgent?, cookiesFromBrowser?, model, params:{language, task?, fromMs?}, priority?}` | the engine fetches the audio (a relay's saved copy when `relayId` names one, else the direct URL, else yt-dlp) and transcribes around `fromMs`; one `url` job at a time (a newer one cancels it); cached per canonical page URL |
+| `POST /v1/url/:jobId/focus`                                                                                                                      | `{ mediaMs }`: the viewer seeked; the next piece starts there. `409` unless running                                                                                                                                             |
 
 `translate` jobs take an optional `fromMs`: paragraphs from the playhead on are translated first, then the rest (same result, same cache entry).
 

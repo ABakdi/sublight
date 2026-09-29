@@ -206,7 +206,58 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     return file ? URL.createObjectURL(file) : null
   }
 
-  /** Engine hints for fetching the current page video (from the extension). */
+  /**
+   * Have the engine save a page video the Player plays from the page's own
+   * link: some sites' links stop working soon after their page stops playing
+   * (Beta-1 checkpoint, B8). The copy is played if the link fails, and it is
+   * what gets captioned.
+   */
+  const keepCopy = async (project: SubtitleProject, url: string): Promise<void> => {
+    try {
+      const saved = await engine.resolveMedia({
+        pageUrl: project.media.pageUrl!,
+        mediaUrl: url,
+        ...safeHints(project.media.fetchHints as OpenInPlayerPayload['engine']),
+      })
+      if (get().project?.id !== project.id) return
+      await commit((p) => {
+        p.media.relayId = saved.mediaId
+      })
+    } catch {
+      // No engine, or it can't read the link either: playback doesn't need it.
+    }
+  }
+
+  /** Play the engine's saved copy of a page video, waiting while it's saved; false without one. */
+  const playCopy = async (project: SubtitleProject, relayId: string): Promise<boolean> => {
+    const copyOf = async () => (await engine.relayStatus(relayId).catch(() => null))?.copy ?? null
+    let copy = await copyOf()
+    if (!copy || copy.state === 'failed') return false
+    set({
+      videoObjectUrl: null,
+      stream: null,
+      preparing: { progress: copy.progress },
+      pageError: null,
+    })
+    while (copy.state === 'downloading') {
+      await new Promise((r) => setTimeout(r, 1500))
+      if (get().project?.id !== project.id) return true // the viewer left
+      copy = await copyOf()
+      if (!copy) break
+      set({ preparing: { progress: copy.progress } })
+    }
+    if (copy?.state !== 'ready') {
+      set({ preparing: null })
+      return false
+    }
+    const url = engine.relayUrl(`/v1/relay/${relayId}`)
+    set({ videoObjectUrl: url, preparing: null })
+    await commit((p) => {
+      p.media.transport = 'engine-relay'
+      p.media.directUrl = url
+    })
+    return true
+  }
 
   /**
    * Play a page video (Spec 04 §9): its own file URL when it has one (no
@@ -230,8 +281,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         p.media.transport = transport as 'direct' | 'hls' | 'dash'
         p.media.directUrl = own.url
       })
+      void keepCopy(project, own.url)
       return
     }
+    // The page's link failed: the copy saved while it worked, if there is one.
+    if (skipDirect && media.relayId && (await playCopy(project, media.relayId))) return
     set({ videoObjectUrl: null, stream: null, preparing: { progress: 0 }, pageError: null })
     try {
       const resolved = await engine.resolveMedia({

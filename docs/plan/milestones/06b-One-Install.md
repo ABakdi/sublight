@@ -25,11 +25,9 @@ updated: 2026-09-29
 
 ### Bugs
 
-- [ ] **M06b.1** — (B8, P1) **Page videos whose `<video>` plays a `blob:` the page built itself** fail with "Unsupported URL" when yt-dlp doesn't know the site. Example: `https://vinovo.to/e/…` gets its stream through a reCAPTCHA-gated request and plays it with video.js (MSE).
-  - Fix: the content script records the media URLs its frame fetched: Resource Timing entries for `.m3u8` / `.mpd` / `.mp4` / `.webm` / `.m4a`, and `PerformanceObserver` for later ones. The classifier offers the most recent as an `hls` / `dash` / `https-direct` source behind the `blob:`. The engine uses it as `mediaUrl`, with the page's Referer and User-Agent, and tries yt-dlp only after that. This applies to captions on the page and to Open in Player.
-  - When nothing is found, the error says so plainly and offers live captions.
-  - The e2e fixture is a page that plays HLS through hls.js with no `src`.
-  - _Accept:_ the vinovo embed captions from the popup and in the Player; the fixture passes on Chromium and Brave.
+- [x] **M06b.1** — (B8, P1) **Page videos whose link expires**. vinovo.to's player plays a plain mp4 from `<cdn>/stream/<token>`, and the token stops working (403) minutes after the page stops playing. Captioning in the Player then failed, and yt-dlp's "Unsupported URL" hid the 403.
+  - Fix: when the Player plays a page video from the page's own link, the engine saves a copy in the background (`POST /v1/media/resolve`, `copy` in the relay status). If the link fails, the Player plays the copy (showing "Preparing media…" while it finishes). `url` jobs carry the relay id and caption the copy. A link the site refuses is reported as such, instead of yt-dlp's message.
+  - _Accept:_ `apps/engine/tests/copy.test.ts` (the copy outlives the link; the refused link is named; the copy is captioned) and the Player's hand-over test pass. The vinovo embed captions in the Player: to check by hand.
 
 ### Install
 

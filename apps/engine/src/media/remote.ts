@@ -15,7 +15,7 @@ export interface RemoteMedia {
   headers: Record<string, string>
   durationMs: number
   title: string | null
-  via: 'direct' | 'yt-dlp'
+  via: 'direct' | 'yt-dlp' | 'copy'
 }
 
 export interface RemoteDeps {
@@ -36,7 +36,9 @@ export function findYtDlp(binDir: string): string | null {
 
 const isHttp = (url: string | undefined): url is string => !!url && /^https?:\/\//i.test(url)
 
-export function headerArgs(headers: Record<string, string>): string[] {
+export function headerArgs(headers: Record<string, string>, input?: string): string[] {
+  // The engine's own copy of a page video (a relay file): local, and nothing else.
+  if (input !== undefined && !isHttp(input)) return ['-protocol_whitelist', 'file']
   const lines = Object.entries(headers)
     .filter(([k]) => !/^(accept-encoding|cookie)$/i.test(k))
     // A value can't start a header of its own (security baseline A8).
@@ -50,19 +52,19 @@ export function headerArgs(headers: Record<string, string>): string[] {
   ]
 }
 
-/** Duration of a remote input, ms, or null when ffprobe can't read it. */
-async function probeDuration(
+/** Duration of an input, ms, or null with ffprobe's reason when it can't read it. */
+export async function probeMedia(
   bin: FfmpegBinaries,
   input: string,
   headers: Record<string, string>,
   signal?: AbortSignal,
-): Promise<number | null> {
+): Promise<{ durationMs: number | null; error: string | null }> {
   const r = await run(
     bin.ffprobe,
     [
       '-v',
       'error',
-      ...headerArgs(headers),
+      ...headerArgs(headers, input),
       '-show_entries',
       'format=duration',
       '-of',
@@ -76,9 +78,24 @@ async function probeDuration(
     return null
   })
   const seconds = Number(r?.stdout.trim())
-  return r?.code === 0 && Number.isFinite(seconds) && seconds > 0
-    ? Math.round(seconds * 1000)
-    : null
+  if (r?.code === 0 && Number.isFinite(seconds) && seconds > 0)
+    return { durationMs: Math.round(seconds * 1000), error: null }
+  // "https://…: Server returned 403 Forbidden": the reason, without the (signed) URL.
+  const said = r?.stderr
+    .trim()
+    .split('\n')
+    .pop()
+    ?.replace(/^.*?:\s*(?=Server returned)/, '')
+    .replace(/https?:\/\/\S+/g, 'the link')
+  return { durationMs: null, error: said || (r ? 'no duration' : 'ffprobe failed') }
+}
+
+/** What went wrong with a page's own media URL, for the viewer. */
+function directFailure(error: string): string {
+  const status = /\b(401|403|404|410)\b|Forbidden|Not Found|Unauthorized/i.exec(error)
+  return status
+    ? `the site refused its link to this video (${error}). Some sites give links that only work while their own page plays the video: caption it on its page, or open it in the Player again from there`
+    : `couldn't read this video's stream (${error})`
 }
 
 /**
@@ -141,20 +158,26 @@ export async function resolveRemote(
   cookiesFromBrowser?: string,
   /** yt-dlp format: the best audio by default (captions); `PLAYABLE_FORMAT` for the Player. */
   format = 'bestaudio/best',
-): Promise<RemoteMedia> {
+): Promise<RemoteMedia & { via: 'direct' | 'yt-dlp' }> {
   const allowPrivate = deps.allowPrivateNetworks ?? false
   await assertPublicUrl(pageUrl, allowPrivate)
+  /** Why the page's own media URL didn't work, when it had one. */
+  let direct: string | null = null
   if (isHttp(mediaUrl)) {
     await assertPublicUrl(mediaUrl, allowPrivate)
     const headers: Record<string, string> = { Referer: pageUrl }
     if (userAgent) headers['User-Agent'] = userAgent
-    const durationMs = await probeDuration(deps.ffmpeg, mediaUrl, headers, deps.signal)
-    if (durationMs) return { input: mediaUrl, headers, durationMs, title: null, via: 'direct' }
+    const probed = await probeMedia(deps.ffmpeg, mediaUrl, headers, deps.signal)
+    if (probed.durationMs)
+      return { input: mediaUrl, headers, durationMs: probed.durationMs, title: null, via: 'direct' }
+    direct = probed.error
   }
   if (!deps.ytDlp) {
     throw new JobError(
       'MEDIA_UNREACHABLE',
-      'this video has no direct media URL and yt-dlp is not installed (pnpm engine:setup-ytdlp)',
+      direct
+        ? directFailure(direct)
+        : 'this video has no direct media URL and yt-dlp is not installed (pnpm engine:setup-ytdlp)',
       false,
       422,
     )
@@ -185,6 +208,9 @@ export async function resolveRemote(
         .split('\n')
         .pop()
         ?.replace(/^ERROR:\s*/, '') ?? 'unknown error'
+    // yt-dlp doesn't know the site: the page's own URL failing is the real story.
+    if (direct && /unsupported url|no suitable extractor/i.test(last))
+      throw new JobError('MEDIA_UNREACHABLE', directFailure(direct), false, 422)
     const needsLogin = /log(ged)?[- ]?in|cookies|empty media response|private/i.test(last)
     const reason =
       needsLogin && !cookiesFromBrowser
@@ -218,7 +244,7 @@ export async function resolveRemote(
   const durationMs =
     info.duration && info.duration > 0
       ? Math.round(info.duration * 1000)
-      : await probeDuration(deps.ffmpeg, input, headers, deps.signal)
+      : (await probeMedia(deps.ffmpeg, input, headers, deps.signal)).durationMs
   if (!durationMs)
     throw new JobError('MEDIA_UNREACHABLE', "couldn't read the video's duration", false, 422)
   return { input, headers, durationMs, title: info.title ?? null, via: 'yt-dlp' }
@@ -240,7 +266,7 @@ export async function sliceRemote(
       '-y',
       '-v',
       'error',
-      ...headerArgs(media.headers),
+      ...headerArgs(media.headers, media.input),
       '-ss',
       (startMs / 1000).toFixed(3),
       '-t',

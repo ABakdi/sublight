@@ -98,6 +98,12 @@ export interface UrlJob {
   /** The browser's User-Agent, sent when fetching `mediaUrl`. */
   userAgent?: string
   /**
+   * A relay from `POST /v1/media/resolve` (the Player): its saved copy is
+   * captioned when there is one, since the page's own link may have stopped
+   * working. Falls back to `mediaUrl` / `pageUrl`.
+   */
+  relayId?: string
+  /**
    * Opt-in: let yt-dlp read this browser's cookies, for sites that need a
    * login (Instagram). Off unless the user enables it in Options.
    */

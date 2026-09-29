@@ -408,7 +408,9 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
             state: 'downloading',
           })
         }
-        return reply(s.relays.add(media), {
+        // The page's own link may stop working once its page stops playing: keep a copy.
+        const copy = media.via === 'direct' ? { copyWith: config.ffmpeg.ffmpeg } : {}
+        return reply(s.relays.add(media, Date.now(), copy), {
           durationMs: media.durationMs,
           title: media.title,
           via: media.via,

@@ -67,6 +67,8 @@ function urlJob(
     type: 'url',
     pageUrl: project.media.pageUrl!,
     ...(direct ? { mediaUrl: direct.url } : {}),
+    // The engine's copy, when it saved one: the page's link may have stopped working.
+    ...(project.media.relayId ? { relayId: project.media.relayId } : {}),
     model,
     params: { language, ...(task === 'translate' ? { task } : {}) },
   }
