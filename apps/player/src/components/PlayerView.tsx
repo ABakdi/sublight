@@ -322,7 +322,9 @@ export function PlayerView() {
                   secondarySyncOffsetMs={secondaryTrack?.syncOffsetMs ?? 0}
                   style={project.settings.style}
                   draft={shownTrack.draft}
-                  className="subtitle-overlay"
+                  className={`subtitle-overlay${
+                    project.settings.style.position.anchor.startsWith('bottom') ? ' sl-bottom' : ''
+                  }`}
                 />
               )}
             </VideoStage>

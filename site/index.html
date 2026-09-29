@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>sublight: subtitles for any video, made on your computer</title>
+    <meta
+      name="description"
+      content="sublight adds accurate, perfectly timed subtitles to any video on the web or on your disk, in any language. Speech recognition and translation run on your own computer: nothing is uploaded."
+    />
+    <meta name="theme-color" content="#1e1b4b" />
+    <meta property="og:title" content="sublight: subtitles for any video" />
+    <meta
+      property="og:description"
+      content="Accurate, perfectly timed subtitles for any video, in any language, made on your own computer."
+    />
+    <meta property="og:image" content="img/player-dark.jpg" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to the content</a>
+    <header class="top">
+      <div class="wrap bar">
+        <a class="brand" href="#" aria-label="sublight home">
+          <img src="logo.svg" alt="sublight" width="96" height="48" />
+        </a>
+        <nav aria-label="Sections">
+          <a href="#features">Features</a>
+          <a href="#how">How it works</a>
+          <a href="#install">Install</a>
+          <a href="#faq">FAQ</a>
+          <a href="https://github.com/ABakdi/sublight">GitHub</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero">
+        <div class="wrap">
+          <h1>Subtitles for any video.<br /><span>Made on your computer.</span></h1>
+          <p class="lead">
+            sublight listens to a video and writes its subtitles, timed to the word, in the language
+            you choose. On YouTube and any site with a video, and on the files on your disk. The
+            speech recognition and translation run on your own machine: nothing is uploaded, ever.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="#install">Install sublight</a>
+            <a class="button" href="https://github.com/ABakdi/sublight/releases/latest">Download</a>
+          </div>
+          <picture class="shot">
+            <source srcset="img/player-light.jpg" media="(prefers-color-scheme: light)" />
+            <img
+              src="img/player-dark.jpg"
+              width="1920"
+              height="1080"
+              alt="The Sublight Player: a video with its subtitles on screen, the control bar, and the tracks panel."
+            />
+          </picture>
+        </div>
+      </section>
+
+      <section id="features" class="wrap">
+        <h2>What it does</h2>
+        <div class="grid">
+          <article>
+            <h3>Any video on the web</h3>
+            <p>
+              YouTube, Vimeo and any site that plays a video, embedded players included. Captions
+              appear on the video itself, ahead of playback where the site allows, live otherwise.
+            </p>
+          </article>
+          <article>
+            <h3>Your own files</h3>
+            <p>
+              The Sublight Player plays the videos on your disk, or takes over a web page's video in
+              one click, with every feature: captioning, translation, styles, export.
+            </p>
+          </article>
+          <article>
+            <h3>Any language</h3>
+            <p>
+              Speech in about a hundred languages becomes text. English comes straight from the
+              audio; other languages from a translator that keeps the meaning, not just the words.
+              Show the original and the translation together to learn.
+            </p>
+          </article>
+          <article>
+            <h3>Timed to the word</h3>
+            <p>
+              Every word carries its own timestamp, so captions land when it's spoken: 77 ms median
+              error over a 30-minute film. Word by word, or whole sentences.
+            </p>
+          </article>
+          <article>
+            <h3>Private by design</h3>
+            <p>
+              The models run on your computer. Audio, transcripts and what you watch never leave it.
+              Open-source models, downloaded once from pinned sources and checked.
+            </p>
+          </article>
+          <article>
+            <h3>A real player</h3>
+            <p>
+              VLC's keyboard and YouTube's gestures: double-click to skip 10 s and keep tapping for
+              more, hold for 2×, frame steps, A–B loops, screenshots, a queue, light and dark.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="how" class="wrap">
+        <h2>How it works</h2>
+        <ol class="parts" aria-label="The three parts">
+          <li>
+            <b>The extension</b>
+            <span
+              >finds the video on the page, draws the captions over it, and asks the engine.</span
+            >
+          </li>
+          <li>
+            <b>The engine</b>
+            <span
+              >runs on your computer: Whisper for speech, a local translator, ffmpeg for audio. It
+              starts when it's needed and turns itself off when idle.</span
+            >
+          </li>
+          <li>
+            <b>The Player</b>
+            <span>plays your files and page videos, and edits and exports their subtitles.</span>
+          </li>
+        </ol>
+        <p class="note">
+          With an NVIDIA graphics card the models use it; without one, they run on the processor.
+          Everything talks over <code>127.0.0.1</code>, never the internet, except to fetch the
+          video you're watching.
+        </p>
+      </section>
+
+      <section id="install" class="wrap">
+        <h2>Install</h2>
+        <p class="note">
+          Linux for now (x64 or ARM), with Brave, Chromium, Chrome, Vivaldi or Edge.
+        </p>
+        <ol class="steps">
+          <li>
+            <h3>Run the installer</h3>
+            <p>In a terminal:</p>
+            <div class="code">
+              <code id="cmd"
+                >curl -fsSL https://github.com/ABakdi/sublight/releases/latest/download/install.sh |
+                bash</code
+              >
+              <button type="button" class="copy" data-copy="cmd" aria-label="Copy the command">
+                Copy
+              </button>
+            </div>
+            <p>
+              It installs the engine, the Player and the speech model into
+              <code>~/.sublight</code>, and the CUDA toolkit if you have an NVIDIA card. It asks
+              before installing anything with <code>sudo</code>. Run it again to update;
+              <code>--uninstall</code> removes it.
+            </p>
+          </li>
+          <li>
+            <h3>Load the extension</h3>
+            <p>
+              Open <code>brave://extensions</code> (or <code>chrome://extensions</code>), switch on
+              <b>Developer mode</b>, click <b>Load unpacked</b> and choose
+              <code>~/.sublight/extension</code>. Once.
+            </p>
+          </li>
+          <li>
+            <h3>Caption a video</h3>
+            <p>
+              On any page with a video, click the sublight icon, then <b>Caption this video</b>. The
+              engine starts by itself.
+            </p>
+          </li>
+        </ol>
+      </section>
+
+      <section id="limits" class="wrap">
+        <h2>Where it works</h2>
+        <div class="grid two">
+          <article>
+            <h3>Works</h3>
+            <ul>
+              <li>YouTube, including Shorts; TikTok and Instagram feeds</li>
+              <li>Any site that plays a plain video, HLS or DASH stream</li>
+              <li>Embedded players in other pages</li>
+              <li>Video files on your disk: MP4, WebM, MKV, MOV</li>
+              <li>Sites that need your login, with your permission</li>
+            </ul>
+          </article>
+          <article>
+            <h3>Doesn't</h3>
+            <ul>
+              <li>DRM-protected streams (Netflix, Disney+): their audio can't be read</li>
+              <li>Live streams, ahead of time: they're captioned live instead</li>
+              <li>macOS and Windows: not yet</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section id="faq" class="wrap">
+        <h2>Questions</h2>
+        <details>
+          <summary>Why Developer mode?</summary>
+          <p>
+            Chromium browsers install packed extensions only from their web store, and sublight
+            isn't published there yet. Developer mode lets the browser load the extension from the
+            folder the installer puts it in. Keep it on.
+          </p>
+        </details>
+        <details>
+          <summary>Do I need a graphics card?</summary>
+          <p>
+            No. With an NVIDIA card the models run on it and are several times faster; without one
+            they run on the processor. You can choose in the extension's Settings → Developer mode.
+          </p>
+        </details>
+        <details>
+          <summary>How much disk space?</summary>
+          <p>
+            About 2 GB for the engine and the speech model, and 2.5 GB more for the translator,
+            downloaded the first time you translate into a language other than English.
+          </p>
+        </details>
+        <details>
+          <summary>Does anything leave my computer?</summary>
+          <p>
+            No audio, transcript or history. The engine fetches the video you're watching from its
+            site, as your browser does, and downloads the models once. That's all.
+          </p>
+        </details>
+        <details>
+          <summary>How do I remove it?</summary>
+          <p>
+            Run the installer with <code>--uninstall</code> (add <code>--purge</code> to delete the
+            models too), then remove the extension from the browser's extensions page.
+          </p>
+        </details>
+      </section>
+    </main>
+
+    <footer class="wrap foot">
+      <img src="logo.svg" alt="" width="64" height="32" />
+      <span>Open source, MIT licensed. Whisper (MIT) and Qwen3 (Apache-2.0) models.</span>
+      <a href="https://github.com/ABakdi/sublight">github.com/ABakdi/sublight</a>
+    </footer>
+
+    <script>
+      for (const b of document.querySelectorAll('[data-copy]'))
+        b.addEventListener('click', async () => {
+          const text = document
+            .getElementById(b.dataset.copy)
+            .textContent.replace(/\s+/g, ' ')
+            .trim()
+          try {
+            await navigator.clipboard.writeText(text)
+            b.textContent = 'Copied'
+            setTimeout(() => (b.textContent = 'Copy'), 1500)
+          } catch {
+            b.textContent = 'Select and copy'
+          }
+        })
+    </script>
+  </body>
+</html>

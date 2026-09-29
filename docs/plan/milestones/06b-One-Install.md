@@ -118,6 +118,7 @@ updated: 2026-09-29
   - supported sites and limits (DRM, logins), privacy, FAQ, license
   - deployed by a Pages workflow from `master`
   - _Accept:_ live at the repository's Pages address; Lighthouse ≥ 90 in every category; links checked in CI.
+  - _Progress (2026-09-29):_ `site/` built (hero with the Player, features, how it works, the three install steps, where it works and doesn't, FAQ), light and dark, no horizontal scroll on a phone; Lighthouse 100 in all four categories (local). The Pages workflow (`.github/workflows/pages.yml`) publishes it from `master` once Pages is set to GitHub Actions in the repository settings. Not yet: live, and a link check of the site in CI.
 - [x] **M06b.14** — **Logo**: the word **sub** with a small glint of light in the subscript position, as in x₁. The subscript _is_ the light, so it reads "sub" + "light", and it sits under the text as a caption does. Deliverables:
   - an SVG wordmark in colour and in mono
   - the glint alone as the icon (16/32/48/128 px, legible at 16)

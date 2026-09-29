@@ -144,3 +144,11 @@ body {
 .animate-ping-once {
   animation: sublight-flash 0.5s ease-out forwards;
 }
+
+/* Captions at the bottom move up while the control bar shows, as on YouTube. */
+.subtitle-overlay {
+  transition: translate 0.2s ease;
+}
+[data-controls='shown'] .subtitle-overlay.sl-bottom {
+  translate: 0 -64px;
+}
