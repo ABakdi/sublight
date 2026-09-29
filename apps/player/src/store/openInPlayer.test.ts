@@ -232,3 +232,17 @@ describe('open in Sublight Player (M05b)', () => {
     expect(pageVideoError(new EngineError('MEDIA_PROTECTED', 'x', 422)).captionOnPage).toBe(false)
   })
 })
+
+describe('the browser login in a hand-over (security pass 2, S2)', () => {
+  it('goes to the engine only when the viewer ticks it, and only for a real browser', async () => {
+    const { withLoginConsent } = await import('../App')
+    const p = payload([{ kind: 'engine-fetchable', url: 'https://site.test/watch?v=1' }])
+    expect(withLoginConsent(p, false).engine).toEqual({ userAgent: 'UA' })
+    expect(withLoginConsent(p, true).engine).toEqual({
+      userAgent: 'UA',
+      cookiesFromBrowser: 'brave',
+    })
+    const forged = { ...p, engine: { cookiesFromBrowser: '--exec=x' as never } }
+    expect(withLoginConsent(forged, true).engine).toEqual({})
+  })
+})

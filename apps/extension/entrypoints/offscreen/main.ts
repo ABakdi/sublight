@@ -10,8 +10,10 @@ import { pcmToBase64 } from '../../src/pcm'
  */
 let capture: PcmCapture | null = null
 
-browser.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+browser.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   if (!isMessage(message)) return undefined
+  // Only the service worker starts and stops capture, never a web page (security pass 2, S5).
+  if (!sender.url?.startsWith(`chrome-extension://${browser.runtime.id}/`)) return undefined
   if (message.type === 'offscreen.start') {
     void start(message.jobId, message.streamId).then(
       () => sendResponse({ ok: true }),

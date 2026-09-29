@@ -4,7 +4,8 @@ import { createReadStream, existsSync, mkdirSync, readdirSync, rmSync, statSync 
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { JobError } from '../jobs/queue'
-import { headerArgs, type RemoteMedia } from './remote'
+import { guardedFetch } from './egress'
+import { headerArgs, ytDlpProxyArgs, type RemoteMedia } from './remote'
 
 /** How long a relay handle works: longer than a film, shorter than a signed CDN URL. */
 export const RELAY_TTL_MS = 6 * 60 * 60 * 1000
@@ -131,6 +132,7 @@ export class RelayStore {
     }
     this.relays.set(id, relay)
     const args = [
+      ...ytDlpProxyArgs(),
       '--no-playlist',
       '--no-warnings',
       '--newline',
@@ -370,6 +372,9 @@ function fileResponse(path: string, request: Request): Response {
     'content-type': 'video/mp4',
     'accept-ranges': 'bytes',
     'cache-control': 'no-store',
+    // Media, never a page, on the origin that approves pairings (security pass 2, S8).
+    'x-content-type-options': 'nosniff',
+    'content-security-policy': 'sandbox',
   })
   if (!m || (m[1] === '' && m[2] === '')) {
     headers.set('content-length', String(size))
@@ -405,7 +410,7 @@ export async function relayResponse(relay: Relay, request: Request): Promise<Res
   const headers: Record<string, string> = { ...relay.media.headers }
   const range = request.headers.get('range')
   if (range) headers.Range = range
-  const upstream = await fetch(relay.media.input, {
+  const upstream = await guardedFetch(relay.media.input, {
     method: request.method === 'HEAD' ? 'HEAD' : 'GET',
     headers,
     signal: request.signal,

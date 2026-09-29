@@ -13,7 +13,7 @@ import {
   type SubtitleStyle,
   type SubtitleTrack,
 } from '@sublight/core'
-import type { OpenInPlayerPayload } from '@sublight/protocol'
+import { COOKIE_BROWSERS, type OpenInPlayerPayload } from '@sublight/protocol'
 import { engine, EngineError } from '../lib/engine'
 import type { StreamKind } from '../lib/streaming'
 import { getSetting, loadProject, saveProject, saveProjectRow, setSetting } from '../lib/idb'
@@ -100,6 +100,12 @@ function safeHints(
     (typeof out.userAgent !== 'string' || !/^[\x20-\x7e]{1,512}$/.test(out.userAgent))
   )
     delete out.userAgent
+  // Only a browser yt-dlp knows; anything else is dropped (security pass 2, S2).
+  if (
+    out.cookiesFromBrowser !== undefined &&
+    !(COOKIE_BROWSERS as readonly string[]).includes(out.cookiesFromBrowser)
+  )
+    delete out.cookiesFromBrowser
   return out
 }
 

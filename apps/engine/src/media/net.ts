@@ -17,8 +17,11 @@ for (const [net, bits] of [
 ] as const)
   PRIVATE.addSubnet(net, bits, 'ipv4')
 for (const [net, bits] of [
-  ['::', 128],
-  ['::1', 128],
+  ['::', 96], // unspecified, loopback and IPv4-compatible (::7f00:1)
+  ['64:ff9b::', 96], // NAT64: an IPv4 address inside (security pass 2, S9)
+  ['2002::', 16], // 6to4: likewise
+  ['100::', 64], // discard
+  ['fec0::', 10], // old site-local
   ['fc00::', 7],
   ['fe80::', 10],
   ['ff00::', 8],

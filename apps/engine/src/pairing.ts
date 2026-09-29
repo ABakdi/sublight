@@ -89,7 +89,13 @@ export function describeOrigin(origin: string, players: readonly string[] = []):
 }
 
 /** The engine's approval page: self-contained (no external resources), light and dark. */
-export function pairingPage(req: PairingRequest | null, players: readonly string[] = []): string {
+export function pairingPage(
+  req: PairingRequest | null,
+  players: readonly string[] = [],
+  /** The response's CSP nonce: only this page's own script and styles run. */
+  nonce = '',
+): string {
+  const n = nonce ? ` nonce="${nonce}"` : ''
   const body = !req
     ? `<h1>Nothing to approve</h1><p>This pairing request has expired or was already answered. Start pairing again from sublight.</p>`
     : req.state !== 'pending'
@@ -104,7 +110,7 @@ export function pairingPage(req: PairingRequest | null, players: readonly string
   <button id="deny">Deny</button>
 </div>
 <p id="result" role="status"></p>
-<script>
+<script${n}>
   const decide = async (approve) => {
     for (const b of document.querySelectorAll('button')) b.disabled = true
     const res = await fetch('/v1/pair/decide', {
@@ -122,7 +128,7 @@ export function pairingPage(req: PairingRequest | null, players: readonly string
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pair with sublight</title>
-<style>
+<style${n}>
   :root { color-scheme: light dark; --bg: #f9fafb; --fg: #101828; --muted: #667085; --accent: #4f46e5; --card: #fff; --border: #e4e7ec }
   @media (prefers-color-scheme: dark) { :root { --bg: #09090b; --fg: #f4f4f5; --muted: #a1a1aa; --card: #18181b; --border: #27272a; --accent: #818cf8 } }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; padding: 16px; box-sizing: border-box }

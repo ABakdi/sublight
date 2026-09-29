@@ -9,6 +9,7 @@ import type { EngineConfig } from '../src/config'
 import { MAX_ACTIVE_DOWNLOADS, relayResponse, RelayStore } from '../src/media/relay'
 import { assertPublicUrl, isPrivateAddress } from '../src/media/net'
 import { headerArgs } from '../src/media/remote'
+import { configureEgress } from '../src/media/egress'
 
 /** Security baseline pass 1 fixes (docs/audits/2026-09-Security-Baseline.md). */
 const config = {
@@ -33,6 +34,7 @@ describe('security baseline fixes', () => {
   afterAll(() => upstream.close())
 
   it('A5: a relayed upstream is never served as a page', async () => {
+    configureEgress({ allowPrivate: true }) // the upstream is a local test server
     const res = await relayResponse(
       {
         kind: 'stream',

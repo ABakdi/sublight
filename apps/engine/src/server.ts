@@ -10,6 +10,7 @@ import { Logger } from './logger'
 import { enginePaths } from './paths'
 import { createServices } from './services'
 import { verifyBinaries } from './workers/verify'
+import { EgressProxy } from './media/egress'
 import { attachWebSocket } from './ws'
 
 /**
@@ -78,6 +79,11 @@ export function runServer(): Promise<{ port: number }> {
   })
   services.jobs.start()
 
+  // Media traffic only to the internet, checked at every connection (security pass 2, S3).
+  const egress = new EgressProxy()
+  if (!config.allowPrivateNetworks)
+    void egress.start().catch((err: unknown) => log.error(`egress proxy: ${String(err)}`))
+
   // Are the worker binaries still the ones setup built? Warn if not (baseline E2).
   void verifyBinaries(paths.bin).then((checks) => {
     services.binaries = checks
@@ -95,7 +101,7 @@ export function runServer(): Promise<{ port: number }> {
   if (config.player.port > 0 && !playerDir)
     log.info('no Player build found (pnpm build, or player.dir in config.json)')
   if (playerDir)
-    void servePlayer(playerDir, config.player.port).then(
+    void servePlayer(playerDir, config.player.port, config.port).then(
       (s) => {
         player = s
         log.info(`Player at http://127.0.0.1:${config.player.port}/`, { dir: playerDir })
@@ -119,6 +125,7 @@ export function runServer(): Promise<{ port: number }> {
     await services.jobs.shutdown()
     await services.whisper.stop()
     await services.llama.stop()
+    egress.stop()
     rmSync(pidFile, { force: true })
     player?.close()
     server.close(() => process.exit(0))

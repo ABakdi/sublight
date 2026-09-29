@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
-import { decodeOpenPayload, type OpenInPlayerPayload } from '@sublight/protocol'
+import {
+  COOKIE_BROWSERS,
+  decodeOpenPayload,
+  type CookieBrowser,
+  type OpenInPlayerPayload,
+} from '@sublight/protocol'
 import { engineBaseUrl } from './lib/engine'
 import { useEngineStore, type EngineStatus as Status } from './store/engine'
 import { usePlayerStore } from './store/player'
@@ -68,9 +73,9 @@ export function App() {
       {handoff ? (
         <HandoffConfirm
           payload={handoff}
-          onOpen={() => {
+          onOpen={(useLogin) => {
             setHandoff(null)
-            void openFromPage(handoff)
+            void openFromPage(withLoginConsent(handoff, useLogin))
           }}
           onCancel={() => setHandoff(null)}
         />
@@ -83,6 +88,27 @@ export function App() {
   )
 }
 
+/** A browser whose login the hand-over asks for, when it names a real one. */
+function loginAsked(payload: OpenInPlayerPayload): string | null {
+  const b = payload.engine?.cookiesFromBrowser
+  return typeof b === 'string' && (COOKIE_BROWSERS as readonly string[]).includes(b) ? b : null
+}
+
+/**
+ * The browser login goes to the engine only when the viewer ticks it here
+ * (security pass 2, S2): any site can link to the Player with a hand-over.
+ */
+export function withLoginConsent(
+  payload: OpenInPlayerPayload,
+  useLogin: boolean,
+): OpenInPlayerPayload {
+  const browser = loginAsked(payload)
+  const engine: NonNullable<OpenInPlayerPayload['engine']> = { ...(payload.engine ?? {}) }
+  delete engine.cookiesFromBrowser
+  if (useLogin && browser) engine.cookiesFromBrowser = browser as CookieBrowser
+  return { ...payload, engine }
+}
+
 /** "Open this video?": the handed-over page, before the engine fetches anything for it. */
 function HandoffConfirm({
   payload,
@@ -90,9 +116,11 @@ function HandoffConfirm({
   onCancel,
 }: {
   payload: OpenInPlayerPayload
-  onOpen: () => void
+  onOpen: (useLogin: boolean) => void
   onCancel: () => void
 }) {
+  const login = loginAsked(payload)
+  const [useLogin, setUseLogin] = useState(false)
   let site = payload.source.pageUrl
   try {
     site = new URL(payload.source.pageUrl).host
@@ -111,13 +139,27 @@ function HandoffConfirm({
         <p className="mt-1 text-xs break-all text-zinc-400">
           From <b className="text-zinc-200">{site}</b>. The engine will fetch it from there.
         </p>
+        {login && (
+          <label className="mt-3 flex items-start gap-2 text-xs text-zinc-300">
+            <input
+              type="checkbox"
+              data-testid="handoff-login"
+              checked={useLogin}
+              onChange={(e) => setUseLogin(e.target.checked)}
+            />
+            <span>
+              Use my {login[0]!.toUpperCase() + login.slice(1)} login to fetch it (for videos that
+              need one). The engine reads that browser’s cookies for this site.
+            </span>
+          </label>
+        )}
         <div className="mt-4 flex gap-2">
           <button
             type="button"
             data-testid="handoff-open"
             autoFocus
             className="rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-400"
-            onClick={onOpen}
+            onClick={() => onOpen(useLogin)}
           >
             Open
           </button>

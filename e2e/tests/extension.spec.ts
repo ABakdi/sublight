@@ -550,7 +550,10 @@ test.describe('extension in Chromium (Spec 09)', () => {
       if (!models.some((m) => m.id === 'qwen3-4b-instruct' && m.installed)) return
       test.setTimeout(240_000)
       await site.getByTestId('qc-open').click()
-      await site.getByTestId('qc-target').selectOption('fr')
+      // Chosen with the keyboard, as a person would: the controls ignore a page's
+      // synthetic events (security pass 2, S7), and selectOption() is one.
+      await site.getByTestId('qc-target').focus()
+      await site.keyboard.press('f') // French
       await site.evaluate(() => (document.querySelector('video')!.currentTime = 6.5))
       await expect
         .poll(

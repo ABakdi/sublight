@@ -38,7 +38,30 @@ export function findPlayerDir(configured?: string): string | null {
  * own, not the engine's: it pairs like any client and can't approve pairings.
  * Unknown paths get index.html (client-side routes); hashed assets cache for good.
  */
-export function servePlayer(dir: string, port: number): Promise<Server> {
+/**
+ * The Player's CSP (security pass 2, S4): its own scripts only, never framed.
+ * Media and hls.js/dash.js requests go to any site (page videos), the API to
+ * the engine.
+ */
+export function playerCsp(enginePort: number): string {
+  const engine = [`127.0.0.1:${enginePort}`, `localhost:${enginePort}`]
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: http: https:",
+    "media-src 'self' blob: data: http: https:",
+    `connect-src 'self' ${engine.map((h) => `http://${h} ws://${h}`).join(' ')} http: https:`,
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+  ].join('; ')
+}
+
+export function servePlayer(dir: string, port: number, enginePort = 17421): Promise<Server> {
+  const csp = playerCsp(enginePort)
   const root = resolve(dir)
   let hosts = new Set<string>()
   const server = createServer((req, res) => {
@@ -75,6 +98,9 @@ export function servePlayer(dir: string, port: number): Promise<Server> {
       'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
+      ...(extname(file).toLowerCase() === '.html'
+        ? { 'content-security-policy': csp, 'x-frame-options': 'DENY' }
+        : {}),
     })
     if (req.method === 'HEAD') res.end()
     else createReadStream(file).pipe(res)

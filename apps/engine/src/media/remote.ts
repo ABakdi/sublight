@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { JobError } from '../jobs/queue'
 import { assertPublicUrl } from './net'
+import { egressProxy, guardedFetch } from './egress'
 import { run, type FfmpegBinaries } from './ffmpeg'
 
 /**
@@ -36,6 +37,12 @@ export function findYtDlp(binDir: string): string | null {
 
 const isHttp = (url: string | undefined): url is string => !!url && /^https?:\/\//i.test(url)
 
+/** yt-dlp through the engine's proxy (S3), when there is one. */
+export function ytDlpProxyArgs(): string[] {
+  const proxy = egressProxy()
+  return proxy ? ['--proxy', proxy] : []
+}
+
 export function headerArgs(headers: Record<string, string>, input?: string): string[] {
   // The engine's own copy of a page video (a relay file): local, and nothing else.
   if (input !== undefined && !isHttp(input)) return ['-protocol_whitelist', 'file']
@@ -44,10 +51,13 @@ export function headerArgs(headers: Record<string, string>, input?: string): str
     // A value can't start a header of its own (security baseline A8).
     .map(([k, v]) => `${k.replace(/[^\w-]/g, '')}: ${v.replace(/[\r\n]+/g, ' ')}\r\n`)
     .join('')
+  const proxy = egressProxy()
   return [
     // Remote inputs stay remote: a manifest can't point ffmpeg at local files.
     '-protocol_whitelist',
     'http,https,tls,tcp,crypto,data,httpproxy',
+    // Every connection through the engine's proxy, which refuses private addresses (S3).
+    ...(proxy ? ['-http_proxy', proxy] : []),
     ...(lines ? ['-headers', lines] : []),
   ]
 }
@@ -123,7 +133,9 @@ export async function assertNotProtected(
   headers: Record<string, string>,
 ): Promise<void> {
   if (!/\.m3u8(\?|$)|m3u8/i.test(input)) return
-  const res = await fetch(input, { headers, signal: AbortSignal.timeout(15_000) }).catch(() => null)
+  const res = await guardedFetch(input, { headers, signal: AbortSignal.timeout(15_000) }).catch(
+    () => null,
+  )
   const text = res?.ok ? await res.text().catch(() => '') : ''
   if (isDrmPlaylist(text.slice(0, 20_000)))
     throw new JobError(
@@ -185,6 +197,7 @@ export async function resolveRemote(
   const r = await run(
     deps.ytDlp,
     [
+      ...ytDlpProxyArgs(),
       '-J',
       '--no-playlist',
       '--no-warnings',

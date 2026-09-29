@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { PLAYABLE_FORMAT, relayResponse } from './media/relay'
 import { PairingStore, pairingPage, type PairingRequest } from './pairing'
 import { assertNotProtected, isManifest, resolveRemote } from './media/remote'
@@ -29,6 +30,7 @@ import { probeGpu } from './gpu'
 import { buildHealth, buildVersion } from './health'
 import { JobError } from './jobs/queue'
 import { MediaError } from './media/store'
+import { configureEgress } from './media/egress'
 import { ModelError } from './models/manager'
 import { applyDevice, gpuBuild, type EngineServices } from './services'
 
@@ -97,6 +99,8 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
   const pairing = new PairingStore()
   const gpu = opts.gpu ?? probeGpu
   const s = opts.services
+  // The engine's own media requests follow `allowPrivateNetworks` (S3).
+  configureEgress({ allowPrivate: config.allowPrivateNetworks })
 
   app.use('*', hostOriginGuard(config.port, origins))
   app.use('*', corsAllowlist(origins))
@@ -148,7 +152,13 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
     const req = pairing.get(c.req.query('request') ?? '')
     c.header('cache-control', 'no-store')
     c.header('x-frame-options', 'DENY') // no clickjacking the Approve button
-    return c.html(pairingPage(req, players))
+    // Only this page's own script and styles, nothing framed or loaded (security pass 2, S4).
+    const nonce = randomBytes(16).toString('base64')
+    c.header(
+      'content-security-policy',
+      `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
+    )
+    return c.html(pairingPage(req, players, nonce))
   })
   app.post('/v1/pair/decide', async (c) => {
     // Only the engine's own pairing page decides: no other site can approve.

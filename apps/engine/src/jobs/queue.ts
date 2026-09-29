@@ -407,7 +407,15 @@ export class JobQueue {
       this.store.patch(job.id, { state: 'queued', detail: `retrying: ${failure.message}` })
       return
     }
-    this.bus.emit({ type: 'job.log', jobId: job.id, level: 'error', message: failure.message })
+    // Signed media links and the pages watched stay out of the log (security pass 2, S10).
+    const logged = failure.message.replace(/https?:\/\/\S+/g, (u) => {
+      try {
+        return `${new URL(u).host}/…`
+      } catch {
+        return '…'
+      }
+    })
+    this.bus.emit({ type: 'job.log', jobId: job.id, level: 'error', message: logged })
     this.store.patch(job.id, { state: 'failed', error: failure, detail: 'failed' })
   }
 }

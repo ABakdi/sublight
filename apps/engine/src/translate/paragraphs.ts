@@ -14,7 +14,9 @@ const SENTENCE_END = /[.!?…]["')\]»]?$/u
 
 /** One subtitle line per cue, as the model sees it. */
 export function cueLine(cue: SubtitleCue): string {
-  return cue.text.replace(/\s*\n\s*/g, ' ').trim()
+  // Any line break (\r, U+2028…) or control character becomes a space, so a
+  // cue can't start a numbered line of its own (security pass 2, S11).
+  return cue.text.replace(/[\s\p{Cc}\u2028\u2029]+/gu, ' ').trim()
 }
 
 /**

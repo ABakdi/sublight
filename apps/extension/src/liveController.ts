@@ -485,7 +485,12 @@ export async function onLiveMessage(
       find(message.jobId)?.audio(message.wallMs, message.pcm)
       return { ok: true }
     case 'live.anchor':
-      ;(find(message.jobId) ?? finishing.get(message.jobId))?.anchor(message.anchor)
+      {
+        // A finishing session still takes anchors, but only from its own tab (S6).
+        const done = finishing.get(message.jobId)
+        const own = done && (tabId === undefined || done.tabId === tabId) ? done : undefined
+        ;(find(message.jobId) ?? own)?.anchor(message.anchor)
+      }
       return { ok: true }
     case 'live.hint':
       find(message.jobId)?.hint(message.message)

@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type SyntheticEvent,
+} from 'react'
 
 export type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
 
@@ -59,6 +66,24 @@ export interface ControlsActions {
   toggleBoth(): void
   setExpanded(on: boolean): void
   setCorner(corner: Corner): void
+}
+
+/**
+ * The page's own scripts can reach into the overlay; only the viewer's own
+ * clicks and keys count (security pass 2, S7: a page could start jobs).
+ */
+const dropUntrusted = (e: SyntheticEvent) => {
+  if (!e.nativeEvent.isTrusted) {
+    e.stopPropagation()
+    e.preventDefault()
+  }
+}
+const onlyTrusted = {
+  onClickCapture: dropUntrusted,
+  onPointerDownCapture: dropUntrusted,
+  onChangeCapture: dropUntrusted,
+  onInputCapture: dropUntrusted,
+  onKeyDownCapture: dropUntrusted,
 }
 
 export function clampDelay(ms: number): number {
@@ -152,7 +177,7 @@ export function QuickControls({
 
   if (!model.expanded) {
     return (
-      <div ref={boxRef} style={place}>
+      <div ref={boxRef} style={place} {...onlyTrusted}>
         <button
           data-testid="qc-open"
           title="sublight: captions, translation, delay (Alt+Shift+K)"
@@ -184,6 +209,7 @@ export function QuickControls({
   return (
     <div
       ref={boxRef}
+      {...onlyTrusted}
       data-testid="qc-panel"
       style={{
         ...place,
