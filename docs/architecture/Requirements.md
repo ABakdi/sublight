@@ -59,7 +59,7 @@ Grouped; detailed contracts live in the [Specification](../specification/README.
 ### F4 — Accuracy & sync
 
 - F4.1 **Word-level timestamps** with median onset offset ≤ 250 ms after refinement (target), no drift accumulation over a 2 h video (≤ 500 ms total).
-- F4.2 Meaning-preserving translation: rated fluent for dialog by the project owner, proper nouns/glossary respected. English target: Whisper `translate` with no extra model; other targets: local LLM ([ADR-0018](./decisions/0018-whisper-translate-to-english.md)).
+- F4.2 Meaning-preserving translation: rated fluent for dialog by me, proper nouns/glossary respected. English target: Whisper `translate` with no extra model; other targets: local LLM ([ADR-0018](./decisions/0018-whisper-translate-to-english.md)).
 - F4.3 Speech recognition Word Error Rate ≤ 15% on clear single-speaker audio with default `small` model; better with the large-v3 (turbo) models.
 
 ### F5 — Subtitle management

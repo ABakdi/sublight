@@ -6,6 +6,8 @@ updated: 2026-09-28
 
 # M06 — Beta 1 release
 
+> **Release gated by [M06b](06b-One-Install.md)** (2026-09-29): I want the release to install with one script and the extension, and then need no terminal, token or pairing. The 0.1.0 tag waits for M06b and the pre-beta audits.
+
 **Goal:** a packaged, installable, _usable-by-a-non-dev_ sublight. Pairing is smooth, the engine auto-starts, QA is methodical, and the **first checkpoint** is opened — the rest of the project learns from it.
 
 ## Scope
@@ -44,7 +46,7 @@ updated: 2026-09-28
 
 ## Open questions
 
-- Distribution channel for Beta 1 (local builds vs. a simple release page) — decide with the owner at M06 kickoff.
+- Distribution channel for Beta 1: decided — a GitHub release with `install.sh` and the extension zip, loaded in Developer mode ([M06b](06b-One-Install.md)).
 - Whether Node SEA/static engine is worth it vs. documented `pnpm install` (time-box: if packaging takes > 3 days, ship documented-requirements edition and mark L1 complete).
 
 ## Related

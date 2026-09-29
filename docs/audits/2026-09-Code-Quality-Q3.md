@@ -1,0 +1,88 @@
+---
+tags: [audits, code-quality]
+status: open
+updated: 2026-09-29
+---
+
+# Audit — Code quality, run Q-3 (pre-beta)
+
+- **Type:** code-quality
+- **Opened:** 2026-09-29 · **Closed:** —
+- **Status:** `open` (findings scheduled in [M06b.15](../plan/milestones/06b-One-Install.md))
+- **Trigger:** release gate (Q-3 in the [code quality plan](Code-Quality-Baseline-Plan.md#first-runs-planned)) and the [my review of the Beta-1 build](../checkpoints/Beta-1-Checklist.md#9-review-after-using-the-build-2026-09-29): audits before committing to a beta.
+
+## 1. Scope
+
+- In: every workspace (`apps/engine`, `apps/player`, `apps/extension`, `packages/*`, `e2e/`), CI, and the docs' claims about the code.
+- Out: security (in [pass 2](2026-09-Security-Baseline-Pass-2.md)) and performance budgets (M07.5).
+
+## 2. Pass criteria
+
+The floor and the structural checklist of the [code quality baseline plan](Code-Quality-Baseline-Plan.md).
+
+## 3. Evidence gathered
+
+`master` at `c0ed0e5`, target machine, whisper-small and Qwen3-4B installed.
+
+| Gate                | Result            | Notes                                                                                                                                                                        |
+| ------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm lint`         | ✅ (8 s)          | But the config lacks react/react-hooks and the promise rules (Q2)                                                                                                            |
+| `pnpm format:check` | ✅                |                                                                                                                                                                              |
+| `pnpm typecheck`    | ✅ (9 s)          | `strict` and `noUncheckedIndexedAccess` on in the base config every workspace extends                                                                                        |
+| `pnpm lint:links`   | ✅                | 760 links                                                                                                                                                                    |
+| `pnpm test`         | ✅ (48 s)         | 323 tests (core 51, protocol 8, overlay 14, extension 22, player 43, engine 185), real-model tests included (Qwen 14 s, whisper 4–5 s, live 7 s)                             |
+| Coverage floors     | ❌ not measurable | No coverage provider installed or configured (Q1)                                                                                                                            |
+| `pnpm build`        | ✅ (14 s)         | Extension 583 kB; Player chunks over 500 kB (hls.js 593 kB, dash.js 859 kB)                                                                                                  |
+| `pnpm audit --prod` | ✅                | No known vulnerabilities, but not a CI step (Q17)                                                                                                                            |
+| `pnpm outdated -r`  | 13 outdated       | Minor: hono, ws, vitest, typescript-eslint, lint-staged, @wxt-dev/module-react. Major: eslint 10, TypeScript 7, Vite 8, @vitejs/plugin-react 6, @types/node 26, cross-env 10 |
+| Promise-rule probe  | 0 hits            | `no-floating-promises` / `no-misused-promises` run once from the command line                                                                                                |
+
+**Checklist items that hold:**
+
+- no `any` in `packages/` or `apps/`
+- package boundaries (core has no dependencies; overlay imports core and React only; protocol imports core only; no app imports another)
+- no protocol type redeclared in an app
+- 0 TODO/FIXME, no commented-out code
+- engine retries capped; the Player's socket backs off to 10 s
+- 9 spec claims checked against the code and matching (lease, relay TTL, body limits, audio chunks, Host check, log rotation, retention, relay caps, file modes)
+
+## 4. Findings
+
+| ID  | Severity | Area             | Finding                                                                                                                                                                                                                                              | Evidence                                                                            | Disposition                                                                                                                                                                  |
+| --- | -------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | P1       | Tests, CI        | The coverage floors (core ≥ 90 %, overlay ≥ 80 %, engine queue ≥ 85 %) can't be enforced: no coverage provider is installed or configured, and CI runs plain `vitest run`.                                                                           | no `@vitest/coverage-*`; `vitest.config.*`; `ci.yml:51`                             | scheduled, M06b.15: `@vitest/coverage-v8` with per-package thresholds, gated in CI                                                                                           |
+| Q3  | P1       | Extension async  | The extension's WebSockets have no `onclose`/`onerror` and never reconnect. A drop while the service worker lives (engine restart, sleep) loses job events and leaves captions stuck at "captioning". `followJob`'s promise never settles on a drop. | `captionsController.ts:129-135`; `liveController.ts:99-106`; `translation.ts:69-83` | scheduled, M06b.15: one shared socket client with capped backoff and resubscription (with M06b.8's shared engine client); it matters more once the engine idles out (M06b.5) |
+| Q4  | P1       | Extension errors | `onmessage = (m) => void this.onEvent(...)` hides rejections: when fetching the result in `finish()` fails, nothing catches it and the phase never reaches done or error. `JSON.parse` in `onmessage` is unguarded.                                  | `captionsController.ts:135, 213-215`; `liveController.ts:106, 129-131`              | scheduled, M06b.15: catch into `fail()`, guard the parse                                                                                                                     |
+| Q2  | P2       | Lint             | The ESLint config doesn't match the plan: no react-hooks plugin, `no-explicit-any` off, and the promise rules off though typed linting is on. The code is clean today, but nothing keeps it so.                                                      | `eslint.config.mjs:31`                                                              | scheduled, M06b.15: add react-hooks, `no-explicit-any: error` in `packages/**`, `no-floating-promises`, `no-misused-promises`                                                |
+| Q5  | P2       | Extension errors | 48 `.catch(() => {})`/`null` across the repo (22 in the two extension controllers) drop failed engine calls silently, so an orphaned job can't be diagnosed.                                                                                         | e.g. `captionsController.ts:142, 398, 559`; `liveController.ts:242, 295, 411`       | scheduled, M06b.15: one `bestEffort()` helper that logs at debug level                                                                                                       |
+| Q6  | P2       | Extension HTTP   | `engineRequest` has no timeout or signal: a stalled engine hangs the service worker's flows (the Player's copy has 10 s).                                                                                                                            | `extension/src/engine.ts:62-91` vs `player/src/lib/engine.ts:75-91`                 | scheduled with Q7                                                                                                                                                            |
+| Q7  | P2       | Duplication      | The engine client is written twice (requests, error type, token store, pairing loop), and the copies have drifted (timeouts, `retryable`, 204 handling).                                                                                             | `extension/src/engine.ts:62-140` vs `player/src/lib/engine.ts:53-91, 299-327`       | scheduled, [M06b.8](../plan/milestones/06b-One-Install.md): one shared client package                                                                                        |
+| Q8  | P2       | Duplication      | The target-language lists have drifted: the Player offers Polish and Ukrainian, the extension doesn't, and the order differs.                                                                                                                        | `player/src/components/ui.ts:10-27` vs `extension/src/quickControls.tsx:14-29`      | scheduled, M06b.15: one list in `@sublight/protocol`                                                                                                                         |
+| Q9  | P2       | Content script   | The content script ignores WXT's `ctx`: an interval, three listeners, a MutationObserver and `runtime.onMessage` are never removed. After an extension update the orphaned script keeps polling and throws "context invalidated".                    | `entrypoints/content.ts:50, 79, 136, 144, 174, 189`                                 | scheduled, M06b.15: `ctx.setInterval` / `ctx.addEventListener`, tear down in `ctx.onInvalidated`                                                                             |
+| Q10 | P2       | Structure        | Oversized units: `PlayerView` is one 517-line function; the popup is 806 lines, Options 811; `captionsController.ts` 699.                                                                                                                            | `wc -l`                                                                             | scheduled: the popup and Options merge (M06b.7) and the Player controls (M06b.11) are rewrites anyway; split them into modules there                                         |
+| Q11 | P2       | Test health      | No unit tests for the extension's controllers, engine client, background, content script, popup or Options, nor for most Player components and the socket reconnect. Only e2e covers them.                                                           | 7 extension test files, all pure helpers; 2 Player component tests                  | scheduled, M06b.15: controller tests with a mocked `browser` and WS first, then socket backoff                                                                               |
+| Q14 | P2       | Docs vs code     | Spec 09 §3 promises auto-retry on connection refused, WS reconnect with backoff and an alarms reconnect timer. None exist.                                                                                                                           | `09-Browser-Extension.md:44, 46`; `wxt.config.ts:25`                                | scheduled with Q3; the spec is rewritten for the native host (M06b.3) anyway                                                                                                 |
+| Q12 | P3       | Test health      | No test uses fake timers. Engine live tests assert after fixed real sleeps, and the extension e2e waits 5 s.                                                                                                                                         | `live.test.ts:158, 258, 280, 306`; `routes.test.ts:433`; `extension.spec.ts:405`    | scheduled, M07: fake timers or condition polling                                                                                                                             |
+| Q13 | P3       | Engine errors    | A corrupt `installed.json` is read as `{}` and overwritten on the next write (config.json is moved aside instead); the cast is unchecked.                                                                                                            | `models/manager.ts:82-87` vs `config.ts:115`                                        | scheduled, M06b.15                                                                                                                                                           |
+| Q15 | P3       | Docs vs code     | Spec 06 §4 says ASR chunks at 10 min; the code and Spec 07 §1.6 use 2 min with 1 s overlap.                                                                                                                                                          | `06-Engine-Server.md:45` vs `asr/transcribe.ts:29`                                  | scheduled, M06b.15: fix Spec 06                                                                                                                                              |
+| Q16 | P3       | Docs vs code     | Spec 03 says `GET /v1/pair/info` returns a pairing nonce for `sublight://pair`; ADR-0022 replaced that, and the code returns `{requiresToken: true}`.                                                                                                | `03-Protocol.md:115` vs `app.ts:124`                                                | scheduled, M06b.15: fix Spec 03                                                                                                                                              |
+| Q17 | P3       | CI               | `pnpm audit` isn't a CI step, and there is no nightly run; CI's e2e is Chromium only.                                                                                                                                                                | `.github/workflows/ci.yml`                                                          | scheduled, M06b.15: audit step and a nightly cron                                                                                                                            |
+| Q18 | P3       | Dead code        | About 40 exports aren't imported elsewhere, mostly used in their own file (unneeded `export`). _Grep-based; knip not installed._                                                                                                                     | grep scan                                                                           | scheduled, M07: knip in CI                                                                                                                                                   |
+| Q19 | P3       | Build            | hls.js and dash.js chunks over 500 kB in the Player build.                                                                                                                                                                                           | build output                                                                        | scheduled, M06b.10: load per stream type, set the warning limit on purpose                                                                                                   |
+| Q20 | P3       | Docs vs code     | Spec 03 §4 promises GPU out-of-memory auto-retry with an offload hint; Spec 06 §2 says a `GPU_OOM` code isn't needed yet. _The code wasn't checked._                                                                                                 | `03-Protocol.md` §4 vs `06-Engine-Server.md` §2                                     | scheduled, M06b.15: check the code, make the specs agree                                                                                                                     |
+
+## 5. Fixes & follow-ups
+
+| Finding | Fix | Verified by | Date |
+| ------- | --- | ----------- | ---- |
+| Q1–Q20  | —   | —           | —    |
+
+## 6. Lessons for the project
+
+- The extension's error handling lags the engine's and the Player's. The engine got its hardening in pass 1, and the extension grew fast in M05 without it. The duplicated engine client (Q7) is where that drift shows.
+- Gates written in the plan but not wired into CI (coverage, `pnpm audit`, the lint rules) silently don't exist. The first fix is making CI enforce them.
+
+## 7. Sign-off
+
+- Auditor: Q-3 review, 2026-09-29 · Signed off: —
+- "Closed" when Q1, Q3 and Q4 are fixed, and every P2 is fixed or scheduled with an owner.

@@ -1,7 +1,7 @@
 ---
 tags: [plan, milestone]
 status: not-started
-updated: 2026-09-27
+updated: 2026-09-29
 ---
 
 # M07 — Editor & polish
@@ -22,7 +22,7 @@ updated: 2026-09-27
 - [ ] **M07.1** — Cue editor grid: table/edit/apply; keyboard next/prev; undo/redo stack.
 - [ ] **M07.2** — Word-level bar: words as draggable tokens; snapping to neighboring words; save writes back to cue text & times.
 - [ ] **M07.3** — Shift-and-split operations ("shift all cues ≥ t by +x ms"), used with live preview.
-- [ ] **M07.4** — Prefs app: style editor (live preview pane), defaults, glossary CRUD, cache eviction UI, engine status/logs viewer.
+- [ ] **M07.4** — Prefs app: style editor (live preview pane), defaults, glossary CRUD, cache eviction UI, engine status/logs viewer. _Engine status, cache and model management move into the popup at [M06b.6–8](06b-One-Install.md); what remains here is defaults and glossary CRUD._
 - [ ] **M07.5** — Perf pass: long-video memory, overlay render throttling (rAF scheduling), WS backpressure, service-worker wake budget.
 - [ ] **M07.6** — Triage Beta-1 checkpoint: every finding either fixed here or routed to a later milestone/ADR with owner.
 - [ ] **M07.8** — From the [Beta-1 checkpoint](../../checkpoints/Beta-1-Checklist.md) (B5): translations shift lines around sentence fragments with the count intact. Translate whole sentences and re-split them by timing (or mark continuations), and re-run the English → Arabic / Japanese spot check to ≥ 90 %.
@@ -41,7 +41,7 @@ updated: 2026-09-27
 
 ## Dependencies
 
-- [M06](06-Beta-Release.md) (checkpoint backlog feeds this).
+- [M06](06-Beta-Release.md) and [M06b](06b-One-Install.md) (checkpoint backlog feeds this).
 - ADRs: [0014](../../architecture/decisions/0014-storage.md) (history/undo persistence choice), [0008](../../architecture/decisions/0008-word-level-timestamps.md) (word bar).
 
 ## Open questions

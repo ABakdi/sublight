@@ -1,7 +1,7 @@
 ---
 tags: [plan, roadmap]
 status: active
-updated: 2026-09-27
+updated: 2026-09-29
 ---
 
 # Roadmap
@@ -22,26 +22,28 @@ flowchart LR
   M05 --> M05b
   M05b --> M06[Beta 1]
   M05 --> M06
-  M06 --> M07[Editor & polish]
+  M06 --> M06b[M06b Beta 1 readiness]
+  M06b --> M07[Editor & polish]
   M07 --> M08[Firefox]
   M08 --> M09[Language learning]
 ```
 
 ## Milestone table
 
-| M   | Milestone               | Status        | Target | Exit criteria (summary)                                                                                                                                                                                                       |
-| --- | ----------------------- | ------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 00  | Foundations             | `done`        | —      | Monorepo builds & tests in CI; Playwright harness runs Chromium + Brave; sync-accuracy corpus + harness ready; docs live.                                                                                                     |
-| 01  | Player core             | `done`        | M01    | Play any local file; overlay renders styled cues; SRT import/export round-trips; cues persist across sessions.                                                                                                                |
-| 02  | Local ASR engine        | `done`        | M02    | Engine serves `/v1`; whisper.cpp transcribes with word timestamps and translates →English; jobs run/cancel/resume; models install from pinned manifest.                                                                       |
-| 03  | Transcription pipeline  | `done`        | M03    | Local file → captions end-to-end with anchoring; median word-onset error ≤ 250 ms on the corpus; refinement pass works.                                                                                                       |
-| 04  | Translation pipeline    | `done`        | M04    | LLM path for non-English targets (English is Whisper, M02): meaning-preserving in ≥ 3 languages; glossary honored; bilingual tracks render; full-film translate job completes.                                                |
-| 05  | Extension overlay       | `done`        | M05    | Live captions on YouTube + 3 reference sites; tab capture; SPA navigation; styling UI; overlay survives page CSS.                                                                                                             |
-| 05b | Open in Sublight Player | `done`        | M05b   | Page video → player in one click: classified sources, layered transport (direct → hls/dash → engine relay), resume, offline-batch captioning of relayed media. Beta 1 target (non-blocking; falls to Beta 2 if M05/M03 slip). |
-| 06  | Beta 1                  | `not-started` | M06    | Packaged, installable; pairing UX smooth; **Checkpoint Beta 1** opened & triaged.                                                                                                                                             |
-| 07  | Editor & polish         | `not-started` | M07    | Cue editor, sync nudge, prefs UI, perf budgets met.                                                                                                                                                                           |
-| 08  | Firefox                 | `not-started` | M08    | Firefox build passes parity matrix (incl. live captioning path).                                                                                                                                                              |
-| 09  | Language learning       | `not-started` | M09    | Dual-language study mode sharing lib with the sibling tool; vocab export.                                                                                                                                                     |
+| M   | Milestone               | Status        | Target | Exit criteria (summary)                                                                                                                                                                                                               |
+| --- | ----------------------- | ------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 00  | Foundations             | `done`        | —      | Monorepo builds & tests in CI; Playwright harness runs Chromium + Brave; sync-accuracy corpus + harness ready; docs live.                                                                                                             |
+| 01  | Player core             | `done`        | M01    | Play any local file; overlay renders styled cues; SRT import/export round-trips; cues persist across sessions.                                                                                                                        |
+| 02  | Local ASR engine        | `done`        | M02    | Engine serves `/v1`; whisper.cpp transcribes with word timestamps and translates →English; jobs run/cancel/resume; models install from pinned manifest.                                                                               |
+| 03  | Transcription pipeline  | `done`        | M03    | Local file → captions end-to-end with anchoring; median word-onset error ≤ 250 ms on the corpus; refinement pass works.                                                                                                               |
+| 04  | Translation pipeline    | `done`        | M04    | LLM path for non-English targets (English is Whisper, M02): meaning-preserving in ≥ 3 languages; glossary honored; bilingual tracks render; full-film translate job completes.                                                        |
+| 05  | Extension overlay       | `done`        | M05    | Live captions on YouTube + 3 reference sites; tab capture; SPA navigation; styling UI; overlay survives page CSS.                                                                                                                     |
+| 05b | Open in Sublight Player | `done`        | M05b   | Page video → player in one click: classified sources, layered transport (direct → hls/dash → engine relay), resume, offline-batch captioning of relayed media. Beta 1 target (non-blocking; falls to Beta 2 if M05/M03 slip).         |
+| 06  | Beta 1                  | `in-progress` | M06    | Packaged, installable; pairing UX smooth; **Checkpoint Beta 1** opened & triaged. Tasks done; the 0.1.0 release waits for M06b.                                                                                                       |
+| 06b | Beta 1 readiness        | `not-started` | M06b   | `install.sh` + the extension in Developer mode, then no terminal/token/pairing; engine on demand with idle-out; everything in the popup; Player themes and VLC/YouTube controls; website and logo; audits closed; then release 0.1.0. |
+| 07  | Editor & polish         | `not-started` | M07    | Cue editor, sync nudge, prefs UI, perf budgets met.                                                                                                                                                                                   |
+| 08  | Firefox                 | `not-started` | M08    | Firefox build passes parity matrix (incl. live captioning path).                                                                                                                                                                      |
+| 09  | Language learning       | `not-started` | M09    | Dual-language study mode sharing lib with the sibling tool; vocab export.                                                                                                                                                             |
 
 ## Definition of done for a release (Beta 1 and later)
 

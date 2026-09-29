@@ -37,10 +37,10 @@ flowchart LR
 
 ## Index
 
-| Checkpoint                                  | Release | Status                           | Opened     | Summary                                                                                                                                          |
-| ------------------------------------------- | ------- | -------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [Beta 1](Beta-1-Checklist.md)               | Beta 1  | `in-triage` (owner rows pending) | 2026-09-28 | Matrix run on Chromium and Brave; sync 77 ms, packaged release OK; 7 bugs (4 fixed, translation shifts and speed and YouTube throttling to M07). |
-| [M04 translation QA](M04-Translation-QA.md) | M04     | `open` (owner rating pending)    | 2026-09-25 | First meaning review of Qwen3-4B translations (de → en/fr/ar) on literary German.                                                                |
+| Checkpoint                                  | Release | Status                             | Opened     | Summary                                                                                                                                                                |
+| ------------------------------------------- | ------- | ---------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Beta 1](Beta-1-Checklist.md)               | Beta 1  | `in-triage` (by-hand rows pending) | 2026-09-28 | Matrix run on Chromium and Brave; sync 77 ms, packaged release OK; 8 bugs (4 fixed, 3 to M07, B8 to M06b). My review: one install, one place → M06b gates the release. |
+| [M04 translation QA](M04-Translation-QA.md) | M04     | `open` (my rating pending)         | 2026-09-25 | First meaning review of Qwen3-4B translations (de → en/fr/ar) on literary German.                                                                                      |
 
 ## Template
 

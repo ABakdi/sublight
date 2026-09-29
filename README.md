@@ -94,6 +94,7 @@ The `docs/` folder is an **Obsidian vault** used as the living specification for
   - [Roadmap](docs/plan/Roadmap.md) — milestones at a glance
   - [Milestone 00 — Foundations](docs/plan/milestones/00-Foundations.md) … [09 — Language learning](docs/plan/milestones/09-Language-Learning.md)
   - [Milestone 05b — Open in Sublight Player](docs/plan/milestones/05b-Open-in-Player.md) — move any page's video into the full player
+  - [Milestone 06b — Beta 1 readiness](docs/plan/milestones/06b-One-Install.md) — one install, everything in the extension; gates the 0.1.0 release
 - **Specification**
   - [Specification overview](docs/specification/README.md)
   - [System overview & components](docs/specification/01-System-Overview.md)

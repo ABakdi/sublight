@@ -43,7 +43,7 @@ updated: 2026-09-23
 
 - Dictionary source (open-source dict DB — e.g. CC-CEDICT for Chinese, wiktextract style lemmas) — licensing check in [ADR-0016](../../architecture/decisions/0016-model-licensing.md) at planning time.
 - TTS tradeoffs (piper = small & fast vs. higher quality per-language models) — benchmark on T1000.
-- Whether the sibling tool is a separate app sharing the library file, or a mode inside sublight — **the owner decides at M09 planning**; the spec keeps both options open ([Spec 02 §7](../../specification/02-Data-Model.md)).
+- Whether the sibling tool is a separate app sharing the library file, or a mode inside sublight — **I decide at M09 planning**; the spec keeps both options open ([Spec 02 §7](../../specification/02-Data-Model.md)).
 
 ## Related
 
