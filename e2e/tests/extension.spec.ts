@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { createServer, type Server } from 'node:http'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
@@ -101,9 +101,10 @@ test.describe('extension in Chromium (Spec 09)', () => {
 
   let context: BrowserContext
 
-  test.beforeEach(async () => {
+  const launch = (profile: string, env?: Record<string, string>) => {
     const extensionPath = resolve(process.cwd(), '..', 'apps', 'extension', '.output', 'chrome-mv3')
-    context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'sublight-ext-')), {
+    return chromium.launchPersistentContext(profile, {
+      ...(env ? { env: { ...process.env, ...env } as Record<string, string> } : {}),
       // E2E_BRAVE=1: the same suite in Brave (the Chromium + Brave matrix).
       ...(BRAVE ? { executablePath: BRAVE } : { channel: 'chromium' }),
       headless: true,
@@ -113,6 +114,10 @@ test.describe('extension in Chromium (Spec 09)', () => {
         '--autoplay-policy=no-user-gesture-required',
       ],
     })
+  }
+
+  test.beforeEach(async () => {
+    context = await launch(mkdtempSync(join(tmpdir(), 'sublight-ext-')))
     // A stand-in "third-party site" with a <video>, served without a network.
     await context.route(`${SITE}/**`, (route) => {
       const url = new URL(route.request().url())
@@ -173,6 +178,57 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await expect
       .poll(() => logs.some((l) => l.includes('[sublight] content script loaded')))
       .toBe(true)
+  })
+
+  test('takes the engine’s token from the native host: no pairing (M06b.3)', async () => {
+    // What install.sh does: register `sublight-engine native-host`, here run
+    // from source against the e2e engine's home. Chromium looks for hosts in
+    // its config home (not the profile), which XDG_CONFIG_HOME moves.
+    const config = mkdtempSync(join(tmpdir(), 'sublight-ext-host-'))
+    const repo = resolve(process.cwd(), '..')
+    const wrapper = join(config, 'native-host')
+    writeFileSync(
+      wrapper,
+      `#!/bin/sh\nSUBLIGHT_HOME="${process.env.E2E_ENGINE_HOME}" exec "${repo}/apps/engine/node_modules/.bin/tsx" "${repo}/apps/engine/src/main.ts" native-host "$@"\n`,
+    )
+    chmodSync(wrapper, 0o755)
+    const manifest = JSON.stringify({
+      name: 'sublight.engine',
+      description: 'sublight engine (e2e)',
+      path: wrapper,
+      type: 'stdio',
+      allowed_origins: [`${EXT}/`],
+    })
+    for (const product of [
+      'chromium',
+      'google-chrome-for-testing',
+      'BraveSoftware/Brave-Browser',
+    ]) {
+      mkdirSync(join(config, product, 'NativeMessagingHosts'), { recursive: true })
+      writeFileSync(join(config, product, 'NativeMessagingHosts', 'sublight.engine.json'), manifest)
+    }
+    await context.close()
+    context = await launch(mkdtempSync(join(tmpdir(), 'sublight-ext-')), {
+      XDG_CONFIG_HOME: config,
+    })
+    const options = await context.newPage()
+    await options.goto(`${EXT}/options.html`)
+    // Nothing pasted, nothing approved: the host handed the token over.
+    await expect(options.getByTestId('engine-status')).toHaveAttribute('data-state', 'online', {
+      timeout: 15_000,
+    })
+    const where = await options.evaluate(async () => {
+      const c = (
+        globalThis as unknown as {
+          chrome: { storage: Record<string, { get(k: string): Promise<Record<string, unknown>> }> }
+        }
+      ).chrome
+      return {
+        session: (await c.storage.session!.get('engineTokenFromHost')).engineTokenFromHost,
+        local: (await c.storage.local!.get('engineToken')).engineToken,
+      }
+    })
+    expect(where).toEqual({ session: E2E_TOKEN, local: undefined })
   })
 
   test('loads with the pinned dev ID and pairs with the engine', async () => {

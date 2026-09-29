@@ -127,11 +127,21 @@ if (inUse) {
 enableDeveloperMode(profile)
 
 /**
- * The native host (M06b.3) for this profile: Chromium looks for hosts in the
- * profile's own NativeMessagingHosts folder. It runs the engine from source,
- * so the extension starts the dev engine and takes its token without pairing.
+ * The native host (M06b.3). Chromium looks for hosts in the browser's config
+ * folder, not the profile. An installed host (install.sh) stays; otherwise a
+ * development one is registered that runs the engine from source, so the
+ * extension starts the dev engine and takes its token without pairing.
  */
-function registerDevHost(profileDir) {
+function registerDevHost(browserName) {
+  const config = process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config')
+  const product = { brave: 'BraveSoftware/Brave-Browser', chromium: 'chromium' }[browserName]
+  if (!product) return 'none (unknown browser: pair by hand)'
+  const hosts = join(config, product, 'NativeMessagingHosts')
+  const manifest = join(hosts, 'sublight.engine.json')
+  if (existsSync(manifest)) {
+    const current = JSON.parse(readFileSync(manifest, 'utf8'))
+    if (!String(current.description).includes('development')) return `installed (${current.path})`
+  }
   const dir = join(homedir(), '.sublight', 'dev')
   mkdirSync(dir, { recursive: true })
   const wrapper = join(dir, 'native-host')
@@ -139,10 +149,9 @@ function registerDevHost(profileDir) {
   const main = join(repoRoot, 'apps', 'engine', 'src', 'main.ts')
   writeFileSync(wrapper, `#!/bin/sh\nSUBLIGHT_DEV=1 exec "${tsx}" "${main}" native-host "$@"\n`)
   chmodSync(wrapper, 0o755)
-  const hosts = join(profileDir, 'NativeMessagingHosts')
   mkdirSync(hosts, { recursive: true })
   writeFileSync(
-    join(hosts, 'sublight.engine.json'),
+    manifest,
     JSON.stringify(
       {
         name: 'sublight.engine',
@@ -155,8 +164,9 @@ function registerDevHost(profileDir) {
       2,
     ),
   )
+  return `development (${wrapper})`
 }
-registerDevHost(profile)
+const host = registerDevHost(browser.name)
 
 const args = [
   `--user-data-dir=${profile}`,
@@ -173,7 +183,8 @@ child.unref()
 console.log(`
 sublight extension loaded in ${browser.name} (${browser.path})
   build    ${extensionDir}
-  profile  ${profile}${opts.debugPort ? `\n  CDP      http://127.0.0.1:${opts.debugPort}` : ''}
+  profile  ${profile}
+  host     ${host}${opts.debugPort ? `\n  CDP      http://127.0.0.1:${opts.debugPort}` : ''}
 
 Next:
   1. open a page with a video and click the sublight toolbar icon: the extension
