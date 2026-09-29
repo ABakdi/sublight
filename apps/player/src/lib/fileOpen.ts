@@ -45,6 +45,24 @@ function isUserAbort(err: unknown): boolean {
   return err instanceof DOMException && (err.name === 'AbortError' || err.name === 'SecurityError')
 }
 
+/** FSA open of one or more videos; `[]` when the user cancels, null without FSA. */
+export async function pickVideoFiles(): Promise<OpenedLocalMedia[] | null> {
+  const w = window as ShowOpenFilePickerWindow
+  if (typeof w.showOpenFilePicker !== 'function') return null
+  try {
+    const handles = await w.showOpenFilePicker({ types: PICKER_TYPES, multiple: true })
+    return await Promise.all(
+      handles.map(async (handle) => {
+        const file = await handle.getFile()
+        return { file, handle, name: file.name }
+      }),
+    )
+  } catch (err) {
+    if (isUserAbort(err)) return []
+    throw err
+  }
+}
+
 /** FSA open; returns `null` when the user cancels or FSA is unavailable. */
 export async function pickVideoFile(): Promise<OpenedLocalMedia | null> {
   const w = window as ShowOpenFilePickerWindow

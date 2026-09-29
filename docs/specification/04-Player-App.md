@@ -30,7 +30,22 @@ Engine-client logic is a framework-light module (`packages/protocol` consumer + 
 
 ## 3. Playback
 
-- `<video>` element with: seek, speed (0.25–2×), fullscreen, picture-in-picture, keyboard map (space, arrows, `[`/`]` nudge).
+- `<video>` element with the controls of `VideoStage` (M06b.11, as built 2026-09-29), inside the fullscreen container so they work there too:
+  - **On the video:** a click plays or pauses (after 250 ms, so a double-click can mean something else). Double-click the left or right third to go back or forward 10 s; each further tap within 600 ms adds 10 s, and a ripple shows the total. Hold the right half for 2× while held. Double-click the middle for fullscreen. The wheel sets the volume.
+  - **Control bar**, hidden 2.5 s after the mouse stops while playing:
+    - play/pause, ∓10 s, mute and volume, elapsed or remaining time
+    - speed 0.25–4×, a captions menu (on/off, track, original with the translation, word by word or sentences, delay), picture-in-picture, the shortcut sheet, fullscreen
+    - a seek bar with buffered ranges, caption markers, and the time and a frame preview on hover (not for HLS/DASH)
+  - **Keyboard:** one table (`lib/shortcuts.ts`) drives the keys and the sheet (?).
+    - Space/K, J/L ∓10 s, ←/→ ∓5 s, Shift ∓1 min, 0–9, Home/End, `,`/`.` frames
+    - `<`/`>` or `[`/`]` speed, `=` normal
+    - ↑/↓ volume, M, F, I
+    - C, V next track, B bilingual, G/H caption delay ∓50 ms, Alt+←/→ previous/next caption
+    - A for an A–B loop, S screenshot (PNG; refused for other sites' videos without CORS), N/P queue
+    - No shortcut fires in a form field.
+  - **Remembered:** volume, mute and speed (localStorage), and the position per project, with "Resumed at … · Start over".
+  - **Queue:** several videos opened or dropped at once become one project each, played in order; N/P move along it.
+- **Themes** (M06b.10): system, light or dark from the header, remembered, applied before the first paint. The light theme mirrors the palette's scales under `[data-theme=light]`; the video area stays dark. The side panels are a drawer (**Panels**), remembered.
 - Position persisted per project; resumes on open.
 - `currentTime` drives the overlay cue scheduler directly (rAF sampling; no setTimeout drift).
 - Local files only **except** videos migrated from a page (see [§9](#9-opening-a-pages-video-open-in-player-adr-0017)). The player never lets a user paste an arbitrary remote URL in v1 — remote playback exists _only_ through the open-in-player flow.

@@ -82,6 +82,7 @@ updated: 2026-09-29
   - job progress as unobtrusive toasts
   - usable down to a small window
   - _Accept:_ both themes pass WCAG AA contrast and full keyboard reachability.
+  - _Progress (2026-09-29):_ themes (system, light, dark; the palette mirrored, the video area kept dark) and the panels as a drawer are built and in e2e. Not yet: the library with thumbnails, toasts for job progress, and the contrast and keyboard review.
 - [ ] **M06b.11** — **Player controls at VLC and YouTube level**:
   - **On the video:**
     - Click to play or pause, with the centre icon animating.
@@ -103,6 +104,7 @@ updated: 2026-09-29
   - **Remembered:** position per file (with a resume prompt), volume and speed.
   - **Queue:** drop several files or a folder, and it plays them in order.
   - _Accept:_ every binding covered by a test; the shortcut sheet lists exactly the live bindings.
+  - _Progress (2026-09-29):_ built ([Spec 04 §3](../../specification/04-Player-App.md#3-playback)); the keymap unit-tested binding by binding, the sheet generated from it, and the Player e2e plays with keys, taps and the queue.
 
 ### Release
 

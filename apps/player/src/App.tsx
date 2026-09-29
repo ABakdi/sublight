@@ -5,6 +5,7 @@ import { useEngineStore, type EngineStatus as Status } from './store/engine'
 import { usePlayerStore } from './store/player'
 import { Library } from './components/Library'
 import { PlayerView } from './components/PlayerView'
+import { applyTheme, NEXT_THEME, savedTheme, type ThemeChoice } from './lib/theme'
 
 export function App() {
   const status = useEngineStore((s) => s.status)
@@ -13,6 +14,8 @@ export function App() {
   const view = usePlayerStore((s) => s.view)
   const openFromPage = usePlayerStore((s) => s.openFromPage)
   const setError = usePlayerStore((s) => s.setError)
+  const [theme, setTheme] = useState<ThemeChoice>(savedTheme)
+  useEffect(() => applyTheme(theme), [theme])
 
   // "Open in Sublight Player" (M05b): the extension hands the page's video over in the hash.
   // Any site can link here with a hash, so nothing happens until the viewer says so (baseline F6).
@@ -47,7 +50,19 @@ export function App() {
             <code className="text-zinc-300">{engineBaseUrl().replace(/^https?:\/\//, '')}</code>
           </p>
         </div>
-        <EngineStatus status={status} gpuName={health?.gpu.name ?? null} />
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            data-testid="theme-toggle"
+            data-theme-choice={theme}
+            className="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 transition hover:border-zinc-500"
+            title="Theme: follow the system, light or dark"
+            onClick={() => setTheme(NEXT_THEME[theme])}
+          >
+            {theme === 'system' ? '◐ System' : theme === 'light' ? '☀ Light' : '☾ Dark'}
+          </button>
+          <EngineStatus status={status} gpuName={health?.gpu.name ?? null} />
+        </div>
       </header>
 
       {handoff ? (

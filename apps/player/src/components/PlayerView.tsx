@@ -9,13 +9,7 @@ import { TracksPanel } from './TracksPanel'
 import { StylePanel } from './StylePanel'
 import { CaptionPanel } from './CaptionPanel'
 import { useCaptionStore } from '../store/caption'
-
-function fmtTime(s: number): string {
-  if (!Number.isFinite(s) || s < 0) return '0:00'
-  const m = Math.floor(s / 60)
-  const sec = Math.floor(s % 60)
-  return `${m}:${String(sec).padStart(2, '0')}`
-}
+import { VideoStage, type CaptionControls } from './VideoStage'
 
 const ICON_BTN =
   'rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs text-zinc-200 transition hover:border-zinc-500 disabled:opacity-40 disabled:hover:border-zinc-700'
@@ -35,6 +29,9 @@ export function PlayerView() {
   const stream = usePlayerStore((s) => s.stream)
   const pageError = usePlayerStore((s) => s.pageError)
   const retryPageVideo = usePlayerStore((s) => s.retryPageVideo)
+  const setActiveTrack = usePlayerStore((s) => s.setActiveTrack)
+  const setBilingual = usePlayerStore((s) => s.setBilingual)
+  const queueMove = usePlayerStore((s) => s.queueMove)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -65,10 +62,6 @@ export function PlayerView() {
   }, [stream, playbackFailed])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [currentTime, setCurrentTime] = useState(0)
-  const [duration, setDuration] = useState(0)
-  const [rate, setRate] = useState(1)
-  const [muted, setMuted] = useState(false)
   const [captionsVisible, setCaptionsVisible] = useState(true)
   // Word by word (default): each caption fills in as its words are spoken;
   // sentences: one full sentence per caption.
@@ -91,6 +84,24 @@ export function PlayerView() {
     })
   }, [])
   const [panel, setPanel] = useState<'tracks' | 'caption' | 'style' | 'models'>('tracks')
+  // The side drawer (M06b.10): video first, panels when wanted; remembered.
+  const [drawer, setDrawer] = useState(() => {
+    try {
+      return localStorage.getItem('sublight.drawer') !== 'closed'
+    } catch {
+      return true
+    }
+  })
+  const toggleDrawer = useCallback(() => {
+    setDrawer((open) => {
+      try {
+        localStorage.setItem('sublight.drawer', open ? 'closed' : 'open')
+      } catch {
+        // storage blocked: this session only
+      }
+      return !open
+    })
+  }, [])
   const draft = useCaptionStore((s) => s.draft)
   const resetCaption = useCaptionStore((s) => s.reset)
   const projectId = project?.id
@@ -107,23 +118,6 @@ export function PlayerView() {
     !draft && pair && pair.translationTrackId === shownTrack?.id
       ? project?.tracks.find((t) => t.id === pair.sourceTrackId)
       : undefined
-
-  const togglePlay = useCallback(() => {
-    const v = videoRef.current
-    if (!v) return
-    if (v.paused) {
-      void v.play()
-    } else {
-      v.pause()
-    }
-  }, [])
-
-  const seekTo = useCallback((seconds: number) => {
-    const v = videoRef.current
-    if (!v || !Number.isFinite(seconds)) return
-    const max = Number.isFinite(v.duration) ? v.duration : seconds
-    v.currentTime = Math.min(Math.max(0, seconds), max)
-  }, [])
 
   const jumpCue = useCallback(
     (dir: 1 | -1) => {
@@ -142,47 +136,6 @@ export function PlayerView() {
     [activeTrack],
   )
 
-  // Keyboard map (Spec 04 §3 / 05 §8). Avoid hijacking space on focused buttons.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement | null)?.tagName
-      const editable = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA'
-      if (e.key === ' ' && tag === 'BUTTON') return
-      if (e.altKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
-        e.preventDefault()
-        if (!editable) jumpCue(e.key === 'ArrowRight' ? 1 : -1)
-        return
-      }
-      if (editable) return
-      switch (e.key) {
-        case ' ':
-          e.preventDefault()
-          togglePlay()
-          break
-        case 'ArrowRight':
-          e.preventDefault()
-          seekTo((videoRef.current?.currentTime ?? 0) + (e.shiftKey ? 10 : 5))
-          break
-        case 'ArrowLeft':
-          e.preventDefault()
-          seekTo((videoRef.current?.currentTime ?? 0) - (e.shiftKey ? 10 : 5))
-          break
-        case '[':
-          void nudgeActiveTrack(-50)
-          break
-        case ']':
-          void nudgeActiveTrack(50)
-          break
-        case 'c':
-        case 'C':
-          setCaptionsVisible((v) => !v)
-          break
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [togglePlay, seekTo, jumpCue, nudgeActiveTrack])
-
   // Position persistence: save on pause/seek and every 5 s while playing.
   useEffect(() => {
     const timer = setInterval(() => {
@@ -191,20 +144,6 @@ export function PlayerView() {
     }, 5000)
     return () => clearInterval(timer)
   }, [savePosition])
-
-  const toggleFullscreen = useCallback(() => {
-    const el = containerRef.current
-    if (!el) return
-    if (document.fullscreenElement) void document.exitFullscreen()
-    else void el.requestFullscreen()
-  }, [])
-
-  const togglePiP = useCallback(() => {
-    const v = videoRef.current
-    if (!v) return
-    if (document.pictureInPictureElement) void document.exitPictureInPicture()
-    else void v.requestPictureInPicture()
-  }, [])
 
   const onFilePicked = useCallback(
     (file: File | null) => {
@@ -217,6 +156,35 @@ export function PlayerView() {
 
   const offsetMs = activeTrack?.syncOffsetMs ?? 0
   const shownOffsetMs = shownTrack?.syncOffsetMs ?? 0
+
+  // What the video's controls may do with the captions (M06b.11).
+  const sourceId = activeTrack?.derivedFrom?.trackId
+  const hasSource = !!sourceId && project.tracks.some((t) => t.id === sourceId)
+  const captionControls: CaptionControls = {
+    visible: captionsVisible,
+    toggle: () => setCaptionsVisible((v) => !v),
+    tracks: project.tracks,
+    activeTrackId: activeTrack?.id ?? null,
+    setActive: (id) => void setActiveTrack(id),
+    nextTrack: () => {
+      const tracks = project.tracks
+      if (tracks.length === 0) return
+      const i = tracks.findIndex((t) => t.id === activeTrack?.id)
+      void setActiveTrack(tracks[(i + 1) % tracks.length]!.id)
+    },
+    bilingual: hasSource ? !!pair && pair.translationTrackId === activeTrack?.id : null,
+    toggleBilingual: () => {
+      if (!activeTrack || !sourceId) return
+      const on = !!pair && pair.translationTrackId === activeTrack.id
+      void setBilingual(on ? null : { sourceTrackId: sourceId, translationTrackId: activeTrack.id })
+    },
+    delayMs: offsetMs,
+    nudge: (ms) => void nudgeActiveTrack(ms),
+    mode: captionMode,
+    toggleMode: toggleCaptionMode,
+    jumpCue,
+    markers: (activeTrack?.cues ?? []).map((c) => c.startMs / 1000),
+  }
 
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-3">
@@ -244,6 +212,16 @@ export function PlayerView() {
         </button>
         <h1 className="min-w-0 truncate text-sm font-medium text-zinc-200">{project.title}</h1>
         <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="toggle-drawer"
+            aria-expanded={drawer}
+            className={`${ICON_BTN} ${drawer ? 'border-zinc-400 text-zinc-100' : ''}`}
+            title="Show or hide the tracks, captioning, style and models panels"
+            onClick={toggleDrawer}
+          >
+            Panels
+          </button>
           <span className="text-xs text-zinc-500">Sync</span>
           <button
             type="button"
@@ -295,22 +273,28 @@ export function PlayerView() {
         {/* Play region */}
         <div
           ref={containerRef}
+          // The picture and its controls stay dark in the light theme too.
+          data-theme="dark"
           className="relative min-w-0 flex-1 overflow-hidden rounded-xl border border-zinc-800 bg-black"
         >
           {videoObjectUrl || stream ? (
-            <>
+            <VideoStage
+              key={project.id}
+              videoRef={videoRef}
+              containerRef={containerRef}
+              previewSrc={stream ? null : videoObjectUrl}
+              title={project.title}
+              captions={captionControls}
+              resumedAtMs={project.media.resumeAtMs ?? null}
+              queue={queueMove}
+            >
               <video
                 ref={videoRef}
                 data-testid="video"
                 src={videoObjectUrl ?? undefined}
                 className="h-full w-full object-contain"
                 playsInline
-                onClick={togglePlay}
-                muted={muted}
-                onRateChange={(e) => setRate(e.currentTarget.playbackRate)}
-                onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
                 onLoadedMetadata={(e) => {
-                  setDuration(e.currentTarget.duration)
                   const resume = project.media.resumeAtMs
                   if (resume && resume > 0 && resume < e.currentTarget.duration * 1000) {
                     e.currentTarget.currentTime = resume / 1000
@@ -318,7 +302,6 @@ export function PlayerView() {
                 }}
                 // A page's own URL can refuse to play here (hotlink checks): use the engine.
                 onError={() => void playbackFailed()}
-                onPlay={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
                 onPause={() => {
                   const v = videoRef.current
                   if (v) void savePosition(v.currentTime * 1000)
@@ -326,6 +309,8 @@ export function PlayerView() {
                 onEnded={() => {
                   const v = videoRef.current
                   if (v) void savePosition(v.currentTime * 1000)
+                  // The queue plays the next video (M06b.11).
+                  queueMove(1)
                 }}
               />
               {captionsVisible && shownTrack && shownTrack.cues.length > 0 && (
@@ -340,7 +325,7 @@ export function PlayerView() {
                   className="subtitle-overlay"
                 />
               )}
-            </>
+            </VideoStage>
           ) : project.media.kind === 'page-video' ? (
             <div
               data-testid="page-video-status"
@@ -437,103 +422,41 @@ export function PlayerView() {
         </div>
 
         {/* Side panel */}
-        <aside className="flex w-72 shrink-0 flex-col rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
-          <div className="mb-3 flex gap-1">
-            {(['tracks', 'caption', 'style', 'models'] as const).map((name) => (
-              <button
-                key={name}
-                type="button"
-                data-testid={`panel-${name}`}
-                className={`flex-1 rounded-md px-2 py-1 text-xs capitalize transition ${
-                  panel === name ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-                onClick={() => setPanel(name)}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {panel === 'tracks' ? (
-              <TracksPanel />
-            ) : panel === 'caption' ? (
-              <CaptionPanel />
-            ) : panel === 'models' ? (
-              <ModelsPanel />
-            ) : (
-              <StylePanel />
-            )}
-          </div>
-        </aside>
-      </div>
-
-      {/* Transport */}
-      <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2">
-        <button
-          type="button"
-          data-testid="transport-play"
-          className={ICON_BTN}
-          onClick={togglePlay}
-        >
-          {videoRef.current && !videoRef.current.paused ? '❚❚' : '▶'}
-        </button>
-        <input
-          type="range"
-          aria-label="Seek"
-          data-testid="seek"
-          className="min-w-0 flex-1 accent-zinc-300"
-          min={0}
-          max={duration || 0}
-          step={0.01}
-          value={currentTime}
-          onChange={(e) => seekTo(Number(e.target.value))}
-        />
-        <span className="w-20 text-right text-xs tabular-nums text-zinc-400">
-          {fmtTime(currentTime)} / {fmtTime(duration)}
-        </span>
-        <select
-          aria-label="Playback speed"
-          data-testid="rate"
-          className="rounded-md border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs text-zinc-200"
-          value={rate}
-          onChange={(e) => {
-            const r = Number(e.target.value)
-            setRate(r)
-            if (videoRef.current) videoRef.current.playbackRate = r
-          }}
-        >
-          {[0.5, 0.75, 1, 1.25, 1.5, 2].map((r) => (
-            <option key={r} value={r}>
-              {r}×
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          aria-label="Mute"
-          data-testid="mute"
-          className={ICON_BTN}
-          onClick={() => setMuted((m) => !m)}
-        >
-          {muted ? '🔇' : '🔊'}
-        </button>
-        <button
-          type="button"
-          aria-label="Picture in picture"
-          className={ICON_BTN}
-          onClick={togglePiP}
-        >
-          ⧉
-        </button>
-        <button
-          type="button"
-          aria-label="Fullscreen"
-          data-testid="fullscreen"
-          className={ICON_BTN}
-          onClick={toggleFullscreen}
-        >
-          ⛶
-        </button>
+        {drawer && (
+          <aside
+            data-testid="drawer"
+            className="flex w-72 shrink-0 flex-col rounded-xl border border-zinc-800 bg-zinc-900/50 p-3"
+          >
+            <div className="mb-3 flex gap-1">
+              {(['tracks', 'caption', 'style', 'models'] as const).map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  data-testid={`panel-${name}`}
+                  className={`flex-1 rounded-md px-2 py-1 text-xs capitalize transition ${
+                    panel === name
+                      ? 'bg-zinc-700 text-zinc-100'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                  onClick={() => setPanel(name)}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {panel === 'tracks' ? (
+                <TracksPanel />
+              ) : panel === 'caption' ? (
+                <CaptionPanel />
+              ) : panel === 'models' ? (
+                <ModelsPanel />
+              ) : (
+                <StylePanel />
+              )}
+            </div>
+          </aside>
+        )}
       </div>
     </main>
   )

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { resolve } from 'node:path'
-import { readFileSync } from 'node:fs'
+import { copyFileSync, readFileSync } from 'node:fs'
 
 const VIDEO_FIXTURE = resolve(process.cwd(), 'fixtures', 'video-4s.mp4')
 const SRT_FIXTURE = resolve(process.cwd(), 'fixtures', 'captions.en.srt')
@@ -28,6 +28,102 @@ async function openFixture(page: Page): Promise<void> {
 }
 
 test.describe('player (M01)', () => {
+  test('plays like VLC and YouTube: keys, taps, the shortcut sheet (M06b.11)', async ({ page }) => {
+    await openFixture(page)
+    await blurActiveElement(page)
+    const time = () => page.evaluate(() => document.querySelector('video')!.currentTime)
+    const paused = () => page.evaluate(() => document.querySelector('video')!.paused)
+
+    // K plays and pauses; 0-9 jump; L and J move 10 s (clamped to this 4 s clip).
+    await page.keyboard.press('k')
+    await expect.poll(paused).toBe(false)
+    await page.keyboard.press('k')
+    await expect.poll(paused).toBe(true)
+    await page.keyboard.press('5')
+    await expect.poll(time).toBeCloseTo(2, 0)
+    await page.keyboard.press('j')
+    await expect.poll(time).toBe(0)
+    await page.keyboard.press('ArrowRight')
+    await expect.poll(time).toBeGreaterThan(3.9)
+
+    // Speed: ] faster, = normal; M mutes.
+    await page.keyboard.press(']')
+    await expect(page.getByTestId('rate')).toHaveValue('1.25')
+    await page.keyboard.press('=')
+    await expect(page.getByTestId('rate')).toHaveValue('1')
+    await page.keyboard.press('m')
+    await expect.poll(() => page.evaluate(() => document.querySelector('video')!.muted)).toBe(true)
+
+    // Double-click the left third: back 10 s, with its ripple.
+    await page.keyboard.press('Home')
+    await page.keyboard.press('3')
+    const stage = (await page.getByTestId('gesture-layer').boundingBox())!
+    await page.mouse.dblclick(stage.x + stage.width * 0.15, stage.y + stage.height / 2)
+    await expect(page.getByTestId('flash-left')).toHaveText('−10 s')
+    await expect.poll(time).toBe(0)
+
+    // A single click plays (once no second click follows).
+    await page.mouse.click(stage.x + stage.width / 2, stage.y + stage.height / 2)
+    await expect.poll(paused).toBe(false)
+    await page.keyboard.press('k')
+
+    // ? lists the live bindings; Escape closes it.
+    await page.keyboard.press('?')
+    await expect(page.getByTestId('shortcut-sheet')).toContainText('Captions 50 ms later')
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('shortcut-sheet')).toHaveCount(0)
+
+    // Shortcuts don't fire while typing.
+    await page.getByTestId('panel-tracks').click()
+    await page.getByRole('textbox').first().focus()
+    await page.keyboard.press('k')
+    await expect.poll(paused).toBe(true)
+  })
+
+  test('plays several videos one after another: N, P, and the end of each (M06b.11)', async ({
+    page,
+  }, info) => {
+    const second = info.outputPath('second-clip.mp4')
+    copyFileSync(VIDEO_FIXTURE, second)
+    await page.goto('/')
+    await page.setInputFiles('input[data-testid="file-input"]', [VIDEO_FIXTURE, second])
+    const title = page.locator('main h1')
+    await expect(title).toHaveText('video-4s')
+    await blurActiveElement(page)
+    await page.keyboard.press('n')
+    await expect(title).toHaveText('second-clip')
+    await page.keyboard.press('n') // nothing after it
+    await expect(page.getByTestId('flash-top')).toHaveText('No next video in the queue')
+    await page.keyboard.press('p')
+    await expect(title).toHaveText('video-4s')
+    // The end of a video plays the next one.
+    await page.waitForFunction(() => Number.isFinite(document.querySelector('video')?.duration))
+    await page.evaluate(() => {
+      const v = document.querySelector('video')!
+      v.currentTime = v.duration - 0.2
+      void v.play()
+    })
+    await expect(title).toHaveText('second-clip', { timeout: 10_000 })
+  })
+
+  test('switches between the system, light and dark themes, remembered (M06b.10)', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: 'light' })
+    await page.goto('/')
+    const theme = () => page.evaluate(() => document.documentElement.dataset.theme)
+    await expect.poll(theme).toBe('light') // follows the system
+    await page.getByTestId('theme-toggle').click() // light
+    await page.getByTestId('theme-toggle').click() // dark
+    await expect.poll(theme).toBe('dark')
+    await page.reload()
+    await expect.poll(theme).toBe('dark')
+    const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+    await page.getByTestId('theme-toggle').click() // system → light here
+    await expect.poll(theme).toBe('light')
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(bg)
+  })
+
   test('boots to the library', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'sublight player' })).toBeVisible()
@@ -74,11 +170,11 @@ test.describe('player (M01)', () => {
     })
     await expect.poll(async () => readOverlayText(page)).toBe('')
 
-    // ] nudges +50 ms -> cue 2 boundary moves; then back.
+    // H delays the captions 50 ms (VLC's key), G brings them back.
     await blurActiveElement(page)
-    await page.keyboard.press(']')
+    await page.keyboard.press('h')
     await expect(page.getByTestId('track-offset')).toHaveText('+50 ms')
-    await page.keyboard.press('[')
+    await page.keyboard.press('g')
     await expect(page.getByTestId('track-offset')).toHaveText('0 ms')
   })
 

@@ -19,7 +19,7 @@ import type { StreamKind } from '../lib/streaming'
 import { getSetting, loadProject, saveProject, saveProjectRow, setSetting } from '../lib/idb'
 import {
   mediaHandleKey,
-  pickVideoFile,
+  pickVideoFiles,
   reopenLocalMedia,
   type FileSystemFileHandleLike,
 } from '../lib/fileOpen'
@@ -52,6 +52,12 @@ export interface PlayerState {
   error: string | null
   /** Create a project from a local video file. */
   openWithFile: (file: File, handle?: FileSystemFileHandleLike) => Promise<void>
+  /** Several files (a drop, the picker): one project each, played in order (M06b.11). */
+  openFiles: (files: { file: File; handle?: FileSystemFileHandleLike }[]) => Promise<void>
+  /** Projects to play one after another; the current one is among them. */
+  queue: string[]
+  /** Move along the queue (N/P, the end of a video); false when there's nothing there. */
+  queueMove: (dir: 1 | -1) => boolean
   /** FSA picker; returns false when the user cancels or FSA is unavailable. */
   pickVideo: () => Promise<boolean>
   /** Re-attach a file to the current project (no persisted handle). */
@@ -200,6 +206,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     }
   }
 
+  /** Files opened this session, by project: dropped files have no handle to reopen them by. */
+  const sessionFiles = new Map<string, File>()
+
   const swapObjectUrl = async (file: File | null): Promise<string | null> => {
     const old = get().videoObjectUrl
     if (old?.startsWith('blob:')) URL.revokeObjectURL(old)
@@ -339,7 +348,52 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       }
       if (handle) await setSetting(mediaHandleKey(project.id), handle)
       await saveProject(project)
-      set({ view: { name: 'player' }, project, videoObjectUrl: url, videoFile: file, error: null })
+      sessionFiles.set(project.id, file)
+      set({
+        view: { name: 'player' },
+        project,
+        videoObjectUrl: url,
+        videoFile: file,
+        error: null,
+        queue: [project.id],
+      })
+    },
+
+    openFiles: async (files) => {
+      const videos = files.filter(
+        (f) =>
+          f.file.type.startsWith('video/') ||
+          /\.(mp4|m4v|webm|mov|mkv|ogv|ogm)$/i.test(f.file.name),
+      )
+      if (videos.length === 0) return
+      const ids: string[] = []
+      for (const { file, handle } of videos) {
+        const project: SubtitleProject = {
+          id: newId(),
+          title: baseName(file.name) || 'Untitled video',
+          media: { kind: 'local-file', source: file.name },
+          tracks: [],
+          settings: { style: structuredClone(DEFAULT_SUBTITLE_STYLE) },
+          updatedAt: Date.now(),
+        }
+        if (handle) await setSetting(mediaHandleKey(project.id), handle)
+        await saveProject(project)
+        sessionFiles.set(project.id, file)
+        ids.push(project.id)
+      }
+      await get().loadProjectFromLibrary(ids[0]!)
+      set({ queue: ids })
+    },
+
+    queue: [],
+
+    queueMove: (dir) => {
+      const { queue, project } = get()
+      const i = project ? queue.indexOf(project.id) : -1
+      const next = i >= 0 ? queue[i + dir] : undefined
+      if (!next) return false
+      void get().loadProjectFromLibrary(next)
+      return true
     },
 
     openFromPage: async (payload) => {
@@ -389,9 +443,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     pickVideo: async () => {
       try {
-        const picked = await pickVideoFile()
-        if (!picked) return false
-        await get().openWithFile(picked.file, picked.handle)
+        const picked = await pickVideoFiles()
+        if (!picked || picked.length === 0) return false
+        if (picked.length === 1) await get().openWithFile(picked[0]!.file, picked[0]!.handle)
+        else await get().openFiles(picked)
         return true
       } catch (err) {
         set({ error: `Could not open the file: ${msg(err)}` })
@@ -419,7 +474,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         }
         let url: string | null = null
         let file: File | null = null
-        if (project.media.kind === 'local-file') {
+        const inSession = sessionFiles.get(id)
+        if (project.media.kind === 'local-file' && inSession) {
+          file = inSession
+          url = await swapObjectUrl(inSession)
+        } else if (project.media.kind === 'local-file') {
           const handle = await getSetting<FileSystemFileHandleLike>(mediaHandleKey(id))
           if (handle) {
             const media = await reopenLocalMedia(handle)
@@ -429,7 +488,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
             } else set({ error: 'Reading the video file was denied — choose the file again.' })
           }
         }
-        set({ project, videoObjectUrl: url, videoFile: file, view: { name: 'player' } })
+        set((s) => ({
+          project,
+          videoObjectUrl: url,
+          videoFile: file,
+          view: { name: 'player' },
+          // Opening something outside the queue starts a new one.
+          queue: s.queue.includes(id) ? s.queue : [id],
+        }))
         // A page video's relay died with the engine run: find the stream again.
         if (project.media.kind === 'page-video' && project.media.pageUrl)
           await resolvePlayback(project)

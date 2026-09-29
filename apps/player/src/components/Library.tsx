@@ -18,6 +18,7 @@ function timeAgo(ts: number): string {
 
 export function Library() {
   const openWithFile = usePlayerStore((s) => s.openWithFile)
+  const openFiles = usePlayerStore((s) => s.openFiles)
   const pickVideo = usePlayerStore((s) => s.pickVideo)
   const loadProjectFromLibrary = usePlayerStore((s) => s.loadProjectFromLibrary)
   const error = usePlayerStore((s) => s.error)
@@ -37,11 +38,13 @@ export function Library() {
 
   const onFiles = useCallback(
     (files: FileList | null) => {
-      const file = files?.[0]
-      if (file && isVideoFile(file)) void openWithFile(file)
+      // Several videos (a folder's worth): played one after another (M06b.11).
+      const videos = Array.from(files ?? []).filter(isVideoFile)
+      if (videos.length === 1) void openWithFile(videos[0]!)
+      else if (videos.length > 1) void openFiles(videos.map((file) => ({ file })))
       // ignore non-video drops silently; nothing is lost
     },
-    [openWithFile],
+    [openWithFile, openFiles],
   )
 
   const handleOpen = useCallback(() => {
@@ -82,7 +85,8 @@ export function Library() {
       >
         <h2 className="text-lg font-medium text-zinc-100">Open a video</h2>
         <p className="mt-1 text-sm text-zinc-400">
-          Local file only — playback, styling and captioning all stay on this machine.
+          Or drop several to play them one after another. Playback, styling and captioning all stay
+          on this machine.
         </p>
         <div className="mt-6 flex items-center justify-center gap-4">
           <button
@@ -106,6 +110,7 @@ export function Library() {
           ref={inputRef}
           type="file"
           data-testid="file-input"
+          multiple
           accept="video/*,.mp4,.m4v,.webm,.mov,.mkv,.ogv,.ogm"
           className="hidden"
           onChange={(e) => {
