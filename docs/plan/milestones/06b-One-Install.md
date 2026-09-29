@@ -39,9 +39,10 @@ updated: 2026-09-29
 
 - [ ] **M06b.3** — **Native host**: `sublight-engine native-host` handles `status`, `start`, `stop`, `token` and `version`. Only the extension's pinned ID may connect. The extension gets the `nativeMessaging` permission, takes the token from the host and stops pairing.
   - _Accept:_ after the install, the extension captions a video with no pairing step; a rotated token re-syncs on its own.
-  - _Progress (2026-09-29):_ the engine side is done: `sublight-engine native-host`, registered by install.sh, tested (framing, refusing other extensions, start/status/token/stop). The extension doesn't use it yet.
+  - _Progress (2026-09-29):_ the engine side is done: `sublight-engine native-host`, registered by install.sh, tested (framing, refusing other extensions, start/status/token/stop). The extension takes its token from it (kept in `storage.session`, out of content scripts' reach, fixing security pass 2 S1 for this path), and follows a replaced token after a 401; `ext:try` registers a development host. Not yet checked in a browser end to end with the real host.
 - [ ] **M06b.4** — **Start on demand**: an engine request that finds it offline starts it through the host, shows _Starting…_, and retries once it answers.
   - _Accept:_ with the engine stopped, "Caption this video" captions with no other click.
+  - _Progress (2026-09-29):_ `engineRequest` starts the engine through the host when it can't connect, then retries; unit-tested with a fake host. The popup shows _Engine off_ and _Engine starting…_.
 - [ ] **M06b.5** — **Smart idle** in the engine:
   - Unload models after 5 min without a job, which frees VRAM and RAM.
   - Exit after 20 min without a job, live session, lease or relay download. Open WebSockets don't count.

@@ -41,9 +41,13 @@ action: { default_popup: "popup.html" }
 
 ## 3. Service worker (background)
 
-- Wakes on: `runtime.onMessage` (from content), `action.onClicked`, engine WS reconnect timer (alarms, min period 30 s), `tabs.onUpdated` (for SPA state hints).
+- Wakes on: `runtime.onMessage` (from content and extension pages) and keyboard commands.
 - State kept in `chrome.storage.session` (job ids per tab, engine status, active requests); nothing heavy, survives SW restarts.
-- **Engine calls happen only here** (content scripts can't fetch localhost with our auth+origin model reliably, and pages shouldn't see the token): a small `engineFetch` wrapper with token from `chrome.storage.local`, auto-retry on `ECONNREFUSED` (engine cold start), and WS reconnect with backoff.
+- **Engine calls happen only here and in extension pages** (pages shouldn't see the token): `engineRequest` in `src/engine.ts`.
+  - **Token** (M06b.3): the one the native host hands over (`runtime.sendNativeMessage('sublight.engine', { command: 'token' })`, registered by install.sh), kept in `storage.session`, which content scripts can't read, and asked again after a browser restart or a 401 (the token was replaced). A token pasted or paired by hand (Settings → Advanced, for development and the engine-served Player) stays in `storage.local`.
+  - **Engine off** (M06b.4): a request that can't connect asks the host to `start` the engine (the popup shows _Engine starting…_), then retries once. The popup's status is `stopped` when the host answers but the engine doesn't, `offline` when neither does.
+  - Not yet: WS reconnect with backoff ([code quality Q-3](../audits/2026-09-Code-Quality-Q3.md), Q3).
+- `nativeMessaging` is in the manifest's permissions for this; `ext:try` registers a development host in its profile that runs the engine from source.
 - Authorization is the **token + Host/Origin checks** from [Protocol §3](03-Protocol.md#3-auth--hardening); content scripts never hold the token.
 - **Who may ask what** (security baseline B4): content scripts run inside web pages, so the SW takes popup and Options requests (`tab.status`, `engine.pair`, `engine.status`, `captions.start/stop/status/download`, `player.open`, `live.start/stop/status`, `demo.toggle`) only from extension pages (`sender.url` on the extension's origin; keyboard commands speak as the SW itself). Pages may report their video, seeks, navigation, a target language, live audio and anchors, and only for their own tab's session.
 

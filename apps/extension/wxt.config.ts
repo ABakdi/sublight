@@ -22,7 +22,16 @@ export default defineConfig({
     name: 'sublight',
     description: 'Local AI subtitles for any video',
     key: DEV_PUBLIC_KEY,
-    permissions: ['storage', 'tabCapture', 'activeTab', 'scripting', 'offscreen', 'downloads'],
+    permissions: [
+      'storage',
+      'tabCapture',
+      'activeTab',
+      'scripting',
+      'offscreen',
+      'downloads',
+      // Starting the engine and getting its token from install.sh's host (M06b.3).
+      'nativeMessaging',
+    ],
     host_permissions: ['http://127.0.0.1:17421/*', 'http://localhost:17421/*'],
     action: { default_title: 'sublight' },
     // A real invocation (like a toolbar click) grants activeTab, which tabCapture needs.

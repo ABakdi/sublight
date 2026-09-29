@@ -40,6 +40,9 @@ export type EngineStatus =
   | { state: 'unauthorized' }
   | { state: 'refused'; detail: string }
   | { state: 'offline'; detail: string }
+  /** Installed (the native host answers) but not running: it starts when needed. */
+  | { state: 'stopped' }
+  | { state: 'starting' }
 
 export interface TabStatus {
   tabId: number

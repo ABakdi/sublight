@@ -11,7 +11,7 @@
  * the same window. Your everyday browser profile is never touched.
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -126,6 +126,38 @@ if (inUse) {
 }
 enableDeveloperMode(profile)
 
+/**
+ * The native host (M06b.3) for this profile: Chromium looks for hosts in the
+ * profile's own NativeMessagingHosts folder. It runs the engine from source,
+ * so the extension starts the dev engine and takes its token without pairing.
+ */
+function registerDevHost(profileDir) {
+  const dir = join(homedir(), '.sublight', 'dev')
+  mkdirSync(dir, { recursive: true })
+  const wrapper = join(dir, 'native-host')
+  const tsx = join(repoRoot, 'apps', 'engine', 'node_modules', '.bin', 'tsx')
+  const main = join(repoRoot, 'apps', 'engine', 'src', 'main.ts')
+  writeFileSync(wrapper, `#!/bin/sh\nSUBLIGHT_DEV=1 exec "${tsx}" "${main}" native-host "$@"\n`)
+  chmodSync(wrapper, 0o755)
+  const hosts = join(profileDir, 'NativeMessagingHosts')
+  mkdirSync(hosts, { recursive: true })
+  writeFileSync(
+    join(hosts, 'sublight.engine.json'),
+    JSON.stringify(
+      {
+        name: 'sublight.engine',
+        description: 'sublight engine (development)',
+        path: wrapper,
+        type: 'stdio',
+        allowed_origins: ['chrome-extension://ehgdbfcecgkljnpmednociabmmjemfkf/'],
+      },
+      null,
+      2,
+    ),
+  )
+}
+registerDevHost(profile)
+
 const args = [
   `--user-data-dir=${profile}`,
   `--load-extension=${extensionDir}`,
@@ -144,9 +176,9 @@ sublight extension loaded in ${browser.name} (${browser.path})
   profile  ${profile}${opts.debugPort ? `\n  CDP      http://127.0.0.1:${opts.debugPort}` : ''}
 
 Next:
-  1. pnpm dev:engine       start the engine (optional: playback + test captions work without it)
-  2. pnpm engine:token     copy the token → extension Options → Save
-  3. open a page with a video, click the sublight toolbar icon → "Show test captions"
+  1. open a page with a video and click the sublight toolbar icon: the extension
+     starts the engine from source when it needs it (or run pnpm dev:engine yourself)
+  2. "Show test captions" works without the engine
 
 After changing extension code: run \`pnpm ext:try --no-build\` again after
 \`pnpm --filter @sublight/extension build\`, or press ↻ on chrome://extensions.

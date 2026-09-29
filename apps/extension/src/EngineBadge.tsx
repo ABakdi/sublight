@@ -7,6 +7,8 @@ const COPY: Record<EngineStatus['state'], { label: string; color: string }> = {
   unauthorized: { label: 'Token rejected', color: colors.bad },
   refused: { label: 'Engine refused the request', color: colors.bad },
   offline: { label: 'Engine offline', color: colors.muted },
+  stopped: { label: 'Engine off', color: colors.muted },
+  starting: { label: 'Engine starting…', color: colors.warn },
 }
 
 export function engineHint(status: EngineStatus): string {
@@ -14,13 +16,17 @@ export function engineHint(status: EngineStatus): string {
     case 'online':
       return `v${status.version} · protocol ${status.protocol}`
     case 'no-token':
-      return 'Not paired yet: click “Pair with the engine”.'
+      return 'sublight isn’t installed on this computer yet: run install.sh (see the website).'
     case 'unauthorized':
       return 'The engine no longer accepts this browser (its token was replaced): pair again.'
     case 'refused':
       return status.detail
     case 'offline':
-      return 'Start it with `sublight-engine start`. Playback and test captions work without it.'
+      return 'It isn’t installed here, or can’t start: run install.sh again. Test captions work without it.'
+    case 'stopped':
+      return 'It starts by itself when you caption a video, and stops when idle.'
+    case 'starting':
+      return 'Starting the engine…'
   }
 }
 
