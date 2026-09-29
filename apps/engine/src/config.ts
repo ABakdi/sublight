@@ -175,7 +175,8 @@ export function saveSettings(
   try {
     raw = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
   } catch {
-    raw = { ...config }
+    // Missing or unreadable: only what changes is written, never env overrides (R8).
+    raw = { token: config.token }
   }
   if (patch.idle) {
     // In place: the idle monitor holds this object.
@@ -206,8 +207,8 @@ export function rotateToken(config: EngineConfig): string {
   try {
     raw = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
   } catch {
-    // missing or unreadable: write what the engine runs with
-    raw = { ...config }
+    // missing or unreadable: only the token is written, never env overrides (R8)
+    raw = {}
   }
   const token = randomBytes(32).toString('hex')
   raw.token = token

@@ -9,6 +9,7 @@
 #
 #   bash install.sh                  install or update
 #   bash install.sh --uninstall      remove sublight (asks before deleting models)
+#   bash install.sh --uninstall --purge   …and delete models, cache and settings too
 #
 # Options:
 #   --from DIR          use a release already downloaded to DIR (the archive and SHA256SUMS)
@@ -23,6 +24,9 @@
 set -euo pipefail
 
 SUBLIGHT_VERSION="0.1.0" # set by scripts/release.mjs
+# The release archive's SHA-256, written in when the release is packaged
+# (scripts/package.mjs): this script then trusts only that exact archive.
+ARCHIVE_SHA256=""
 REPO="ABakdi/sublight"
 EXTENSION_ID="ehgdbfcecgkljnpmednociabmmjemfkf"
 HOST_NAME="sublight.engine"
@@ -52,6 +56,7 @@ CPU=""
 YES=""
 OPEN_BROWSER=1
 UNINSTALL=""
+PURGE=""
 
 say() { printf '\033[1m%s\033[0m\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
@@ -82,12 +87,29 @@ while [[ $# -gt 0 ]]; do
     --yes | -y) YES=1; shift ;;
     --no-browser) OPEN_BROWSER=""; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
+    --purge) PURGE=1; shift ;;
     -h | --help) sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option: $1 (see --help)" ;;
   esac
 done
 
 [[ $(uname -s) == Linux ]] || die "this installer is for Linux; see INSTALL.md for other systems"
+# Everything runs as you; only system packages use sudo, when asked.
+[[ $EUID -ne 0 ]] || die "run this as yourself, not as root: it asks for sudo only to install system packages"
+# Where sublight lives: a plain absolute folder of its own, never / or your home itself,
+# and nothing the scripts it writes would misread.
+case $HOME_DIR in
+  /*) ;;
+  *) die "SUBLIGHT_HOME must be an absolute path" ;;
+esac
+HOME_DIR=${HOME_DIR%/}
+[[ -n $HOME_DIR && $HOME_DIR != "${HOME%/}" && $HOME_DIR != / ]] ||
+  die "SUBLIGHT_HOME can't be / or your home folder itself"
+[[ $HOME_DIR != *[\"\$\`\\]* && $HOME_DIR != *$'\n'* ]] ||
+  die "SUBLIGHT_HOME contains characters sublight can't use in a path"
+APP="$HOME_DIR/app"
+EXT="$HOME_DIR/extension"
+NODE_DIR="$HOME_DIR/node"
 case $(uname -m) in
   x86_64) ARCH=x64 ;;
   aarch64 | arm64) ARCH=arm64 ;;
@@ -103,6 +125,9 @@ remove_host_manifests() {
 }
 
 if [[ -n $UNINSTALL ]]; then
+  # Only a folder that holds a sublight install is ever deleted.
+  [[ -f $HOME_DIR/config.json || -f $APP/sublight-engine.mjs ]] ||
+    die "$HOME_DIR doesn't look like a sublight install: nothing removed"
   say "Removing sublight"
   if [[ -x $LAUNCHER ]]; then
     "$LAUNCHER" stop >/dev/null 2>&1 || true
@@ -111,7 +136,8 @@ if [[ -n $UNINSTALL ]]; then
   remove_host_manifests
   rm -f "$LAUNCHER"
   rm -rf "$APP" "$EXT" "$NODE_DIR" "$HOME_DIR/bin" "$HOME_DIR/src"
-  if ask "Also delete your models, captions cache and settings in $HOME_DIR?" n; then
+  # Never deleted by --yes alone: that takes --purge, or a yes typed here.
+  if [[ -n $PURGE ]] || { [[ -z $YES && -r /dev/tty ]] && ask "Also delete your models, captions cache and settings in $HOME_DIR?" n; }; then
     rm -rf "$HOME_DIR"
   else
     note "kept $HOME_DIR (models, cache, settings)"
@@ -256,6 +282,9 @@ fetch_release() {
   fi
   local want
   want=$(grep " $archive\$" "$WORK/SHA256SUMS" | cut -d' ' -f1)
+  if [[ -n $ARCHIVE_SHA256 && -z $FROM ]]; then
+    [[ $want == "$ARCHIVE_SHA256" ]] || die "SHA256SUMS doesn't match the archive this installer was released with: nothing installed"
+  fi
   [[ -n $want && $(sha256 "$WORK/$archive") == "$want" ]] || die "$archive doesn't match SHA256SUMS: nothing installed"
   tar -xzf "$WORK/$archive" -C "$WORK"
   RELEASE="$WORK/sublight-$SUBLIGHT_VERSION"
@@ -273,12 +302,12 @@ install_files() {
   [[ -d $RELEASE/player ]] && cp -r "$RELEASE/player" "$APP.new/player"
   cat >"$APP.new/sublight-engine" <<EOF
 #!/bin/sh
-exec "$NODE" "$APP/sublight-engine.mjs" "\$@"
+SUBLIGHT_HOME="$HOME_DIR" exec "$NODE" "$APP/sublight-engine.mjs" "\$@"
 EOF
   # What the browser starts when the extension asks for the engine.
   cat >"$APP.new/native-host" <<EOF
 #!/bin/sh
-exec "$NODE" "$APP/sublight-engine.mjs" native-host "\$@"
+SUBLIGHT_HOME="$HOME_DIR" exec "$NODE" "$APP/sublight-engine.mjs" native-host "\$@"
 EOF
   chmod 755 "$APP.new/sublight-engine" "$APP.new/native-host"
   rm -rf "$APP.old"

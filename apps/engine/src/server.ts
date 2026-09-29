@@ -77,12 +77,16 @@ export function runServer(): Promise<{ port: number }> {
     origins: clientOrigins(config),
     bus: services.bus,
   })
-  services.jobs.start()
-
-  // Media traffic only to the internet, checked at every connection (security pass 2, S3).
+  // Media traffic only to the internet, checked at every connection (security
+  // pass 2, S3). No job runs before the proxy is up (R5); without it, none do.
   const egress = new EgressProxy()
-  if (!config.allowPrivateNetworks)
-    void egress.start().catch((err: unknown) => log.error(`egress proxy: ${String(err)}`))
+  void (config.allowPrivateNetworks ? Promise.resolve() : egress.start()).then(
+    () => services.jobs.start(),
+    (err: unknown) => {
+      log.error(`egress proxy didn't start, so no jobs run: ${String(err)}`)
+      rejectListening(new Error(`egress proxy: ${String(err)}`))
+    },
+  )
 
   // Are the worker binaries still the ones setup built? Warn if not (baseline E2).
   void verifyBinaries(paths.bin).then((checks) => {

@@ -49,3 +49,20 @@ describe('what never moves to the Player (M05b AC5)', () => {
     expect(none).toEqual({ ok: false, error: 'No video on this page.' })
   })
 })
+
+describe('the Player address (security review R9)', () => {
+  it('is one on this computer, or the default', async () => {
+    const { playerUrl } = await import('./openInPlayer')
+    expect(playerUrl('http://localhost:5173/')).toBe('http://localhost:5173/')
+    expect(playerUrl('http://127.0.0.1:17420/#sl=old')).toBe('http://127.0.0.1:17420/')
+    for (const bad of [
+      'https://evil.test/',
+      'http://evil.test:17420/',
+      'javascript:alert(1)',
+      'http://u:p@127.0.0.1/',
+      42,
+      '',
+    ])
+      expect(playerUrl(bad)).toBe('http://127.0.0.1:17420/')
+  })
+})

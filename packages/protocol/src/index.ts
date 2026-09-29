@@ -21,3 +21,5 @@ export {
 } from './version'
 export { NATIVE_HOST_NAME } from './native'
 export type { NativeCommand, NativeRequest, NativeResponse, NativeStatus } from './native'
+export { EngineSocket } from './socket'
+export type { EngineSocketOptions } from './socket'

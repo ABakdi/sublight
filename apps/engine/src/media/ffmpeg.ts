@@ -1,3 +1,4 @@
+import { mediaEnv } from './egress'
 import { spawn } from 'node:child_process'
 
 export interface FfmpegBinaries {
@@ -25,7 +26,7 @@ export function run(
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(abortError(signal))
-    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], env: mediaEnv() })
     const onAbort = () => child.kill('SIGKILL')
     signal?.addEventListener('abort', onAbort, { once: true })
     let stdout = ''

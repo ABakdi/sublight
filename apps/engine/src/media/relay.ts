@@ -4,7 +4,7 @@ import { createReadStream, existsSync, mkdirSync, readdirSync, rmSync, statSync 
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { JobError } from '../jobs/queue'
-import { guardedFetch } from './egress'
+import { guardedFetch, mediaEnv } from './egress'
 import { headerArgs, ytDlpProxyArgs, type RemoteMedia } from './remote'
 
 /** How long a relay handle works: longer than a film, shorter than a signed CDN URL. */
@@ -155,7 +155,7 @@ export class RelayStore {
       '--',
       pageUrl,
     ]
-    const child = spawn(opts.ytDlp, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(opts.ytDlp, args, { stdio: ['ignore', 'pipe', 'pipe'], env: mediaEnv() })
     const timedOut = this.deadline(child)
     // Two downloads (video, then audio): count them as halves of the whole.
     let part = 0
@@ -246,7 +246,7 @@ export class RelayStore {
         String(MAX_DOWNLOAD_BYTES),
         into.path,
       ],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
+      { stdio: ['ignore', 'pipe', 'pipe'], env: mediaEnv() },
     )
     const timedOut = this.deadline(child)
     let stderr = ''

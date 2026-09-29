@@ -21,6 +21,20 @@ import { isPrivateAddress } from './net'
  * With `allowPrivateNetworks` (a home media server) none of this applies.
  */
 
+/** A tunnel or request idle this long is closed (a stalled fetcher holds nothing open). */
+const TUNNEL_IDLE_MS = 5 * 60_000
+
+/**
+ * The environment for ffmpeg and yt-dlp: no proxy settings of the user's, so
+ * `no_proxy=localhost,…` (common on desktops) can't route a fetch around the
+ * engine's proxy (R2).
+ */
+export function mediaEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  for (const k of Object.keys(env)) if (/^(no|http|https|all|ftp)_proxy$/i.test(k)) delete env[k]
+  return env
+}
+
 const REFUSED =
   'sublight only fetches videos from the internet, not from this computer or the local network (allowPrivateNetworks in config.json changes that)'
 
@@ -131,12 +145,18 @@ export class EgressProxy {
       }
       const upstream = httpRequest(
         target,
-        { method: req.method, headers: req.headers, lookup: guardedLookup },
+        {
+          method: req.method,
+          headers: req.headers,
+          lookup: guardedLookup,
+          timeout: TUNNEL_IDLE_MS,
+        },
         (up) => {
           res.writeHead(up.statusCode ?? 502, up.headers)
           up.pipe(res)
         },
       )
+      upstream.on('timeout', () => upstream.destroy())
       upstream.on('error', (err: NodeJS.ErrnoException) => {
         if (!res.headersSent) res.writeHead(err.code === 'EPRIVATE' ? 403 : 502)
         res.end()
@@ -150,15 +170,34 @@ export class EgressProxy {
         client.end('HTTP/1.1 400 Bad Request\r\n\r\n')
         return
       }
-      const [, host, port] = m
+      const [, host, portText] = m
+      const port = Number(portText)
       const refuse = () => client.end('HTTP/1.1 403 Forbidden\r\n\r\n')
+      // A port out of range would throw here and take the engine down (R1).
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        client.end('HTTP/1.1 400 Bad Request\r\n\r\n')
+        return
+      }
       try {
         assertHostAllowed(host!)
       } catch {
         refuse()
         return
       }
-      const upstream = connect({ host: host!, port: Number(port), lookup: guardedLookup })
+      let upstream: Socket
+      try {
+        upstream = connect({ host: host!, port, lookup: guardedLookup })
+      } catch {
+        client.end('HTTP/1.1 502 Bad Gateway\r\n\r\n')
+        return
+      }
+      // A tunnel nobody uses any more is closed (R11).
+      const idle = () => {
+        upstream.destroy()
+        client.destroy()
+      }
+      client.setTimeout(TUNNEL_IDLE_MS, idle)
+      upstream.setTimeout(TUNNEL_IDLE_MS, idle)
       upstream.on('connect', () => {
         client.write('HTTP/1.1 200 Connection Established\r\n\r\n')
         if (head.length) upstream.write(head)

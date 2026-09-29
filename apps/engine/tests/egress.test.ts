@@ -98,3 +98,35 @@ describe('private address ranges (security pass 2, S9)', () => {
     for (const a of ['2606:4700::6810:84e5', '8.8.8.8']) expect(isPrivateAddress(a), a).toBe(false)
   })
 })
+
+describe('the proxy under bad input (security review R1, R2)', () => {
+  it('answers a CONNECT to an impossible port instead of crashing', async () => {
+    const proxy = new EgressProxy()
+    await proxy.start()
+    const line = await new Promise<string>((resolve) => {
+      const s = connect(Number(new URL(proxy.url!).port), '127.0.0.1', () =>
+        s.write('CONNECT example.com:99999 HTTP/1.1\r\nHost: example.com:99999\r\n\r\n'),
+      )
+      s.once('data', (d) => {
+        resolve(d.toString().split('\r\n')[0]!)
+        s.destroy()
+      })
+    })
+    expect(line).toBe('HTTP/1.1 400 Bad Request')
+    // Still serving.
+    expect(proxy.url).not.toBeNull()
+    proxy.stop()
+  })
+
+  it('starts ffmpeg and yt-dlp without the user’s proxy settings', async () => {
+    const { mediaEnv } = await import('../src/media/egress')
+    process.env.no_proxy = 'localhost,127.0.0.1'
+    process.env.HTTPS_PROXY = 'http://elsewhere:3128'
+    const env = mediaEnv()
+    expect(env.no_proxy).toBeUndefined()
+    expect(env.HTTPS_PROXY).toBeUndefined()
+    expect(env.PATH).toBe(process.env.PATH)
+    delete process.env.no_proxy
+    delete process.env.HTTPS_PROXY
+  })
+})

@@ -1,6 +1,6 @@
 ---
 tags: [audits, security]
-status: open
+status: closed
 updated: 2026-09-29
 ---
 
@@ -8,7 +8,7 @@ updated: 2026-09-29
 
 - **Type:** security
 - **Opened:** 2026-09-29 · **Closed:** —
-- **Status:** `open`: every finding fixed (S1 for the installed path); the native host and install.sh still to re-check ([M06b.15](../plan/milestones/06b-One-Install.md))
+- **Status:** `closed`: every finding fixed (S1 for the installed path) or accepted with a reason (R6); the native host and install.sh re-checked (R1–R11)
 - **Trigger:** [my review of the Beta-1 build](../checkpoints/Beta-1-Checklist.md#9-review-after-using-the-build-2026-09-29): audits before committing to a beta.
 
 ## 1. Scope
@@ -48,7 +48,23 @@ No P0 or P1. Three P2s: under the pass-1 rule, each is fixed or explicitly waive
 | S10 | P3       | Logs (G2)              | Job failure messages carry the last stderr line of ffmpeg or yt-dlp, which can include signed media URLs or page URLs, into `engine.log` (the directory is 0700). _Uncertain how often._                                                                                                                                                                                                 | `jobs/queue.ts:410`; `remote.ts:187-194, 263-268`                                                    | **fixed** (`1d1852b`): job failures are logged with each URL reduced to its host                                                                                                                                                                                                                                                                                                                                                    |
 | S11 | P3       | Prompts (D2)           | `cueLine` collapses only `\n`: a cue containing `\r` or U+2028 then `2: …` could put a fake numbered line inside `<subtitles>` (the length guard and exact-count parse limit it). _Not reproduced._                                                                                                                                                                                      | `translate/paragraphs.ts:16-18`; `prompt.ts:89`                                                      | **fixed** (`1d1852b`): every line break and control character in a cue becomes a space (unit test)                                                                                                                                                                                                                                                                                                                                  |
 
-## 5. Fixes & follow-ups
+### Review of the surface added since (2026-09-29)
+
+The native host, install.sh, the egress proxy, the settings endpoint, the popup's engine controls, the hand-over consent and the relay copy, reviewed after S1–S11 were fixed. No P0 or P1.
+
+| ID  | Severity | Area           | Finding                                                                                                                                     | Disposition                                                                                                                                                                                                         |
+| --- | -------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | P2       | Egress proxy   | A CONNECT to a port over 65535 threw inside the handler and ended the engine; a page's HLS playlist could name such a segment.              | **fixed**: ports checked (1–65535), `connect` guarded; test                                                                                                                                                         |
+| R2  | P2       | Egress proxy   | ffmpeg honours `no_proxy` from the environment it inherits (desktops often list `localhost`), which would skip the proxy.                   | **fixed**: ffmpeg and yt-dlp start with every `*_proxy` variable removed (`mediaEnv`); test                                                                                                                         |
+| R3  | P2       | install.sh     | Nothing stopped it from running as root (the engine and its fetchers as root, or root-owned files in the user's home).                      | **fixed**: refuses to run as root; sudo only for packages                                                                                                                                                           |
+| R4  | P2       | install.sh     | `SUBLIGHT_HOME` was used as given for deletions (`$HOME` would have removed parts of it; `--yes` the rest); the wrappers didn't pass it on. | **fixed**: an absolute path of its own (not `/`, not `$HOME`, no quote, `$`, backtick or backslash); uninstall only where a sublight install is; data deleted only by `--purge` or a typed yes; wrappers pass it on |
+| R5  | P3       | Egress proxy   | Jobs could start before the proxy was listening.                                                                                            | **fixed**: jobs start after the proxy; if it can't start, none do                                                                                                                                                   |
+| R6  | P3       | Extension      | While the engine is off (idle), another local user could listen on its port and receive the token.                                          | **accepted**: other users on the same machine are out of scope ([ADR-0022](../architecture/decisions/0022-one-click-pairing.md), F17)                                                                               |
+| R7  | P3       | Captions cache | A `url` job's `relayId` wasn't part of its cache key: one page's copy could fill another page's cache.                                      | **fixed**: the relay is part of the key                                                                                                                                                                             |
+| R8  | P3       | Config         | With config.json missing, saving settings or a new token wrote the whole running config, env overrides included.                            | **fixed**: only the changed fields are written                                                                                                                                                                      |
+| R9  | P3       | Extension      | The Player address from storage was opened, and given the hand-over, without a check.                                                       | **fixed**: only `http://127.0.0.1` or `localhost`, else the default; test                                                                                                                                           |
+| R10 | P3       | install.sh     | SHA256SUMS comes from the same release as the archive; paths went unescaped into generated scripts.                                         | **fixed**: the released install.sh carries the archive's hash (written in by `package.mjs`); paths with unsafe characters are refused                                                                               |
+| R11 | P3       | Egress proxy   | Tunnels and requests had no idle timeout.                                                                                                   | **fixed**: 5 min idle                                                                                                                                                                                               |
 
 | Finding | Fix                                                         | Verified by                                                | Date       |
 | ------- | ----------------------------------------------------------- | ---------------------------------------------------------- | ---------- |

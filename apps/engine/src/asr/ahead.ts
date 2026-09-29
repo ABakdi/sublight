@@ -335,6 +335,8 @@ export function aheadRunner(deps: AheadDeps): AheadRunner {
         req.params?.task ?? 'transcribe',
         req.params?.language ?? 'auto',
         req.params?.bilingual ? 'bilingual' : '',
+        // A saved copy is its own source: another page's copy can't fill this page's cache (R7).
+        req.relayId ?? '',
       ].join('|')
     },
 

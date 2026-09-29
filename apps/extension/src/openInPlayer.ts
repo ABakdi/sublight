@@ -65,6 +65,24 @@ export function buildPayload(
 }
 
 /**
+ * The Player address from Settings, when it is one on this computer
+ * (127.0.0.1 or localhost over http); anything else means the default. The
+ * hand-over goes to it, so a stored value a page slipped in can't redirect
+ * it (security review R9).
+ */
+export function playerUrl(stored: unknown): string {
+  if (typeof stored !== 'string' || !stored) return DEFAULT_PLAYER_URL
+  try {
+    const u = new URL(stored)
+    const local =
+      u.protocol === 'http:' && (u.hostname === '127.0.0.1' || u.hostname === 'localhost')
+    return local && !u.username && !u.password ? `${u.origin}${u.pathname}` : DEFAULT_PLAYER_URL
+  } catch {
+    return DEFAULT_PLAYER_URL
+  }
+}
+
+/**
  * "Open in Sublight Player" (M05b): pause the video on its page (so it isn't
  * heard twice) and open the Player on it, at the same moment.
  */
@@ -76,10 +94,7 @@ export async function openInPlayer(
   if (owner.state.primary.isLive)
     return { ok: false, error: 'This is a live stream: it can only be captioned on its page.' }
   const prefs = await browser.storage.local.get([PLAYER_URL_KEY, COOKIES_KEY])
-  const base = ((prefs[PLAYER_URL_KEY] as string | undefined) || DEFAULT_PLAYER_URL).replace(
-    /#.*$/,
-    '',
-  )
+  const base = playerUrl(prefs[PLAYER_URL_KEY])
   const tab = await browser.tabs.get(tabId).catch(() => null)
   const title = owner.state.title || tab?.title || ''
   const payload = buildPayload(

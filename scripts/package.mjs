@@ -56,7 +56,18 @@ for (const f of ['INSTALL.md', 'CHANGELOG.md', 'LICENSE'])
   if (existsSync(join(ROOT, f))) cpSync(join(ROOT, f), join(stage, f))
 
 run('tar', ['-czf', join(out, `${name}.tar.gz`), name], join(out, '.stage'))
-cpSync(join(ROOT, 'scripts/install.sh'), join(out, 'install.sh'))
+// The installer trusts only this archive (its hash written in, security review R10).
+const archiveSha = createHash('sha256')
+  .update(readFileSync(join(out, `${name}.tar.gz`)))
+  .digest('hex')
+writeFileSync(
+  join(out, 'install.sh'),
+  readFileSync(join(ROOT, 'scripts/install.sh'), 'utf8').replace(
+    /^ARCHIVE_SHA256=""$/m,
+    `ARCHIVE_SHA256="${archiveSha}"`,
+  ),
+  { mode: 0o755 },
+)
 if (spawnSync('zip', ['-v'], { stdio: 'ignore' }).status === 0)
   run('zip', ['-qr', join(out, `sublight-extension-${version}-chromium.zip`), '.'], extension)
 else console.warn('zip not found: skipping the extension zip')
