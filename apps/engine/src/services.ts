@@ -66,6 +66,25 @@ export function runtimeBinary(
   return { binary, gpu }
 }
 
+/**
+ * Where the models run, after a settings change (developer mode): the GPU when
+ * the binary was built for it and the config allows, else the CPU. The model
+ * servers restart with it at their next job.
+ */
+export function applyDevice(services: EngineServices, config: EngineConfig): void {
+  services.whisper.setGpu(runtimeBinary('whisper', config, services.paths).gpu)
+  services.llama.setGpu(runtimeBinary('llama', config, services.paths).gpu)
+}
+
+/** Can this binary use the GPU at all (a CUDA build)? */
+export function gpuBuild(
+  name: 'whisper' | 'llama',
+  config: EngineConfig,
+  paths: EnginePaths,
+): boolean {
+  return runtimeBinary(name, { ...config, [name]: { ...config[name], gpu: 'auto' } }, paths).gpu
+}
+
 /** Build the engine's long-lived services; the caller starts the queue after wiring. */
 export function createServices(config: EngineConfig, paths: EnginePaths): EngineServices {
   const bus = new EventBus()

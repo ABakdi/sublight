@@ -37,6 +37,7 @@ import {
 import type { ModelsResponse } from '@sublight/protocol'
 import type { EngineStatus } from './messages'
 import { button, colors, primaryButton } from './ui'
+import { DEVELOPER_MODE_KEY, DeviceChoice } from './engineCards'
 
 /**
  * "Unpair every app" (M06.3): the engine makes a new token, so this browser,
@@ -848,6 +849,44 @@ export function Shortcuts() {
         Alt+Shift+C and Alt+Shift+L can be changed at brave://extensions/shortcuts (or
         chrome://extensions/shortcuts). The others work on a page with captions on.
       </p>
+    </section>
+  )
+}
+
+/**
+ * Developer mode (Settings): the choice of CPU or GPU and, where asked,
+ * pairing by hand, hidden from everyone else.
+ */
+export function DeveloperSettings({ withPairing = false }: { withPairing?: boolean }) {
+  const [on, setOn] = useState(false)
+  useEffect(() => {
+    void browser.storage.local
+      .get(DEVELOPER_MODE_KEY)
+      .then((got) => setOn(got[DEVELOPER_MODE_KEY] === true))
+  }, [])
+  const toggle = (value: boolean) => {
+    setOn(value)
+    void browser.storage.local.set({ [DEVELOPER_MODE_KEY]: value })
+  }
+  return (
+    <section style={sectionStyle} data-testid="developer-settings">
+      <label
+        style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 15, fontWeight: 600 }}
+      >
+        <input
+          type="checkbox"
+          data-testid="developer-mode"
+          checked={on}
+          onChange={(e) => toggle(e.target.checked)}
+        />
+        Developer mode
+      </label>
+      {on && (
+        <div style={{ display: 'grid', gap: 12, marginTop: 10 }}>
+          <DeviceChoice />
+          {withPairing && <EnginePairing />}
+        </div>
+      )}
     </section>
   )
 }

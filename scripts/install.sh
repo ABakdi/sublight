@@ -141,9 +141,27 @@ trap 'rm -rf "$WORK"' EXIT
 
 # --- system packages -------------------------------------------------------
 
+# nvcc from a CUDA toolkit, where the engine's setup looks for it.
+have_nvcc() { have nvcc || [[ -x /opt/cuda/bin/nvcc ]]; }
+
+# An NVIDIA GPU with its driver running (nvidia-smi answers): CUDA can use it.
+GPU=""
+detect_gpu() {
+  [[ -n $CPU ]] && return
+  if have nvidia-smi && nvidia-smi -L >/dev/null 2>&1; then
+    GPU=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+    GPU=${GPU:-NVIDIA GPU}
+  elif have lspci && lspci 2>/dev/null | grep -qi 'vga.*nvidia\|3d.*nvidia'; then
+    note "An NVIDIA graphics card is here, but its driver isn't running: install the NVIDIA driver"
+    note "and run this again to use it. Using the processor (CPU) for now."
+  fi
+}
+
 # Packages this machine is missing, named for its package manager.
 missing_packages() {
   local pm=$1 need=()
+  # The GPU needs the CUDA toolkit to build the speech and translation engines for it.
+  [[ -n $GPU ]] && ! have_nvcc && need+=(cuda)
   have ffmpeg && have ffprobe || need+=(ffmpeg)
   have git || need+=(git)
   have cmake || need+=(cmake)
@@ -157,6 +175,7 @@ missing_packages() {
       apt-get:compiler | apt-get:make) out+=(build-essential) ;;
       dnf:compiler | zypper:compiler) out+=(gcc-c++) ;;
       apt-get:xz) out+=(xz-utils) ;;
+      apt-get:cuda) out+=(nvidia-cuda-toolkit) ;;
       *:compiler) out+=(g++) ;;
       *) out+=("$p") ;;
     esac
@@ -169,6 +188,12 @@ install_system_packages() {
   for candidate in pacman apt-get dnf zypper; do
     if have $candidate; then pm=$candidate; break; fi
   done
+  # The CUDA toolkit is a package on Arch and Debian/Ubuntu; elsewhere it comes from NVIDIA.
+  if [[ -n $GPU ]] && ! have_nvcc && [[ $pm != pacman && $pm != apt-get ]]; then
+    note "The CUDA toolkit comes from NVIDIA's own repository on this system:"
+    note "https://developer.nvidia.com/cuda-downloads (then run this again). Using the CPU for now."
+    GPU=""
+  fi
   local pkgs
   pkgs=$(missing_packages "${pm:-none}")
   [[ -z ${pkgs// /} ]] && return 0
@@ -181,6 +206,8 @@ install_system_packages() {
     *) die "install these with your package manager, then run this again: $pkgs" ;;
   esac
   [[ $pm == dnf && $pkgs == *ffmpeg* ]] && note "Fedora: ffmpeg comes from RPM Fusion (https://rpmfusion.org)."
+  [[ $pkgs == *cuda* ]] && note "$GPU found: the CUDA toolkit (about 4 GB) lets sublight use it."
+
   if ask "Install them now with: ${cmd[*]} $pkgs?" y; then
     [[ $pm == apt-get ]] && sudo apt-get update -qq
     # shellcheck disable=SC2086 # one word per package
@@ -291,6 +318,7 @@ EOF
 
 # --- run -------------------------------------------------------------------
 
+detect_gpu
 install_system_packages
 find_node
 fetch_release
@@ -299,8 +327,17 @@ ENGINE="$APP/sublight-engine"
 # A running older engine: stop it; the extension starts the new one when needed.
 "$ENGINE" stop >/dev/null 2>&1 || true
 
-say "Speech recognition"
-"$ENGINE" setup whisper $CPU
+# The GPU build when CUDA is here, else the CPU; a GPU build that fails falls back to the CPU.
+setup_runtime() { # whisper | llama
+  if [[ -z $CPU ]] && have_nvcc; then
+    "$ENGINE" setup "$1" && return
+    note "Building $1 for the GPU failed: building it for the processor (CPU) instead."
+  fi
+  "$ENGINE" setup "$1" --cpu
+}
+
+say "Speech recognition${GPU:+ (on the $GPU)}"
+setup_runtime whisper
 "$ENGINE" setup yt-dlp
 "$ENGINE" model install "$DEFAULT_MODEL"
 
@@ -312,7 +349,7 @@ if [[ $TRANSLATION == ask ]]; then
 fi
 if [[ $TRANSLATION == yes ]]; then
   say "Translation"
-  "$ENGINE" setup llama $CPU
+  setup_runtime llama
 fi
 
 register_native_host

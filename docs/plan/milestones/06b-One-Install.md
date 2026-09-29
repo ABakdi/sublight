@@ -18,6 +18,8 @@ updated: 2026-09-29
   - unpacks the extension to a fixed folder and opens the browser's extensions page, with the two clicks to make
   - can uninstall everything
 - **The extension runs the engine** through that native host. It gets the engine's token from the host, so there is no pairing and no token to copy. It starts the engine when something needs it, shows whether it is on or off, and the engine turns itself off when idle. Autostart at login stays available but is off by default.
+- **The GPU when there is one.** On a machine with an NVIDIA graphics card and its driver, install.sh adds the CUDA toolkit to the system packages it installs (Arch `cuda`, Debian/Ubuntu `nvidia-cuda-toolkit`; elsewhere it points to NVIDIA's download and uses the CPU), and the speech and translation engines are built for the GPU. Without one, or if the GPU build fails, they are built for the CPU.
+- **Developer mode** (Settings) shows the choice to run the models on the GPU or the CPU, and pairing by hand.
 - **The Player comes with the install.** The engine serves it as before. The popup opens it, starting the engine first if it's off.
 - Pairing and the token field stay under _Settings → Advanced_, for development.
 

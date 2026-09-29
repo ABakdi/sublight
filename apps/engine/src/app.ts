@@ -30,7 +30,7 @@ import { buildHealth, buildVersion } from './health'
 import { JobError } from './jobs/queue'
 import { MediaError } from './media/store'
 import { ModelError } from './models/manager'
-import type { EngineServices } from './services'
+import { applyDevice, gpuBuild, type EngineServices } from './services'
 
 export interface AppOptions {
   /** Omitted in tests of the auth/health surface alone. */
@@ -178,9 +178,26 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
   })
 
   // Settings the extension changes (M06b.7): the idle delays, in minutes (0 = never).
-  app.get('/v1/settings', (c) => c.json({ idle: config.idle }))
+  const settings = () => ({
+    idle: config.idle,
+    device: config.whisper.gpu === 'off' ? 'cpu' : 'auto',
+    // What each model server can do and does now (developer mode).
+    ...(s
+      ? {
+          gpu: {
+            whisper: { built: gpuBuild('whisper', config, s.paths), inUse: s.whisper.usesGpu },
+            llama: { built: gpuBuild('llama', config, s.paths), inUse: s.llama.usesGpu },
+          },
+        }
+      : {}),
+  })
+  app.get('/v1/settings', (c) => c.json(settings()))
   app.put('/v1/settings', async (c) => {
-    const body = await c.req.json<{ idle?: Record<string, unknown> }>().catch(() => null)
+    const body = await c.req
+      .json<{ idle?: Record<string, unknown>; device?: unknown }>()
+      .catch(() => null)
+    if (body?.device !== undefined && body.device !== 'auto' && body.device !== 'cpu')
+      return jsonError(c, 'JOB_INVALID', 'device must be "auto" or "cpu"', 400)
     const idle: Partial<{ unloadMinutes: number; exitMinutes: number }> = {}
     for (const key of ['unloadMinutes', 'exitMinutes'] as const) {
       const v = body?.idle?.[key]
@@ -189,8 +206,10 @@ export function createApp(config: EngineConfig, opts: AppOptions = {}): Hono {
         return jsonError(c, 'JOB_INVALID', `idle.${key} must be 0-1440 minutes`, 400)
       idle[key] = v
     }
-    saveSettings(config, { idle })
-    return c.json({ idle: config.idle })
+    const device = body?.device as 'auto' | 'cpu' | undefined
+    saveSettings(config, { idle, ...(device ? { device } : {}) })
+    if (device && s) applyDevice(s, config)
+    return c.json(settings())
   })
   app.get('/v1/health', async (c) => c.json(buildHealth(bootedAt, s, s ? await gpu() : undefined)))
   app.get('/v1/version', (c) => c.json(buildVersion()))

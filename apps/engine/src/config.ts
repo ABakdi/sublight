@@ -161,11 +161,15 @@ export function loadConfig(overrides?: Partial<EngineConfig>): EngineConfig {
 }
 
 /**
- * Save settings the extension changes (M06b.7: the idle delays) to
+ * Save settings the extension changes (M06b.7: the idle delays; the device
+ * in developer mode) to
  * config.json and into the running `config`, touching only those fields, so
  * env overrides never get written into the file.
  */
-export function saveSettings(config: EngineConfig, patch: { idle?: Partial<IdleConfig> }): void {
+export function saveSettings(
+  config: EngineConfig,
+  patch: { idle?: Partial<IdleConfig>; device?: 'auto' | 'cpu' },
+): void {
   const file = join(sublightHome(), 'config.json')
   let raw: Record<string, unknown> = {}
   try {
@@ -177,6 +181,14 @@ export function saveSettings(config: EngineConfig, patch: { idle?: Partial<IdleC
     // In place: the idle monitor holds this object.
     Object.assign(config.idle, patch.idle)
     raw.idle = { ...config.idle }
+  }
+  if (patch.device) {
+    // Developer mode: run the models on the CPU even with a GPU.
+    const gpu = patch.device === 'cpu' ? 'off' : 'auto'
+    config.whisper.gpu = gpu
+    config.llama.gpu = gpu
+    for (const name of ['whisper', 'llama'] as const)
+      raw[name] = { ...((raw[name] as object | undefined) ?? {}), gpu }
   }
   const tmp = `${file}.tmp`
   writeFileSync(tmp, JSON.stringify(raw, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 })

@@ -244,6 +244,11 @@ test.describe('extension in Chromium (Spec 09)', () => {
     await expect(popup.getByTestId('model-whisper-small')).toBeVisible()
     await popup.getByTestId('tab-settings').click()
     await expect(popup.getByTestId('caption-model-select')).toBeVisible()
+    // Developer mode: where the models run.
+    await expect(popup.getByTestId('device-choice')).toHaveCount(0)
+    await popup.getByTestId('developer-mode').check()
+    await expect(popup.getByTestId('device-gpu')).toBeVisible()
+    await expect(popup.getByTestId('token-input')).toBeVisible() // pairing by hand
   })
 
   test('loads with the pinned dev ID and pairs with the engine', async () => {

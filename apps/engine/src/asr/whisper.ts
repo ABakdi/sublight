@@ -59,11 +59,20 @@ export class WhisperWorker {
     return this.server.logFile
   }
 
-  /** Make sure the server runs with this model; restarts on a model change or after a crash. */
+  /** Run on the GPU or not (Settings → Developer mode); the next job restarts the server. */
+  setGpu(useGpu: boolean): void {
+    this.opts.useGpu = useGpu
+  }
+
+  get usesGpu(): boolean {
+    return this.opts.useGpu
+  }
+
+  /** Make sure the server runs with this model; restarts on a model or device change, or after a crash. */
   ensure(modelId: string, modelPath: string): Promise<void> {
     const args = ['-m', modelPath, '-t', String(this.opts.threads ?? 4)]
     if (!this.opts.useGpu) args.push('--no-gpu')
-    return this.server.ensure(modelId, modelPath, args)
+    return this.server.ensure(modelId, `${modelPath}#${this.opts.useGpu ? 'gpu' : 'cpu'}`, args)
   }
 
   /** Transcribe (or translate → English) one 16 kHz mono WAV (a path, or the bytes). */

@@ -147,6 +147,7 @@ describe('idle delays from the extension (M06b.7)', () => {
     const h = { host: '127.0.0.1:17421', authorization: `Bearer ${config.token}` }
     expect(await (await app.request('/v1/settings', { headers: h })).json()).toEqual({
       idle: { unloadMinutes: 5, exitMinutes: 20 },
+      device: 'auto',
     })
     const put = (idle: unknown) =>
       app.request('/v1/settings', {
@@ -162,6 +163,25 @@ describe('idle delays from the extension (M06b.7)', () => {
     }
     expect(saved.idle).toEqual({ unloadMinutes: 5, exitMinutes: 0 })
     expect(saved.token).toBe(config.token)
+    // Developer mode: the models on the CPU, saved for both model servers.
+    const cpu = await app.request('/v1/settings', {
+      method: 'PUT',
+      headers: { ...h, 'content-type': 'application/json' },
+      body: JSON.stringify({ device: 'cpu' }),
+    })
+    expect(await cpu.json()).toMatchObject({ device: 'cpu' })
+    expect([config.whisper.gpu, config.llama.gpu]).toEqual(['off', 'off'])
+    const file = JSON.parse(readFileSync(join(home, 'config.json'), 'utf8')) as {
+      whisper: { gpu: string }
+      llama: { gpu: string }
+    }
+    expect([file.whisper.gpu, file.llama.gpu]).toEqual(['off', 'off'])
+    const bad = await app.request('/v1/settings', {
+      method: 'PUT',
+      headers: { ...h, 'content-type': 'application/json' },
+      body: JSON.stringify({ device: 'tpu' }),
+    })
+    expect(bad.status).toBe(400)
     expect((await put({ unloadMinutes: -1 })).status).toBe(400)
     expect((await put({ unloadMinutes: 'soon' })).status).toBe(400)
   })

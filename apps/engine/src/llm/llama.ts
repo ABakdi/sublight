@@ -84,6 +84,15 @@ export class LlamaWorker {
     ])
   }
 
+  /** Run on the GPU or not (Settings → Developer mode); the next job restarts the server. */
+  setGpu(useGpu: boolean): void {
+    this.opts.useGpu = useGpu
+  }
+
+  get usesGpu(): boolean {
+    return this.opts.useGpu
+  }
+
   /** Set when full GPU offload failed for this model; later loads go straight to --fit. */
   private fitOnly: string | null = null
 

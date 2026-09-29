@@ -3,6 +3,7 @@ import { browser } from 'wxt/browser'
 import type { EngineStatus } from '../../src/messages'
 import {
   CaptionStyleSettings,
+  DeveloperSettings,
   EnginePairing,
   FetchSettings,
   LiveSettings,
@@ -40,6 +41,7 @@ export function OptionsApp() {
       <FetchSettings />
       <TranslationModel online={online} />
       <Shortcuts />
+      <DeveloperSettings />
       <EnginePairing onStatus={setStatus} />
     </main>
   )

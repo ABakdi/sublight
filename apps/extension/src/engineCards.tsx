@@ -426,3 +426,73 @@ export function ModelsCard() {
     </section>
   )
 }
+
+/** Developer mode (Settings): shows what most people never need. */
+export const DEVELOPER_MODE_KEY = 'developerMode'
+
+interface DeviceSettings {
+  device: 'auto' | 'cpu'
+  gpu?: {
+    whisper: { built: boolean; inUse: boolean }
+    llama: { built: boolean; inUse: boolean }
+  }
+}
+
+/** Where the models run (developer mode): the GPU when there is one, or the CPU. */
+export function DeviceChoice() {
+  const [s, setS] = useState<DeviceSettings | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    void engineRequest<DeviceSettings>('/v1/settings', {}, { start: false }).then(setS, () =>
+      setS(null),
+    )
+  }, [])
+  const choose = async (device: 'auto' | 'cpu') => {
+    setError(null)
+    try {
+      setS(
+        await engineRequest<DeviceSettings>('/v1/settings', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ device }),
+        }),
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+  if (!s) return <p style={small}>Turn the engine on to choose where the models run.</p>
+  const built = s.gpu?.whisper.built ?? false
+  return (
+    <div data-testid="device-choice" style={{ display: 'grid', gap: 4, fontSize: 12 }}>
+      <b>Run the models on</b>
+      <label style={{ display: 'flex', gap: 6 }}>
+        <input
+          type="radio"
+          name="device"
+          data-testid="device-gpu"
+          checked={s.device === 'auto'}
+          disabled={!built}
+          onChange={() => void choose('auto')}
+        />
+        The graphics card (GPU)
+        {built ? ', much faster' : ': not available, the engine was built for the CPU'}
+      </label>
+      <label style={{ display: 'flex', gap: 6 }}>
+        <input
+          type="radio"
+          name="device"
+          data-testid="device-cpu"
+          checked={s.device === 'cpu' || !built}
+          onChange={() => void choose('cpu')}
+        />
+        The processor (CPU): slower, leaves the graphics card free
+      </label>
+      <span style={{ ...small, fontSize: 11 }}>
+        Now: speech on the {s.gpu?.whisper.inUse ? 'GPU' : 'CPU'}, translation on the{' '}
+        {s.gpu?.llama.inUse ? 'GPU' : 'CPU'}. A change applies from the next job.
+      </span>
+      {error && <span style={{ color: colors.bad }}>{error}</span>}
+    </div>
+  )
+}

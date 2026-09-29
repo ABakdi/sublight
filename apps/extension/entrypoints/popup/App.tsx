@@ -18,7 +18,7 @@ import { send } from '../../src/send'
 import { EngineCard, ModelsCard } from '../../src/engineCards'
 import {
   CaptionStyleSettings,
-  EnginePairing,
+  DeveloperSettings,
   FetchSettings,
   LiveSettings,
   Shortcuts,
@@ -253,12 +253,7 @@ export function PopupApp() {
           <FetchSettings />
           <TranslationModel online={engine?.state === 'online'} />
           <Shortcuts />
-          <details style={{ ...card, gap: 0 }}>
-            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-              Advanced: pairing by hand
-            </summary>
-            <EnginePairing onStatus={() => refreshEngine()} />
-          </details>
+          <DeveloperSettings withPairing />
         </>
       )}
 
